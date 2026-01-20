@@ -21,6 +21,7 @@ export function parseRoles(roleStr: string): string[] {
 /**
  * Parse pages string into array and tree structure
  * Format: "Dashboard,User,Laporan>ExportJurnal|ExportAbsensi"
+ * Also supports legacy format with Unicode checkbox symbols: "☑Page1☐Page2"
  */
 export function parsePages(pagesStr: string): {
     pagesArray: string[];
@@ -28,7 +29,16 @@ export function parsePages(pagesStr: string): {
 } {
     if (!pagesStr) return { pagesArray: [], pagesTree: [] };
 
-    const tokens = pagesStr.split(',').map(s => s.trim()).filter(Boolean);
+    // Clean Unicode symbols that might be used as prefixes
+    // Remove: ☑ ☐ 📊 📋 🔧 ↓ 📣 🎓 👥 ⊗ and other common emoji/symbols
+    let cleanedStr = pagesStr.replace(/[☑☐📊📋🔧↓📣🎓👥⊗🎯📈📉✓✔️❌⚠️📌📍🔔🔕]/g, '');
+
+    // Replace Unicode checkbox symbols with comma if they're being used as separators
+    // This handles legacy format where ☐ was used instead of comma
+    cleanedStr = cleanedStr.replace(/[\u2610\u2611\u2612]/g, ',');
+
+    // Split by comma and clean up
+    const tokens = cleanedStr.split(',').map(s => s.trim()).filter(Boolean);
     const tree: PageNode[] = [];
     const flatPages: string[] = [];
 

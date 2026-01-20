@@ -6,178 +6,188 @@ import { supabase } from '@/lib/supabase'
 import { getUserByUsername } from '@/lib/auth'
 
 export default function LoginPage() {
-    const router = useRouter()
-    const [username, setUsername] = useState('')
-    const [password, setPassword] = useState('')
-    const [showPassword, setShowPassword] = useState(false)
-    const [loading, setLoading] = useState(false)
-    const [error, setError] = useState('')
+  const router = useRouter()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-    const handleLogin = async (e: FormEvent) => {
-        e.preventDefault()
-        setError('')
-        setLoading(true)
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
 
-        try {
-            if (!username || !password) {
-                setError('Username dan password wajib diisi')
-                return
-            }
+    try {
+      if (!username || !password) {
+        setError('Username dan password wajib diisi')
+        return
+      }
 
-            // 1. Get user from database
-            const user = await getUserByUsername(username)
+      // 1. Get user from database
+      const user = await getUserByUsername(username)
+      
+      if (!user) {
+        setError('Username tidak ditemukan')
+        return
+      }
 
-            if (!user) {
-                setError('Username tidak ditemukan')
-                return
-            }
+      if (!user.aktif) {
+        setError('Akun tidak aktif')
+        return
+      }
 
-            if (!user.aktif) {
-                setError('Akun tidak aktif')
-                return
-            }
+      // 2. Check if user already has auth_id (already migrated)
+      if (user.auth_id) {
+        // User already migrated, use Supabase Auth
+        const email = `${username}@acca.local`
+        
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        })
 
-            // 2. Check if user already has auth_id (already migrated)
-            if (user.auth_id) {
-                // User already migrated, use Supabase Auth
-                const email = `${username}@acca.local` // Generate email from username
-
-                const { data, error: signInError } = await supabase.auth.signInWithPassword({
-                    email,
-                    password
-                })
-
-                if (signInError) {
-                    setError('Password salah')
-                    return
-                }
-
-                // Success! Redirect to dashboard
-                router.push('/dashboard')
-            } else {
-                // User not migrated yet, need to create auth account
-                // This is the migration flow
-                const email = `${username}@acca.local`
-
-                // Create auth user
-                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                    email,
-                    password,
-                    options: {
-                        data: {
-                            username,
-                            guruId: user.guruId,
-                            nama: user.nama
-                        }
-                    }
-                })
-
-                if (signUpError) {
-                    setError('Gagal membuat akun: ' + signUpError.message)
-                    return
-                }
-
-                if (!signUpData.user) {
-                    setError('Gagal membuat akun')
-                    return
-                }
-
-                // Update users table with auth_id
-                const { error: updateError } = await supabase
-                    .from('users')
-                    .update({ auth_id: signUpData.user.id })
-                    .eq('id', user.id)
-
-                if (updateError) {
-                    console.error('Failed to update auth_id:', updateError)
-                }
-
-                // Success! Redirect to dashboard
-                router.push('/dashboard')
-            }
-
-        } catch (err: any) {
-            console.error('Login error:', err)
-            setError(err.message || 'Terjadi kesalahan')
-        } finally {
-            setLoading(false)
+        if (signInError) {
+          setError('Password salah')
+          return
         }
+
+        // Success! Redirect to dashboard
+        router.push('/dashboard')
+      } else {
+        // User not migrated yet, need to create auth account
+        const email = `${username}@acca.local`
+        
+        // Create auth user
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              username,
+              guruId: user.guruId,
+              nama: user.nama
+            }
+          }
+        })
+
+        if (signUpError) {
+          setError('Gagal membuat akun: ' + signUpError.message)
+          return
+        }
+
+        if (!signUpData.user) {
+          setError('Gagal membuat akun')
+          return
+        }
+
+        // Update users table with auth_id
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ auth_id: signUpData.user.id })
+          .eq('id', user.id)
+
+        if (updateError) {
+          console.error('Failed to update auth_id:', updateError)
+        }
+
+        // Success! Redirect to dashboard
+        router.push('/dashboard')
+      }
+
+    } catch (err: any) {
+      console.error('Login error:', err)
+      setError(err.message || 'Terjadi kesalahan')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    return (
-        <div className="login-container">
-            {/* Left Side - Branding */}
-            <div className="login-left">
-                <div className="login-left-content">
-                    <img
-                        src="https://via.placeholder.com/180x180/3aa6ff/ffffff?text=ACCA"
-                        alt="Logo ACCA"
-                        className="logo"
-                    />
-                    <h1>MAN Insan Cendekia Gowa</h1>
-                    <p>Academic Center & Access</p>
-                </div>
+  return (
+    <div className="login-container">
+      {/* Left Side - Branding */}
+      <div id="login-left">
+        <img 
+          src="https://drive.google.com/thumbnail?id=1dB7qVU5MT9HuPgSSLf6ZMIHcQDC6nJh3&sz=w1000" 
+          alt="Logo MAN IC Gowa" 
+        />
+        <h1>MAN Insan Cendekia Gowa</h1>
+        <p>Academic Center & Access</p>
+      </div>
+
+      {/* Right Side - Login Form */}
+      <div id="login-right">
+        <div className="login-card">
+          <h3>Login ACCA</h3>
+
+          <form onSubmit={handleLogin}>
+            <input
+              type="text"
+              id="username"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              disabled={loading}
+            />
+
+            <div className="position-relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                id="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                disabled={loading}
+              />
+              <span 
+                id="togglePassword"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
+              </span>
             </div>
 
-            {/* Right Side - Login Form */}
-            <div className="login-right">
-                <div className="login-card">
-                    <h3>Login ACCA</h3>
+            {error && (
+              <div className="error-message">
+                <i className="bi bi-exclamation-circle me-2"></i>
+                {error}
+              </div>
+            )}
 
-                    <form onSubmit={handleLogin}>
-                        <input
-                            type="text"
-                            placeholder="Username"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            autoComplete="username"
-                            disabled={loading}
-                        />
+            <button type="submit" id="btnLogin" disabled={loading}>
+              {loading ? (
+                'Memproses...'
+              ) : (
+                <>
+                  <i className="fa-solid fa-right-to-bracket me-2"></i>
+                  Login
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
 
-                        <div className="password-wrapper">
-                            <input
-                                type={showPassword ? 'text' : 'password'}
-                                placeholder="Password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                autoComplete="current-password"
-                                disabled={loading}
-                            />
-                            <button
-                                type="button"
-                                className="toggle-password"
-                                onClick={() => setShowPassword(!showPassword)}
-                                aria-label="Toggle password visibility"
-                            >
-                                <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
-                            </button>
-                        </div>
+      <style jsx global>{`
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
 
-                        {error && (
-                            <div className="error-message">
-                                <i className="bi bi-exclamation-circle me-2"></i>
-                                {error}
-                            </div>
-                        )}
+        html, body {
+          font-family: 'Poppins', sans-serif;
+          font-size: 14px;
+          line-height: 1.5;
+          color: #0b1220;
+          background: #f5f7fb;
+          min-height: 100%;
+          height: auto;
+          overflow-x: hidden;
+        }
 
-                        <button type="submit" className="btn-login" disabled={loading}>
-                            {loading ? (
-                                <>
-                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                    Memproses...
-                                </>
-                            ) : (
-                                <>
-                                    <i className="bi bi-box-arrow-in-right me-2"></i>
-                                    Login
-                                </>
-                            )}
-                        </button>
-                    </form>
-                </div>
-            </div>
-
-            <style jsx>{`
         .login-container {
           display: flex;
           width: 100%;
@@ -185,9 +195,10 @@ export default function LoginPage() {
           background: #f5f7fb;
         }
 
-        .login-left {
+        #login-left {
           flex: 1;
           display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
           background: radial-gradient(1000px 600px at 20% 20%, rgba(58,166,255,.18), transparent 60%),
@@ -195,11 +206,12 @@ export default function LoginPage() {
                       linear-gradient(135deg, #061126, #0b1b3a, #0f2a56);
           color: #eaf2ff;
           padding: 60px 40px;
-          position: relative;
+          text-align: center;
           overflow: hidden;
+          position: relative;
         }
 
-        .login-left::after {
+        #login-left::after {
           content: "";
           position: absolute;
           top: 40px;
@@ -210,26 +222,32 @@ export default function LoginPage() {
           opacity: .95;
         }
 
-        .login-left-content {
-          text-align: center;
-          z-index: 1;
+        #login-left::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          right: -18px;
+          width: 36px;
+          height: 100%;
+          background: radial-gradient(circle at left, rgba(58,166,255,.12), transparent 65%);
+          pointer-events: none;
         }
 
-        .logo {
+        #login-left img {
           width: 180px;
           height: auto;
           border-radius: 18px;
           margin-bottom: 25px;
         }
 
-        .login-left h1 {
+        #login-left h1 {
           font-size: clamp(1.9rem, 5.5vw, 3rem);
           font-weight: 700;
           margin-bottom: 15px;
           text-shadow: 1px 1px 6px rgba(0,0,0,.35);
         }
 
-        .login-left p {
+        #login-left p {
           font-size: clamp(.95rem, 3.5vw, 1.15rem);
           line-height: 1.5;
           max-width: 360px;
@@ -237,7 +255,7 @@ export default function LoginPage() {
           opacity: .9;
         }
 
-        .login-right {
+        #login-right {
           flex: 1;
           background: #f5f7fb;
           display: flex;
@@ -287,17 +305,17 @@ export default function LoginPage() {
           cursor: not-allowed;
         }
 
-        .password-wrapper {
+        .position-relative {
           position: relative;
           margin-bottom: 20px;
         }
 
-        .password-wrapper input {
+        .position-relative input {
           padding-right: 60px !important;
           margin-bottom: 0;
         }
 
-        .toggle-password {
+        #togglePassword {
           position: absolute;
           top: 50%;
           right: 18px;
@@ -308,16 +326,25 @@ export default function LoginPage() {
           align-items: center;
           justify-content: center;
           font-size: 1.3rem;
+          line-height: 1;
           color: #666;
-          background: none;
-          border: none;
           cursor: pointer;
+          z-index: 10;
+          user-select: none;
           transition: color .2s ease;
-          padding: 0;
         }
 
-        .toggle-password:hover {
+        #togglePassword i {
+          display: block;
+          line-height: 1;
+        }
+
+        #togglePassword:hover {
           color: #0b1b3a;
+        }
+
+        .login-card input:focus ~ #togglePassword {
+          color: rgba(58,166,255,.9);
         }
 
         .error-message {
@@ -332,7 +359,7 @@ export default function LoginPage() {
           align-items: center;
         }
 
-        .btn-login {
+        #btnLogin {
           width: 100%;
           padding: 14px;
           border-radius: 999px;
@@ -349,13 +376,13 @@ export default function LoginPage() {
           justify-content: center;
         }
 
-        .btn-login:hover:not(:disabled) {
+        #btnLogin:hover:not(:disabled) {
           background: linear-gradient(90deg, #163b78, #1c4c99);
           transform: translateY(-2px);
           box-shadow: 0 16px 30px rgba(11,27,58,.25);
         }
 
-        .btn-login:disabled {
+        #btnLogin:disabled {
           opacity: .7;
           cursor: not-allowed;
           transform: none;
@@ -364,39 +391,61 @@ export default function LoginPage() {
         @media (max-width: 992px) {
           .login-container {
             flex-direction: column;
+            min-height: auto;
+            height: auto;
           }
 
-          .login-left,
-          .login-right {
+          #login-left,
+          #login-right {
             width: 100%;
             padding: 22px 16px;
           }
 
-          .login-left {
+          #login-left {
             min-height: 40vh;
           }
 
-          .login-left::after {
+          #login-left img {
+            width: 140px;
+          }
+
+          #login-left::after,
+          #login-left::before {
             display: none;
           }
 
-          .logo {
-            width: 140px;
+          #login-right {
+            align-items: flex-start;
+            padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
           }
 
           .login-card {
             padding: 22px 18px;
             border-radius: 18px;
+            margin-top: 6px;
+            margin-bottom: 18px;
+            backdrop-filter: none;
+          }
+
+          html, body {
+            height: auto;
+            min-height: 100%;
+            overflow-y: auto;
           }
         }
 
         @media (max-width: 576px) {
           .login-card input,
-          .toggle-password {
-            font-size: 16px; /* Prevent zoom on iOS */
+          #togglePassword {
+            font-size: 16px;
           }
         }
+
+        input, select, textarea {
+          scroll-margin-top: 80px;
+          scroll-margin-bottom: 160px;
+        }
       `}</style>
-        </div>
-    )
+    </div>
+  )
 }

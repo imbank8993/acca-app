@@ -24,3 +24,94 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Dark Mode */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+html.dark #app {
+  background: #0f172a;
+}
+
+html.dark .header {
+  background: #1e293b !important;
+  border-bottom-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark .header-title {
+  color: #f1f5f9 !important;
+}
+
+html.dark .header-subtitle {
+  color: #94a3b8 !important;
+}
+
+html.dark .menu-toggle {
+  color: #e2e8f0 !important;
+}
+
+html.dark .menu-toggle:hover {
+  background: #334155 !important;
+}
+
+html.dark .dark-mode-toggle {
+  background: #334155 !important;
+  border-color: #475569 !important;
+  color: #fbbf24 !important;
+}
+
+html.dark .dark-mode-toggle:hover {
+  background: #475569 !important;
+}
+
+html.dark .user-menu-trigger {
+  background: #334155 !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+
+html.dark .user-menu-trigger:hover {
+  background: #475569 !important;
+}
+
+html.dark .user-name-header {
+  color: #f1f5f9 !important;
+}
+
+html.dark .user-role-header {
+  color: #94a3b8 !important;
+}
+
+html.dark .user-menu-dropdown {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+html.dark .user-menu-info {
+  background: linear-gradient(135deg, #334155, #475569) !important;
+  border-bottom-color: #475569 !important;
+}
+
+html.dark .user-menu-name {
+  color: #f1f5f9 !important;
+}
+
+html.dark .user-menu-email {
+  color: #94a3b8 !important;
+}
+
+html.dark .user-menu-item {
+  color: #e2e8f0 !important;
+}
+
+html.dark .user-menu-item:hover {
+  background: #ef4444 !important;
+  color: white !important;
+}
