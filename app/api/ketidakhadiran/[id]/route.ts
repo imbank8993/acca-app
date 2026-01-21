@@ -11,6 +11,10 @@ const getSupabaseAdmin = () => {
     return createClient(url, key);
 };
 
+interface RouteParams {
+    params: Promise<{ id: string }>;
+}
+
 interface UpdatePayload {
     scope?: 'ONE' | 'ALL';
     tgl_mulai?: string;
@@ -21,11 +25,11 @@ interface UpdatePayload {
 
 export async function PATCH(
     request: NextRequest,
-    context: { params: Promise<{ id: string }> }
+    props: RouteParams
 ) {
     try {
         const supabase = getSupabaseAdmin();
-        const resolvedParams = await context.params;
+        const resolvedParams = await props.params;
         const { id } = resolvedParams;
 
         // Get current authenticated user from request headers
@@ -201,11 +205,12 @@ export async function PATCH(
 
 export async function DELETE(
     request: NextRequest,
-    context: { params: Promise<{ id: string }> }
+    props: RouteParams
 ) {
     try {
         const supabase = getSupabaseAdmin();
-        const { id } = await context.params;
+        const resolvedParams = await props.params;
+        const { id } = resolvedParams;
         const { searchParams } = new URL(request.url);
         const scope = searchParams.get('scope') || 'ONE';
 

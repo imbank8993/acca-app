@@ -3,9 +3,9 @@ import { supabase } from '@/lib/supabase';
 import type { Siswa, ApiResponse } from '@/lib/types';
 
 interface RouteParams {
-    params: {
+    params: Promise<{
         kelas: string;
-    };
+    }>;
 }
 
 /**
@@ -17,8 +17,10 @@ interface RouteParams {
  */
 export async function GET(
     request: NextRequest,
-    { params }: RouteParams
+    props: RouteParams
 ) {
+    const params = await props.params;
+
     try {
         // Next.js 15: params might be a Promise
         const resolvedParams = await params;
