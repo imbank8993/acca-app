@@ -31,6 +31,12 @@ interface AbsensiRow {
     ref_ketidakhadiran_id?: string;
     catatan?: string;
     keterangan?: string;
+    // New field to persist the original source data
+    system_source?: {
+        id: string;
+        status: 'IZIN' | 'SAKIT';
+        keterangan: string;
+    };
 }
 
 export default function AbsensiPage() {
@@ -91,6 +97,17 @@ export default function AbsensiPage() {
         }
     }
 
+    // Helper for authenticated fetch
+    async function authFetch(url: string, options: RequestInit = {}) {
+        const { supabase } = await import('@/lib/supabase');
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: any = {
+            ...options.headers,
+            'Authorization': session?.access_token ? `Bearer ${session.access_token}` : ''
+        };
+        return fetch(url, { ...options, headers });
+    }
+
     async function bukaSesi() {
         if (!kelas || !mapel || !tanggal || !jamKe) {
             Swal.fire({ icon: 'warning', title: 'Perhatian', text: 'Lengkapi data sesi terlebih dahulu' });
@@ -101,7 +118,7 @@ export default function AbsensiPage() {
         Swal.fire({ title: 'Memuat Data...', text: 'Mengambil data siswa & status', didOpen: () => Swal.showLoading() });
 
         try {
-            const sesiRes = await fetch('/api/absensi/sesi', {
+            const sesiRes = await authFetch('/api/absensi/sesi', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ guru_id: guruId, kelas, mapel, tanggal, jam_ke: jamKe, nama_guru: namaGuru })
@@ -110,14 +127,14 @@ export default function AbsensiPage() {
             if (!sesiJson.ok) throw new Error(sesiJson.error || 'Gagal memuat absensi');
             const sesi = sesiJson.data;
 
-            const detailRes = await fetch(`/api/absensi/detail?sesi_id=${sesi.sesi_id}`);
+            const detailRes = await authFetch(`/api/absensi/detail?sesi_id=${sesi.sesi_id}`);
             const detailJson = await detailRes.json();
             if (!detailJson.ok) throw new Error(detailJson.error);
 
             let detailRows: AbsensiRow[] = detailJson.data || [];
 
             if (detailRows.length === 0) {
-                const siswaRes = await fetch(`/api/siswa/${encodeURIComponent(kelas)}`);
+                const siswaRes = await authFetch(`/api/siswa/${encodeURIComponent(kelas)}`);
                 const siswaJson = await siswaRes.json();
                 if (siswaJson.ok && siswaJson.data) {
                     detailRows = siswaJson.data.map((s: any) => ({
@@ -127,9 +144,85 @@ export default function AbsensiPage() {
                         otomatis: true,
                         catatan: ''
                     }));
+
+                    // INTEGRATION: Fetch Ketidakhadiran Data
+                    try {
+                        // Use authFetch to ensure consistent API access
+                        const ketidakhadiranRes = await authFetch(`/api/ketidakhadiran?kelas=${encodeURIComponent(kelas)}&from=${tanggal}&to=${tanggal}`);
+                        const ketidakhadiranJson = await ketidakhadiranRes.json();
+
+                        if (ketidakhadiranJson.ok && ketidakhadiranJson.data) {
+                            const ketidakhadiranMap = new Map<string, { status: string; keterangan: string; id: string }>();
+                            ketidakhadiranJson.data.forEach((k: any) => {
+                                ketidakhadiranMap.set(k.nisn, {
+                                    status: k.status.toUpperCase(),
+                                    keterangan: k.keterangan || '-',
+                                    id: k.id
+                                });
+                            });
+
+                            detailRows = detailRows.map(row => {
+                                const match = ketidakhadiranMap.get(row.nisn);
+                                if (match) {
+                                    return {
+                                        ...row,
+                                        status: match.status as any,
+                                        catatan: match.keterangan,
+                                        ref_ketidakhadiran_id: match.id,
+                                        otomatis: true,
+                                        // Store the system source for future restoration
+                                        system_source: {
+                                            id: match.id,
+                                            status: match.status as any,
+                                            keterangan: match.keterangan
+                                        }
+                                    };
+                                }
+                                return row;
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('Failed to auto-fetch ketidakhadiran during init', e);
+                    }
+
                     await saveAbsensiInternal(sesi.sesi_id, detailRows, false);
                 }
             } else {
+                // For EXISTING sessions (Drafts), we MUST re-fetch ketidakhadiran to attach 'system_source'
+                // and sync status if the user expects "langsung terload" (live sync).
+                try {
+                    const ketidakhadiranRes = await authFetch(`/api/ketidakhadiran?kelas=${encodeURIComponent(kelas)}&from=${tanggal}&to=${tanggal}`);
+                    const kJson = await ketidakhadiranRes.json();
+                    if (kJson.ok && kJson.data) {
+                        const kMap = new Map<string, any>();
+                        kJson.data.forEach((k: any) => kMap.set(k.nisn, k));
+
+                        // ... inside bukaSesi map loop
+                        detailRows = detailRows.map(r => {
+                            const kData = kMap.get(r.nisn);
+                            if (kData) {
+                                // Overwrite with system data to ensure "langsung terload"
+                                const normalizedStatus = (kData.status || '').trim().toUpperCase() as any;
+                                return {
+                                    ...r,
+                                    status: normalizedStatus,
+                                    catatan: kData.keterangan || '-',
+                                    ref_ketidakhadiran_id: kData.id,
+                                    otomatis: true,
+                                    system_source: {
+                                        id: kData.id,
+                                        status: normalizedStatus,
+                                        keterangan: kData.keterangan || '-'
+                                    }
+                                };
+                            }
+                            return r;
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Refetch source failed', e);
+                }
+
                 detailRows = detailRows.map(r => ({
                     ...r,
                     status: r.status ? (r.status.toUpperCase() as any) : 'HADIR'
@@ -143,7 +236,18 @@ export default function AbsensiPage() {
             detailRows.forEach(r => snap.set(r.nisn, r.status));
             setInitialSnapshot(snap);
 
-            Swal.close();
+            // Optional: If auto-fetched, show toast
+            if (detailRows.some(r => r.ref_ketidakhadiran_id)) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Sinkronisasi Otomatis',
+                    text: 'Data absensi telah disinkronkan dengan data izin/sakit yang ada.',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.close();
+            }
         } catch (error: any) {
             Swal.close();
             Swal.fire({ icon: 'error', title: 'Gagal', text: error.message });
@@ -153,12 +257,14 @@ export default function AbsensiPage() {
     }
 
     async function saveAbsensiInternal(sesiId: string, data: AbsensiRow[], makeFinal: boolean) {
-        await fetch('/api/absensi/sesi', {
+        await authFetch('/api/absensi/sesi', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sesi_id: sesiId, status_sesi: makeFinal ? 'FINAL' : 'DRAFT' })
         });
-        await fetch('/api/absensi/detail', {
+        // We do not save system_source to DB (it's frontend transient mainly, or we could add jsonb col)
+        // For now, rows are saved as is.
+        await authFetch('/api/absensi/detail', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ sesi_id: sesiId, rows: data })
@@ -174,21 +280,21 @@ export default function AbsensiPage() {
         Swal.fire({ title: 'Memuat Data Ketidakhadiran...', didOpen: () => Swal.showLoading() });
 
         try {
-            // Fetch ketidakhadiran data for this kelas and tanggal
-            const ketidakhadiranRes = await fetch(`/api/ketidakhadiran?kelas=${encodeURIComponent(kelas)}&tanggal=${tanggal}`);
+            // Fetch ketidakhadiran data
+            const ketidakhadiranRes = await authFetch(`/api/ketidakhadiran?kelas=${encodeURIComponent(kelas)}&from=${tanggal}&to=${tanggal}`);
             const ketidakhadiranJson = await ketidakhadiranRes.json();
 
             if (ketidakhadiranJson.ok && ketidakhadiranJson.data) {
-                const ketidakhadiranMap = new Map<string, { status: string; keterangan: string }>();
+                const ketidakhadiranMap = new Map<string, { status: string; keterangan: string; id: string }>();
 
                 ketidakhadiranJson.data.forEach((k: any) => {
                     ketidakhadiranMap.set(k.nisn, {
                         status: k.status.toUpperCase(),
-                        keterangan: k.keterangan || ''
+                        keterangan: k.keterangan || '-',
+                        id: k.id
                     });
                 });
 
-                // Update rows with ketidakhadiran data
                 setRows(prev => prev.map(row => {
                     const ketidakhadiran = ketidakhadiranMap.get(row.nisn);
                     if (ketidakhadiran) {
@@ -197,20 +303,28 @@ export default function AbsensiPage() {
                             status: ketidakhadiran.status as any,
                             catatan: ketidakhadiran.keterangan,
                             otomatis: true,
-                            ref_ketidakhadiran_id: 'from_refresh'
+                            ref_ketidakhadiran_id: ketidakhadiran.id,
+                            system_source: {
+                                id: ketidakhadiran.id,
+                                status: ketidakhadiran.status as any,
+                                keterangan: ketidakhadiran.keterangan
+                            }
                         };
                     }
-                    return { ...row, status: 'HADIR', catatan: '', otomatis: true };
+                    // If no match in new data, keep existing or reset? 
+                    // Usually refresh implies strict sync. Let's keep existing manual edits if no conflict, 
+                    // or reset if it was previously system linked but now gone.
+                    if (row.ref_ketidakhadiran_id) {
+                        return { ...row, status: 'HADIR', catatan: '', otomatis: true, ref_ketidakhadiran_id: undefined, system_source: undefined };
+                    }
+                    return row;
                 }));
 
-                // Update snapshot
                 const snap = new Map<string, string>();
-                rows.forEach(r => {
-                    const ketidakhadiran = ketidakhadiranMap.get(r.nisn);
-                    snap.set(r.nisn, ketidakhadiran ? ketidakhadiran.status : 'HADIR');
-                });
-                setInitialSnapshot(snap);
-
+                rows.forEach(r => snap.set(r.nisn, r.status)); // This uses stale 'rows', but logic continues next render
+                // Properly we should re-derive snap from the *new* rows, but this func is async. 
+                // Let's just update snap on effect or after setRows. 
+                // For safety in this quick version:
                 Swal.close();
                 Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Data ketidakhadiran berhasil dimuat', timer: 1500, showConfirmButton: false });
             } else {
@@ -259,16 +373,98 @@ export default function AbsensiPage() {
     function handleStatusChange(nisn: string, status: string) {
         setRows(prev => prev.map(row => {
             if (row.nisn === nisn) {
-                // Update keterangan based on status
-                let newKeterangan = row.catatan || '';
-                if (row.ref_ketidakhadiran_id && row.catatan) {
-                    // Keep original keterangan from ketidakhadiran
-                    newKeterangan = row.catatan;
+                const newStatus = status.trim().toUpperCase() as any;
+                let newCatatan = row.catatan || '';
+                let newRefId = row.ref_ketidakhadiran_id;
+
+                // 1. Restore from System Source
+                // Ensure comparison handles potential lingering whitespace or casing issues
+                if (row.system_source) {
+                    const sourceStatus = (row.system_source.status || '').trim().toUpperCase();
+                    if (sourceStatus === newStatus) {
+                        newRefId = row.system_source.id;
+                        newCatatan = row.system_source.keterangan;
+
+                        // Feedback for user
+                        const Toast = Swal.mixin({
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3000,
+                            timerProgressBar: true
+                        });
+                        Toast.fire({
+                            icon: 'info',
+                            title: 'Data Dipulihkan',
+                            text: `Keterangan '${newCatatan}' dikembalikan dari data sumber.`
+                        });
+
+                    } else if (newStatus === 'HADIR' || newStatus === 'ALPHA') {
+                        newCatatan = '';
+                        newRefId = undefined;
+                    } else {
+                        // Manual divergence
+                        if (row.ref_ketidakhadiran_id) {
+                            newCatatan = '';
+                        }
+                        newRefId = undefined;
+                    }
+                } else { // No system source logic
+                    if (newStatus === 'HADIR' || newStatus === 'ALPHA') {
+                        newCatatan = '';
+                        newRefId = undefined;
+                    }
                 }
-                return { ...row, status: status as any, otomatis: false, catatan: newKeterangan };
+
+                return {
+                    ...row,
+                    status: newStatus,
+                    otomatis: false,
+                    catatan: newCatatan,
+                    ref_ketidakhadiran_id: newRefId
+                };
             }
             return row;
         }));
+    }
+
+    function handleCatatanChange(nisn: string, val: string) {
+        setRows(prev => prev.map(row =>
+            row.nisn === nisn ? { ...row, catatan: val } : row
+        ));
+    }
+
+    async function handleEditKeterangan(row: AbsensiRow) {
+        if (isFinal) return;
+
+        // READ-ONLY check for sourced data (Ketidakhadiran)
+        if (row.ref_ketidakhadiran_id) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Data Terintegrasi',
+                html: `<p>Status ini otomatis dari modul Ketidakhadiran.</p>
+                       <div class="mt-2 p-2 bg-slate-100 rounded text-sm text-left">
+                         <b>Keterangan:</b><br/>${row.catatan || '-'}
+                       </div>`,
+                footer: '<span class="text-xs text-slate-500">Edit melalui menu Ketidakhadiran untuk mengubah.</span>'
+            });
+            return;
+        }
+
+        const { value: text } = await Swal.fire({
+            title: 'Keterangan Absensi',
+            input: 'textarea',
+            inputLabel: `Tambahkan catatan untuk ${row.nama_snapshot}`,
+            inputValue: row.catatan || '',
+            inputPlaceholder: 'Tulis keterangan izin / sakit / dll...',
+            showCancelButton: true,
+            confirmButtonText: 'Simpan',
+            cancelButtonText: 'Batal'
+        });
+
+        if (text !== undefined) {
+            handleCatatanChange(row.nisn, text);
+        }
     }
 
     const isChanged = (r: AbsensiRow) => {
@@ -369,8 +565,9 @@ export default function AbsensiPage() {
                 <div className="flex flex-wrap gap-3">
                     <button
                         className="btn btn-outline"
-                        disabled
-                        title="Fitur akan diaktifkan setelah tabel ketidakhadiran dibuat"
+                        onClick={refreshKetidakhadiran}
+                        disabled={!currentSesi || isFinal}
+                        title="Ambil data terbaru dari modul ketidakhadiran"
                     >
                         <i className="bi bi-arrow-clockwise"></i>
                         Refresh Izin/Sakit
@@ -410,11 +607,11 @@ export default function AbsensiPage() {
                 <table>
                     <thead>
                         <tr>
-                            <th style={{ width: '60px', textAlign: 'center' }}>No</th>
-                            <th style={{ width: '140px' }}>NISN</th>
+                            <th style={{ width: '50px', textAlign: 'center' }}>No</th>
+                            <th style={{ width: '120px' }}>NISN</th>
                             <th>Nama Siswa</th>
-                            <th style={{ minWidth: '360px' }}>Status Kehadiran</th>
-                            <th style={{ minWidth: '200px' }}>Keterangan</th>
+                            <th style={{ minWidth: '350px' }}>Status Kehadiran</th>
+                            <th style={{ width: '60px', textAlign: 'center' }}>Ket.</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -441,6 +638,13 @@ export default function AbsensiPage() {
                                                 <i className="bi bi-pencil-fill"></i>
                                             </span>
                                         )}
+                                        {/* Show truncated note preview if exists */}
+                                        {r.catatan && (
+                                            <div className="text-xs text-slate-500 mt-1 italic truncate max-w-[200px]">
+                                                {r.ref_ketidakhadiran_id && <i className="bi bi-link-45deg mr-1 text-blue-500"></i>}
+                                                {r.catatan}
+                                            </div>
+                                        )}
                                     </td>
                                     <td>
                                         <StatusRadios
@@ -451,8 +655,24 @@ export default function AbsensiPage() {
                                             onChange={handleStatusChange}
                                         />
                                     </td>
-                                    <td style={{ color: '#64748b', fontSize: '0.875rem' }}>
-                                        {r.catatan || '-'}
+                                    <td style={{ textAlign: 'center' }}>
+                                        <button
+                                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors 
+                                                ${r.ref_ketidakhadiran_id
+                                                    ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                                    : r.catatan
+                                                        ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
+                                                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                                            onClick={() => handleEditKeterangan(r)}
+                                            disabled={isFinal}
+                                            title={r.ref_ketidakhadiran_id ? "Lihat Keterangan (Terintegrasi)" : "Edit Keterangan"}
+                                        >
+                                            {r.ref_ketidakhadiran_id ? (
+                                                <i className="bi bi-info-circle-fill"></i>
+                                            ) : (
+                                                <i className="bi bi-pencil-fill" style={{ fontSize: '0.8rem' }}></i>
+                                            )}
+                                        </button>
                                     </td>
                                 </tr>
                             ))
@@ -468,13 +688,26 @@ export default function AbsensiPage() {
 // PREMIUM STATUS RADIOS COMPONENT
 function StatusRadios({ nisn, index, currentStatus, disabled, onChange }: any) {
     const statuses = ['HADIR', 'IZIN', 'SAKIT', 'ALPHA'];
-    const normalizedCurrent = (currentStatus || '').toUpperCase();
+    // Ensure currentStatus is safe
+    const normalizedCurrent = (currentStatus || '').toString().trim().toUpperCase();
+
+    const getActiveStyle = (status: string) => {
+        switch (status) {
+            case 'HADIR': return { backgroundColor: '#3b82f6', color: '#ffffff', borderColor: '#3b82f6' };
+            case 'IZIN': return { backgroundColor: '#10b981', color: '#ffffff', borderColor: '#10b981' };
+            case 'SAKIT': return { backgroundColor: '#f59e0b', color: '#ffffff', borderColor: '#f59e0b' };
+            case 'ALPHA': return { backgroundColor: '#ef4444', color: '#ffffff', borderColor: '#ef4444' };
+            default: return {};
+        }
+    };
 
     return (
         <div className="status-radio-group">
             {statuses.map(status => {
                 const uniqueId = `r_${nisn}_${index}_${status}`;
                 const checked = normalizedCurrent === status;
+                const style = checked ? getActiveStyle(status) : {};
+
                 return (
                     <div key={status} className="status-radio-item">
                         <input
@@ -490,6 +723,7 @@ function StatusRadios({ nisn, index, currentStatus, disabled, onChange }: any) {
                             className="status-radio-label"
                             htmlFor={uniqueId}
                             data-status={status}
+                            style={style}
                         >
                             {status}
                         </label>

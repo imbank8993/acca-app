@@ -70,9 +70,18 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
                 nisList: selectedNisns
             };
 
+            // Get Supabase session token for auth
+            const { supabase } = await import('@/lib/supabase');
+            const { data: { session } } = await supabase.auth.getSession();
+
+            const headers: HeadersInit = { 'Content-Type': 'application/json' };
+            if (session?.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+
             const res = await fetch('/api/ketidakhadiran/bulk', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 body: JSON.stringify(payload)
             });
 
@@ -97,13 +106,24 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
                 onSuccess();
                 onClose();
             } else {
-                Swal.fire({ title: 'Gagal', text: data.error || 'Terjadi kesalahan', icon: 'error', confirmButtonColor: '#0b1b3a' });
+                Swal.fire({
+                    title: 'Gagal',
+                    text: data.error || 'Terjadi kesalahan saat menyimpan',
+                    icon: 'error',
+                    confirmButtonColor: '#0b1b3a'
+                });
             }
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            Swal.fire({
+                title: 'Error',
+                text: error.message || 'Terjadi kesalahan sistem (Network)',
+                icon: 'error',
+                confirmButtonColor: '#0b1b3a'
+            });
+        } finally {
             setSubmitting(false);
-            Swal.fire('Error', 'Terjadi kesalahan sistem', 'error');
         }
     };
 

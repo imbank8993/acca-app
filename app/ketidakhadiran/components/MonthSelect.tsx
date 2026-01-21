@@ -134,6 +134,8 @@ export default function MonthSelect({ selectedMonths, onChange }: MonthSelectPro
                     padding: 8px 12px;
                     cursor: pointer;
                     border-radius: 6px;
+                    color: #475569; /* Slate-600 for better visibility */
+                    transition: all 0.2s;
                 }
                 
                 .option:hover {

@@ -5,7 +5,18 @@ import { supabase } from '@/lib/supabase';
 import Swal from 'sweetalert2';
 import './ketidakhadiran.css';
 import AddModal from './components/AddModal';
+import EditModal from './components/EditModal';
+import DeleteModal from './components/DeleteModal';
+import PrintModal from './components/PrintModal';
 import MonthSelect from './components/MonthSelect';
+import { generateFromTemplate, formatDataForPrint } from './utils/PrintHelper';
+
+// Template Paths
+const TOR_SURAT_SAKIT = '/templates/template_surat_sakit.docx';
+const TOR_IZIN_PRIBADI_SINGLE = '/templates/template_surat_izin_pribadi.docx';
+const TOR_IZIN_PRIBADI_GROUP = '/templates/template_surat_izin_pribadi_lampiran.docx';
+const TOR_SURAT_TUGAS_SINGLE = '/templates/template_surat_tugas.docx';
+const TOR_SURAT_TUGAS_GROUP = '/templates/template_surat_tugas_lampiran.docx';
 
 interface KetidakhadiranRow {
     id: string;
@@ -13,9 +24,9 @@ interface KetidakhadiranRow {
     nisn: string;
     nama: string;
     kelas: string;
-    tgl_mulai: string;
+    tgl_mulai: string; // ISO Date
     tgl_selesai: string;
-    status: string;
+    status: string; // MADRASAH, PERSONAL, Ringan, Sedang, dll
     keterangan: string;
     aktif: boolean;
     created_at: string;
@@ -56,6 +67,16 @@ export default function KetidakhadiranPage() {
 
     // UI State
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+    const [editRow, setEditRow] = useState<KetidakhadiranRow | null>(null);
+    const [deleteRow, setDeleteRow] = useState<KetidakhadiranRow | null>(null);
+    const [printRow, setPrintRow] = useState<KetidakhadiranRow | null>(null);
+
+    // User role for access control
+    const [userRole, setUserRole] = useState<string | null>(null);
 
     // Filters
     const [filterKelas, setFilterKelas] = useState('');
@@ -68,7 +89,20 @@ export default function KetidakhadiranPage() {
 
     useEffect(() => {
         fetchClasses();
+        fetchUserRole();
     }, []);
+
+    const fetchUserRole = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id) {
+            const { data } = await supabase
+                .from('users')
+                .select('role')
+                .eq('auth_id', user.id)
+                .single();
+            setUserRole(data?.role || null);
+        }
+    };
 
     const fetchClasses = async () => {
         const { data } = await supabase
@@ -94,12 +128,20 @@ export default function KetidakhadiranPage() {
             if (filterMonths.length > 0) params.append('months', filterMonths.join(','));
             if (searchQuery) params.append('q', searchQuery);
 
-            const res = await fetch(`/api/ketidakhadiran?${params.toString()}`);
+            // Get auth token
+            const { data: { session } } = await supabase.auth.getSession();
+            const headers: HeadersInit = {};
+            if (session?.access_token) {
+                headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+
+            const res = await fetch(`/api/ketidakhadiran?${params.toString()}`, { headers });
             const data = await res.json();
 
             if (data.ok) {
-                setRows(data.rows);
-                calculateKPI(data.rows);
+                console.log('Sample row:', data.data ? data.data[0] : 'No data'); // Debug: check if 'id' exists
+                setRows(data.data || []);
+                calculateKPI(data.data || []);
             }
         } catch (error) {
             console.error('Load error:', error);
@@ -149,187 +191,69 @@ export default function KetidakhadiranPage() {
         setIsAddModalOpen(true);
     };
 
+    // ========== PRINT LOGIC ==========
+    // ========== PRINT LOGIC ==========
+    // ========== PRINT LOGIC ==========
+    const handlePrintSingle = (row: KetidakhadiranRow) => {
+        setPrintRow(row);
+        setIsPrintModalOpen(true);
+    };
+
+    // Helper functions for actual printing (passed to modal)
+    const printSingle = (row: KetidakhadiranRow, type: 'SAKIT' | 'TUGAS' | 'IZIN') => {
+        let template = '';
+        let prefix = '';
+
+        if (type === 'SAKIT') {
+            template = TOR_SURAT_SAKIT;
+            prefix = 'Surat_Sakit';
+        } else if (type === 'TUGAS') {
+            template = TOR_SURAT_TUGAS_SINGLE;
+            prefix = 'Surat_Tugas';
+        } else {
+            template = TOR_IZIN_PRIBADI_SINGLE;
+            prefix = 'Surat_Izin';
+        }
+
+        if (template) {
+            const data = formatDataForPrint(row);
+            const filename = `${prefix}_${row.nama.replace(/\s+/g, '_')}.docx`;
+            generateFromTemplate(template, data, filename);
+        }
+    };
+
+    const printGroupLetter = (groupRows: KetidakhadiranRow[], representative: KetidakhadiranRow, type: 'TUGAS' | 'IZIN') => {
+        let template = '';
+        let prefix = '';
+
+        if (type === 'TUGAS') {
+            template = TOR_SURAT_TUGAS_GROUP;
+            prefix = 'Surat_Tugas_Grup';
+        } else {
+            template = TOR_IZIN_PRIBADI_GROUP;
+            prefix = 'Surat_Izin_Grup';
+        }
+
+        // Data payload must include { list: [...] } for the table loop in Word
+        const data = {
+            ...formatDataForPrint(representative),
+            list: groupRows.map((r, i) => ({ ...formatDataForPrint(r), no: i + 1 }))
+        };
+
+        const filename = `${prefix}_${representative.kelas.replace(/\s+/g, '_')}.docx`;
+        generateFromTemplate(template, data, filename);
+    };
+
     // ========== EDIT MODAL ==========
-    const openEditModal = async (row: KetidakhadiranRow) => {
-        const { value: formValues } = await Swal.fire({
-            title: 'Edit Ketidakhadiran',
-            html: `
-        <div style="text-align: left;">
-          <div style="margin-bottom: 1rem; padding: 0.75rem; background: #f3f4f6; border-radius: 8px;">
-            <div style="font-size: 0.8rem; color: #6b7280;">Jenis: <strong>${row.jenis}</strong></div>
-            <div style="font-size: 0.8rem; color: #6b7280; margin-top: 0.25rem;">NISN: <strong>${row.nisn}</strong> - ${row.nama}</div>
-          </div>
-
-          <div style="margin-bottom: 1rem;">
-            <label style="display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.85rem;">Status</label>
-            <select id="edit-status" class="swal2-input" style="width: 100%;">
-              ${row.jenis === 'IZIN'
-                    ? `<option value="MADRASAH" ${row.status === 'MADRASAH' ? 'selected' : ''}>MADRASAH</option>
-                   <option value="PERSONAL" ${row.status === 'PERSONAL' ? 'selected' : ''}>PERSONAL</option>`
-                    : `<option value="Ringan" ${row.status === 'Ringan' ? 'selected' : ''}>Ringan</option>
-                   <option value="Sedang" ${row.status === 'Sedang' ? 'selected' : ''}>Sedang</option>
-                   <option value="Berat" ${row.status === 'Berat' ? 'selected' : ''}>Berat</option>
-                   <option value="Kontrol" ${row.status === 'Kontrol' ? 'selected' : ''}>Kontrol</option>`
-                }
-            </select>
-          </div>
-
-          <div style="margin-bottom: 1rem;">
-            <label style="display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.85rem;">Tanggal Mulai</label>
-            <input type="date" id="edit-mulai" class="swal2-input" style="width: 100%;" value="${row.tgl_mulai}">
-          </div>
-
-          <div style="margin-bottom: 1rem;">
-            <label style="display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.85rem;">Tanggal Selesai</label>
-            <input type="date" id="edit-selesai" class="swal2-input" style="width: 100%;" value="${row.tgl_selesai}">
-          </div>
-
-          <div style="margin-bottom: 1rem;">
-            <label style="display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.85rem;">Keterangan</label>
-            <textarea id="edit-ket" class="swal2-textarea" style="width: 100%;">${row.keterangan}</textarea>
-          </div>
-
-          <div style="margin-bottom: 1rem;">
-            <label style="display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.85rem;">Terapkan untuk</label>
-            <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
-              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                <input type="radio" name="edit-scope" value="ONE" checked>
-                <span style="font-size: 0.85rem;">Hanya siswa ini</span>
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                <input type="radio" name="edit-scope" value="ALL">
-                <span style="font-size: 0.85rem;">Semua dalam grup</span>
-              </label>
-            </div>
-            <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">
-              Grup: siswa dengan jenis, tanggal, dan keterangan yang sama
-            </div>
-          </div>
-        </div>
-      `,
-            width: 600,
-            focusConfirm: false,
-            showCancelButton: true,
-            confirmButtonText: 'Simpan',
-            cancelButtonText: 'Batal',
-            preConfirm: () => {
-                const status = (document.getElementById('edit-status') as HTMLSelectElement).value;
-                const mulai = (document.getElementById('edit-mulai') as HTMLInputElement).value;
-                const selesai = (document.getElementById('edit-selesai') as HTMLInputElement).value;
-                const keterangan = (document.getElementById('edit-ket') as HTMLTextAreaElement).value.trim();
-                const scopeEl = document.querySelector('input[name="edit-scope"]:checked') as HTMLInputElement;
-                const scope = scopeEl ? scopeEl.value : 'ONE';
-
-                if (!status || !mulai || !selesai || !keterangan) {
-                    Swal.showValidationMessage('Semua field wajib diisi');
-                    return;
-                }
-
-                return {
-                    scope,
-                    status,
-                    tgl_mulai: mulai,
-                    tgl_selesai: selesai,
-                    keterangan
-                };
-            }
-        });
-
-        if (formValues) {
-            await submitEdit(row.id, formValues);
-        }
+    const openEditModal = (row: KetidakhadiranRow) => {
+        setEditRow(row);
+        setIsEditModalOpen(true);
     };
 
-    const submitEdit = async (id: string, payload: any) => {
-        try {
-            Swal.fire({
-                title: 'Menyimpan...',
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading()
-            });
-
-            const res = await fetch(`/api/ketidakhadiran/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await res.json();
-
-            if (data.ok) {
-                await Swal.fire({ title: 'Berhasil!', text: data.message || 'Data berhasil diupdate', icon: 'success', confirmButtonColor: '#0b1b3a' });
-                loadData();
-            } else {
-                await Swal.fire({ title: 'Gagal', text: data.error || 'Terjadi kesalahan', icon: 'error', confirmButtonColor: '#0b1b3a' });
-            }
-        } catch (error) {
-            console.error('Edit error:', error);
-            await Swal.fire('Gagal', 'Terjadi kesalahan saat mengupdate data', 'error');
-        }
-    };
-
-    // ========== DELETE ==========
-    const confirmDelete = async (row: KetidakhadiranRow) => {
-        const { value: scope } = await Swal.fire({
-            title: 'Hapus Data?',
-            html: `
-        <div style="text-align: left;">
-          <p style="margin-bottom: 1rem;">Data: <strong>${row.nisn}</strong> - ${row.nama}</p>
-          <div style="margin-bottom: 1rem;">
-            <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;">Pilih cara menghapus:</label>
-            <div style="display: flex; gap: 1rem;">
-              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                <input type="radio" name="delete-scope" value="ONE" checked>
-                <span style="font-size: 0.85rem;">Hanya siswa ini</span>
-              </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                <input type="radio" name="delete-scope" value="ALL">
-                <span style="font-size: 0.85rem;">Semua dalam grup</span>
-              </label>
-            </div>
-          </div>
-        </div>
-      `,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, Hapus',
-            cancelButtonText: 'Batal',
-            confirmButtonColor: '#b91c1c',
-            preConfirm: () => {
-                const scopeEl = document.querySelector('input[name="delete-scope"]:checked') as HTMLInputElement;
-                return scopeEl ? scopeEl.value : 'ONE';
-            }
-        });
-
-        if (scope) {
-            await submitDelete(row.id, scope);
-        }
-    };
-
-    const submitDelete = async (id: string, scope: string) => {
-        try {
-            Swal.fire({
-                title: 'Menghapus...',
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading()
-            });
-
-            const res = await fetch(`/api/ketidakhadiran/${id}?scope=${scope}`, {
-                method: 'DELETE'
-            });
-
-            const data = await res.json();
-
-            if (data.ok) {
-                await Swal.fire('Berhasil!', data.message || 'Data berhasil dihapus', 'success');
-                loadData();
-            } else {
-                await Swal.fire('Gagal', data.error || 'Terjadi kesalahan', 'error');
-            }
-        } catch (error) {
-            console.error('Delete error:', error);
-            await Swal.fire('Gagal', 'Terjadi kesalahan saat menghapus data', 'error');
-        }
+    // ========== DELETE MODAL ==========
+    const openDeleteModal = (row: KetidakhadiranRow) => {
+        setDeleteRow(row);
+        setIsDeleteModalOpen(true);
     };
 
     return (
@@ -338,6 +262,26 @@ export default function KetidakhadiranPage() {
                 isOpen={isAddModalOpen}
                 onClose={() => setIsAddModalOpen(false)}
                 onSuccess={loadData}
+            />
+            <EditModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                onSuccess={loadData}
+                data={editRow}
+            />
+            <DeleteModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onSuccess={loadData}
+                data={deleteRow}
+            />
+            <PrintModal
+                isOpen={isPrintModalOpen}
+                onClose={() => setIsPrintModalOpen(false)}
+                data={printRow}
+                allRows={rows}
+                onPrintSingle={printSingle}
+                onPrintGroup={printGroupLetter}
             />
             <div className="kh-container">
                 {/* Header */}
@@ -350,7 +294,7 @@ export default function KetidakhadiranPage() {
                         <button className="btn-kh-soft" onClick={loadData}>
                             Refresh
                         </button>
-                        <button className="btn-kh-navy" onClick={openBulkAddModal}>
+                        <button className="btn-kh-navy" onClick={() => setIsAddModalOpen(true)}>
                             + Tambah
                         </button>
                     </div>
@@ -481,14 +425,14 @@ export default function KetidakhadiranPage() {
                         <table className="kh-table">
                             <thead>
                                 <tr>
-                                    <th>Jenis</th>
-                                    <th>NISN</th>
-                                    <th>Nama</th>
-                                    <th>Kelas</th>
-                                    <th>Periode</th>
-                                    <th>Status</th>
-                                    <th>Keterangan</th>
-                                    <th style={{ textAlign: 'right' }}>Aksi</th>
+                                    <th style={{ width: '8%', whiteSpace: 'nowrap' }}>Jenis</th>
+                                    <th style={{ width: '10%' }}>NISN</th>
+                                    <th style={{ width: '18%' }}>Nama</th>
+                                    <th style={{ width: '8%', textAlign: 'center' }}>Kelas</th>
+                                    <th style={{ width: '14%' }}>Periode</th>
+                                    <th style={{ width: '12%' }}>Status</th>
+                                    <th style={{ width: '20%' }}>Keterangan</th>
+                                    <th style={{ width: '10%', textAlign: 'right' }}>Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -516,17 +460,19 @@ export default function KetidakhadiranPage() {
                                                 <span style={{ fontFamily: 'monospace' }}>{row.nisn}</span>
                                             </td>
                                             <td data-label="Nama">{row.nama}</td>
-                                            <td data-label="Kelas">{row.kelas}</td>
+                                            <td data-label="Kelas" style={{ textAlign: 'center', fontWeight: 'bold' }}>{row.kelas}</td>
                                             <td data-label="Periode">
                                                 {formatDate(row.tgl_mulai)} s/d {formatDate(row.tgl_selesai)}
                                             </td>
                                             <td data-label="Status">
                                                 {row.jenis === 'IZIN' ? (
                                                     <span className={`pill pill-${row.status.toLowerCase()}`}>
-                                                        {row.status}
+                                                        {row.status === 'MADRASAH' ? 'Madrasah' : row.status === 'PERSONAL' ? 'Personal' : row.status}
                                                     </span>
                                                 ) : (
-                                                    <span>{row.status}</span>
+                                                    <span className={`pill pill-${row.status.toLowerCase()}`}>
+                                                        {row.status}
+                                                    </span>
                                                 )}
                                             </td>
                                             <td data-label="Keterangan" style={{ maxWidth: '200px' }}>
@@ -539,7 +485,7 @@ export default function KetidakhadiranPage() {
                                                     <button
                                                         className="btn-icon-soft"
                                                         title="Cetak Surat (Doc)"
-                                                        onClick={() => Swal.fire('Info', 'Fitur cetak sedang dikembangkan', 'info')}
+                                                        onClick={() => handlePrintSingle(row)}
                                                     >
                                                         <i className="bi bi-printer"></i>
                                                     </button>
@@ -553,7 +499,7 @@ export default function KetidakhadiranPage() {
                                                     <button
                                                         className="btn-icon-delete"
                                                         title="Hapus"
-                                                        onClick={() => confirmDelete(row)}
+                                                        onClick={() => openDeleteModal(row)}
                                                     >
                                                         <i className="bi bi-trash"></i>
                                                     </button>

@@ -1,10 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Initialize Supabase Admin Client to bypass RLS
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// Helper to get supabase admin client
+const getSupabaseAdmin = () => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) {
+        throw new Error('Supabase URL or Service Role Key missing');
+    }
+    return createClient(url, key);
+};
 
 // Types
 interface BulkSubmitPayload {
@@ -24,8 +29,79 @@ interface OverlapWarning {
 
 export async function POST(request: NextRequest) {
     try {
+        const supabase = getSupabaseAdmin();
         const body: BulkSubmitPayload = await request.json();
         const { jenis, nisList, tgl_mulai, tgl_selesai, status, keterangan } = body;
+
+        // Get current authenticated user from request headers
+        let petugas_role = null;
+        let petugas_guru_id = null;
+        let petugas_nama = null;
+
+        try {
+            // Create anon client to read session from cookies
+            const anonSupabase = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+            );
+
+            // Get auth token from request header
+            const authHeader = request.headers.get('authorization');
+            if (authHeader) {
+                const token = authHeader.replace('Bearer ', '');
+                const { data: { user } } = await anonSupabase.auth.getUser(token);
+
+                if (user && user.id) {
+                    console.log('[BULK] Logged in user UUID:', user.id); // Debug
+
+                    // Query users table to get role and guru_id using auth_id column
+                    const { data: userData, error: userError } = await supabase
+                        .from('users')
+                        .select('role, guru_id, nama')
+                        .eq('auth_id', user.id)  // Changed from 'id' to 'auth_id'
+                        .single();
+
+                    if (userData && !userError) {
+                        petugas_role = userData.role || null;
+                        petugas_guru_id = userData.guru_id || null;
+                        petugas_nama = userData.nama || user.email?.split('@')[0] || null;
+                        console.log('[BULK] Petugas detected from users table:', { petugas_role, petugas_guru_id, petugas_nama });
+                    } else {
+                        console.warn('[BULK] User not found in users table:', userError);
+                        console.warn('[BULK] Attempted to find user with UUID:', user.id);
+                        // Fallback to email-based name
+                        petugas_nama = user.email?.split('@')[0] || null;
+                    }
+                }
+            } else {
+                console.warn('[BULK] No authorization header found');
+            }
+        } catch (authError) {
+            console.warn('[BULK] Auth fetch failed:', authError);
+            // Continue without petugas data
+        }
+
+        // Role-based access control validation
+        if (petugas_role === 'OP_Izin' && jenis !== 'IZIN') {
+            return NextResponse.json(
+                { ok: false, error: 'Anda hanya memiliki akses untuk data IZIN' },
+                { status: 403 }
+            );
+        }
+
+        if (petugas_role === 'OP_UKS' && jenis !== 'SAKIT') {
+            return NextResponse.json(
+                { ok: false, error: 'Anda hanya memiliki akses untuk data SAKIT' },
+                { status: 403 }
+            );
+        }
+
+        if (petugas_role === 'Guru' || petugas_role === 'Kepala Madrasah') {
+            return NextResponse.json(
+                { ok: false, error: 'Anda tidak memiliki akses untuk menambah data' },
+                { status: 403 }
+            );
+        }
 
         // Validation
         if (!jenis || !['IZIN', 'SAKIT'].includes(jenis)) {
@@ -59,6 +135,13 @@ export async function POST(request: NextRequest) {
         if (!status) {
             return NextResponse.json(
                 { ok: false, error: `Status wajib diisi untuk ${jenis}` },
+                { status: 400 }
+            );
+        }
+
+        if (!keterangan) {
+            return NextResponse.json(
+                { ok: false, error: 'Keterangan wajib diisi' },
                 { status: 400 }
             );
         }
@@ -155,9 +238,14 @@ export async function POST(request: NextRequest) {
                 kelas: siswa.kelas,
                 tgl_mulai,
                 tgl_selesai,
-                keterangan,
                 status,
-                aktif: true
+                keterangan,
+                petugas_role,
+                petugas_guru_id,
+                petugas_nama,
+                aktif: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             });
         }
 

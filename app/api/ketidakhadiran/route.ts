@@ -9,12 +9,55 @@ export async function GET(request: NextRequest) {
         const from = searchParams.get('from');
         const to = searchParams.get('to');
         const q = searchParams.get('q') || '';
+        const authHeader = request.headers.get('authorization');
 
-        let query = supabase
+        // Get user role for access control
+        let userRole: string | null = null;
+        try {
+            const { createClient } = await import('@supabase/supabase-js');
+            const anonSupabase = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+            );
+
+            if (authHeader) {
+                const token = authHeader.replace('Bearer ', '');
+                const { data: { user } } = await anonSupabase.auth.getUser(token);
+
+                if (user?.id) {
+                    const { data: userData } = await supabase
+                        .from('users')
+                        .select('role')
+                        .eq('auth_id', user.id)
+                        .single();
+
+                    userRole = userData?.role || null;
+                }
+            }
+        } catch (authError) {
+            console.warn('[GET] Auth check failed:', authError);
+        }
+
+        // Use Service Role client to bypass RLS for this API logic
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabaseAdmin = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+
+        let query = supabaseAdmin
             .from('ketidakhadiran')
-            .select('*')
+            .select('id, jenis, nisn, nama, kelas, tgl_mulai, tgl_selesai, status, keterangan, aktif, created_at, updated_at')
             .eq('aktif', true)
             .order('created_at', { ascending: false });
+
+        // Role-based filtering
+        if (userRole === 'OP_Izin') {
+            query = query.eq('jenis', 'IZIN');
+        } else if (userRole === 'OP_UKS') {
+            query = query.eq('jenis', 'SAKIT');
+        }
+        // Admin, Guru, Kepala Madrasah see all (falls through)
 
         // Filters
         if (kelas) {
@@ -73,7 +116,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
             ok: true,
-            rows: data || []
+            data: rows
         });
 
     } catch (error: any) {

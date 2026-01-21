@@ -25,6 +25,82 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Status Radio Styling */
+.status-radio-group {
+    display: flex;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    padding: 3px;
+    width: 100%;
+}
+
+.status-radio-item {
+    flex: 1;
+    position: relative;
+}
+
+.status-radio-item input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+.status-radio-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 6px 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.status-radio-item input:checked + .status-radio-label {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.status-radio-item input:checked + .status-radio-label[data-status="HADIR"] {
+    background-color: white;
+    color: #1e293b;
+    border: 1px solid #cbd5e1;
+}
+
+.status-radio-item input:checked + .status-radio-label[data-status="IZIN"] {
+    background-color: #3b82f6;
+    color: white;
+}
+
+.status-radio-item input:checked + .status-radio-label[data-status="SAKIT"] {
+    background-color: #f59e0b;
+    color: white;
+}
+
+.status-radio-item input:checked + .status-radio-label[data-status="ALPHA"] {
+    background-color: #ef4444;
+    color: white;
+}
+
+.status-radio-item:hover .status-radio-label {
+    color: #334155;
+    background-color: #f1f5f9;
+}
+
+.status-radio-item input:checked:hover + .status-radio-label {
+    color: white; /* Maintain white text on hover for colored buttons */
+}
+.status-radio-item input:checked:hover + .status-radio-label[data-status="HADIR"] {
+   color: #1e293b; 
+   background-color: white;
+}
+
+
 /* Dark Mode */
 html.dark {
   color-scheme: dark;

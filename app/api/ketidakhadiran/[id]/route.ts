@@ -1,5 +1,15 @@
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+
+// Helper to get supabase admin client
+const getSupabaseAdmin = () => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) {
+        throw new Error('Supabase URL or Service Role Key missing');
+    }
+    return createClient(url, key);
+};
 
 interface UpdatePayload {
     scope?: 'ONE' | 'ALL';
@@ -11,10 +21,52 @@ interface UpdatePayload {
 
 export async function PATCH(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: Promise<{ id: string }> }
 ) {
     try {
-        const id = params.id;
+        const supabase = getSupabaseAdmin();
+        const resolvedParams = await context.params;
+        const { id } = resolvedParams;
+
+        // Get current authenticated user from request headers
+        let petugas_role = null;
+        let petugas_guru_id = null;
+        let petugas_nama = null;
+
+        try {
+            // Create anon client to read session
+            const { createClient } = await import('@supabase/supabase-js');
+            const anonSupabase = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+            );
+
+            const authHeader = request.headers.get('authorization');
+            if (authHeader) {
+                const token = authHeader.replace('Bearer ', '');
+                const { data: { user } } = await anonSupabase.auth.getUser(token);
+
+                if (user && user.id) {
+                    // Query users table using auth_id
+                    const { data: userData } = await supabase
+                        .from('users')
+                        .select('role, guru_id, nama')
+                        .eq('auth_id', user.id)
+                        .single();
+
+                    if (userData) {
+                        petugas_role = userData.role || null;
+                        petugas_guru_id = userData.guru_id || null;
+                        petugas_nama = userData.nama || user.email?.split('@')[0] || null;
+                        console.log('[PATCH] Petugas detected:', { petugas_role, petugas_guru_id, petugas_nama });
+                    }
+                }
+            }
+        } catch (authError) {
+            console.warn('[PATCH] Auth fetch failed:', authError);
+        }
+        console.log(`[PATCH] Request for ID: ${id}`);
+
         const body: UpdatePayload = await request.json();
         const { scope = 'ONE', tgl_mulai, tgl_selesai, status, keterangan } = body;
 
@@ -23,20 +75,58 @@ export async function PATCH(
             .from('ketidakhadiran')
             .select('*')
             .eq('id', id)
-            .eq('aktif', true)
+            // .eq('aktif', true) // <-- Temporarily remove this check to see if it exists at all
             .single();
 
         if (fetchError || !targetRecord) {
+            console.error(`[PATCH] Fetch Error for ID ${id}:`, fetchError);
+            console.error(`[PATCH] Error details:`, JSON.stringify(fetchError, null, 2));
+            console.error(`[PATCH] targetRecord:`, targetRecord);
             return NextResponse.json(
-                { ok: false, error: 'Data tidak ditemukan' },
+                { ok: false, error: `Data tidak ditemukan (ID: ${id})`, details: fetchError?.message },
                 { status: 404 }
+            );
+        }
+
+        console.log(`[PATCH] Target found:`, targetRecord);
+
+        // Check if active manually to give better error
+        if (!targetRecord.aktif) {
+            return NextResponse.json(
+                { ok: false, error: 'Data ini sudah dihapus (soft deleted)' },
+                { status: 404 }
+            );
+        }
+
+        // Role-based access control validation
+        if (petugas_role === 'OP_Izin' && targetRecord.jenis !== 'IZIN') {
+            return NextResponse.json(
+                { ok: false, error: 'Anda hanya memiliki akses untuk data IZIN' },
+                { status: 403 }
+            );
+        }
+
+        if (petugas_role === 'OP_UKS' && targetRecord.jenis !== 'SAKIT') {
+            return NextResponse.json(
+                { ok: false, error: 'Anda hanya memiliki akses untuk data SAKIT' },
+                { status: 403 }
+            );
+        }
+
+        if (petugas_role === 'Guru' || petugas_role === 'Kepala Madrasah') {
+            return NextResponse.json(
+                { ok: false, error: 'Anda tidak memiliki akses untuk mengubah data' },
+                { status: 403 }
             );
         }
 
         if (scope === 'ALL') {
             // Update all records with same group (jenis, tgl_mulai, tgl_selesai, keterangan)
             const updateData: any = {
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
+                petugas_role,
+                petugas_guru_id,
+                petugas_nama
             };
 
             if (tgl_mulai) updateData.tgl_mulai = tgl_mulai;
@@ -70,7 +160,10 @@ export async function PATCH(
 
         // scope === 'ONE': Update single record
         const updateData: any = {
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            petugas_role,
+            petugas_guru_id,
+            petugas_nama
         };
 
         if (tgl_mulai) updateData.tgl_mulai = tgl_mulai;
@@ -108,12 +201,43 @@ export async function PATCH(
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: Promise<{ id: string }> }
 ) {
     try {
-        const id = params.id;
+        const supabase = getSupabaseAdmin();
+        const { id } = await context.params;
         const { searchParams } = new URL(request.url);
         const scope = searchParams.get('scope') || 'ONE';
+
+        // Get user role for access control
+        let petugas_role = null;
+        try {
+            const { createClient } = await import('@supabase/supabase-js');
+            const anonSupabase = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+            );
+
+            const authHeader = request.headers.get('authorization');
+            if (authHeader) {
+                const token = authHeader.replace('Bearer ', '');
+                const { data: { user } } = await anonSupabase.auth.getUser(token);
+
+                if (user && user.id) {
+                    const { data: userData } = await supabase
+                        .from('users')
+                        .select('role')
+                        .eq('auth_id', user.id)
+                        .single();
+
+                    if (userData) {
+                        petugas_role = userData.role || null;
+                    }
+                }
+            }
+        } catch (authError) {
+            console.warn('[DELETE] Auth fetch failed:', authError);
+        }
 
         // Fetch the target record
         const { data: targetRecord, error: fetchError } = await supabase
@@ -127,6 +251,28 @@ export async function DELETE(
             return NextResponse.json(
                 { ok: false, error: 'Data tidak ditemukan' },
                 { status: 404 }
+            );
+        }
+
+        // Role-based access control validation
+        if (petugas_role === 'OP_Izin' && targetRecord.jenis !== 'IZIN') {
+            return NextResponse.json(
+                { ok: false, error: 'Anda hanya memiliki akses untuk data IZIN' },
+                { status: 403 }
+            );
+        }
+
+        if (petugas_role === 'OP_UKS' && targetRecord.jenis !== 'SAKIT') {
+            return NextResponse.json(
+                { ok: false, error: 'Anda hanya memiliki akses untuk data SAKIT' },
+                { status: 403 }
+            );
+        }
+
+        if (petugas_role === 'Guru' || petugas_role === 'Kepala Madrasah') {
+            return NextResponse.json(
+                { ok: false, error: 'Anda tidak memiliki akses untuk menghapus data' },
+                { status: 403 }
             );
         }
 

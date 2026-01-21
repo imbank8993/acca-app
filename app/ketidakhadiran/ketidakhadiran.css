@@ -31,6 +31,23 @@
     --pill-personal-bg: #f3e8ff;
     --pill-personal-bd: #e9d5ff;
     --pill-personal-tx: #7e22ce;
+
+    /* SAKIT status colors */
+    --pill-ringan-bg: #dcfce7;
+    --pill-ringan-bd: #bbf7d0;
+    --pill-ringan-tx: #15803d;
+
+    --pill-sedang-bg: #fef3c7;
+    --pill-sedang-bd: #fde68a;
+    --pill-sedang-tx: #b45309;
+
+    --pill-berat-bg: #fee2e2;
+    --pill-berat-bd: #fecaca;
+    --pill-berat-tx: #b91c1c;
+
+    --pill-kontrol-bg: #e0e7ff;
+    --pill-kontrol-bd: #c7d2fe;
+    --pill-kontrol-tx: #4338ca;
 }
 
 .kh-wrap {
@@ -234,8 +251,32 @@
 
 .pill-personal {
     background: var(--pill-personal-bg);
-    color: var(--pill-personal-tx);
     border-color: var(--pill-personal-bd);
+    color: var(--pill-personal-tx);
+}
+
+.pill-ringan {
+    background: var(--pill-ringan-bg);
+    border-color: var(--pill-ringan-bd);
+    color: var(--pill-ringan-tx);
+}
+
+.pill-sedang {
+    background: var(--pill-sedang-bg);
+    border-color: var(--pill-sedang-bd);
+    color: var(--pill-sedang-tx);
+}
+
+.pill-berat {
+    background: var(--pill-berat-bg);
+    border-color: var(--pill-berat-bd);
+    color: var(--pill-berat-tx);
+}
+
+.pill-kontrol {
+    background: var(--pill-kontrol-bg);
+    border-color: var(--pill-kontrol-bd);
+    color: var(--pill-kontrol-tx);
 }
 
 /* ================= TABLE ================= */
