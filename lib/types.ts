@@ -34,3 +34,84 @@ export interface SessionData {
     user: User;
     expiresAt: number;
 }
+
+// ============================================
+// Absensi Module Types
+// ============================================
+
+export interface JadwalGuru {
+    id: number;
+    guru_id: string;
+    nama_guru: string;
+    hari: string; // Senin, Selasa, Rabu, Kamis, Jumat, Sabtu
+    jam_ke: string; // Format: "1", "2-5", "3-4"
+    kelas: string;
+    mata_pelajaran: string;
+    tahun_ajaran: string;
+    semester: number; // 1 atau 2
+    aktif: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface AbsensiSesi {
+    id: number;
+    sesi_id: string; // UUID
+    jadwal_id?: number | null;
+    tanggal: string; // ISO date: "2026-01-21"
+    kelas: string;
+    mapel: string;
+    jam_ke: string; // Range: "2-5"
+    guru_id: string;
+    nama_guru: string; // Snapshot
+    status_sesi: 'DRAFT' | 'FINAL';
+    draft_type: 'DRAFT_DEFAULT' | 'DRAFT_GURU' | 'FINAL';
+    materi?: string;
+    catatan?: string;
+    tahun_ajaran: string;
+    semester: number;
+    created_at: string;
+    created_by: string;
+    updated_at: string;
+}
+
+export interface AbsensiDetail {
+    id?: number;
+    sesi_id: string; // UUID dari AbsensiSesi
+    nisn: string; // WAJIB TEXT (leading zero)
+    nama_snapshot: string;
+    status: 'HADIR' | 'IZIN' | 'SAKIT' | 'ALPHA';
+    otomatis: boolean;
+    ref_ketidakhadiran_id?: string | null;
+    catatan?: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface Siswa {
+    siswa_id: string;
+    nama_siswa: string;
+    nisn: string;
+    kelas: string;
+    aktif: boolean;
+}
+
+// API Response types
+export interface ApiResponse<T = any> {
+    ok: boolean;
+    error?: string;
+    data?: T;
+}
+
+export interface MyScopes {
+    ok: boolean;
+    error?: string;
+    guru?: {
+        guruId: string;
+        nama: string;
+    };
+    kelasList?: string[];
+    mapelByKelas?: Record<string, string[]>;
+    jamKeByKelasMapel?: Record<string, string[]>;
+}
+

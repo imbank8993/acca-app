@@ -109,7 +109,7 @@ export function buildUserObject(dbUser: any): User {
         id: dbUser.id,
         auth_id: dbUser.auth_id || null,
         username: dbUser.username || '',
-        guruId: dbUser.guruId || dbUser.username || '',
+        guruId: dbUser.guru_id || dbUser.guruId || dbUser.username || '',
         nama: dbUser.nama || 'User',
         role: dbUser.role || '',
         roles,

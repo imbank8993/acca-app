@@ -7,68 +7,70 @@ import { getUserByAuthId } from '@/lib/auth'
 import type { User } from '@/lib/types'
 import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
+import AbsensiPage from '../absensi/page'
+import KetidakhadiranPage from '../ketidakhadiran/page'
 
 export default function DashboardPage() {
-    const router = useRouter()
-    const [user, setUser] = useState<User | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [currentPage, setCurrentPage] = useState('Dashboard')
-    const [sidebarOpen, setSidebarOpen] = useState(false)
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const router = useRouter()
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState('Dashboard')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
-    useEffect(() => {
-        checkAuth()
-    }, [])
+  useEffect(() => {
+    checkAuth()
+  }, [])
 
-    const checkAuth = async () => {
-        try {
-            const { data: { session } } = await supabase.auth.getSession()
+  const checkAuth = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
 
-            if (!session) {
-                router.push('/login')
-                return
-            }
+      if (!session) {
+        router.push('/login')
+        return
+      }
 
-            // Get user data from database
-            const userData = await getUserByAuthId(session.user.id)
+      // Get user data from database
+      const userData = await getUserByAuthId(session.user.id)
 
-            if (!userData) {
-                router.push('/login')
-                return
-            }
+      if (!userData) {
+        router.push('/login')
+        return
+      }
 
-            setUser(userData)
+      setUser(userData)
 
-            // Set initial page based on user's first page access
-            if (userData.pagesTree.length > 0) {
-                const firstPage = userData.pagesTree[0]
-                if (firstPage.page) {
-                    setCurrentPage(firstPage.page)
-                } else if (firstPage.children.length > 0 && firstPage.children[0].page) {
-                    setCurrentPage(firstPage.children[0].page)
-                }
-            }
-        } catch (error) {
-            console.error('Auth check error:', error)
-            router.push('/login')
-        } finally {
-            setLoading(false)
+      // Set initial page based on user's first page access
+      if (userData.pagesTree.length > 0) {
+        const firstPage = userData.pagesTree[0]
+        if (firstPage.page) {
+          setCurrentPage(firstPage.page)
+        } else if (firstPage.children.length > 0 && firstPage.children[0].page) {
+          setCurrentPage(firstPage.children[0].page)
         }
+      }
+    } catch (error) {
+      console.error('Auth check error:', error)
+      router.push('/login')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    const handleNavigate = (page: string) => {
-        setCurrentPage(page)
-        setSidebarOpen(false) // Close sidebar on mobile after navigation
-    }
+  const handleNavigate = (page: string) => {
+    setCurrentPage(page)
+    setSidebarOpen(false) // Close sidebar on mobile after navigation
+  }
 
-    if (loading) {
-        return (
-            <div className="loading-screen">
-                <div className="loading-content">
-                    <div className="spinner"></div>
-                    <p>Memuat...</p>
-                </div>
-                <style jsx>{`
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-content">
+          <div className="spinner"></div>
+          <p>Memuat...</p>
+        </div>
+        <style jsx>{`
           .loading-screen {
             min-height: 100vh;
             display: flex;
@@ -97,43 +99,43 @@ export default function DashboardPage() {
             to { transform: rotate(360deg); }
           }
         `}</style>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null
+  }
+
+  return (
+    <>
+      <div className="dashboard-layout">
+        <Sidebar
+          user={user}
+          currentPage={currentPage}
+          onNavigate={handleNavigate}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          isCollapsed={sidebarCollapsed}
+          onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+
+        <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
+          <Header
+            user={user}
+            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+            isCollapsed={sidebarCollapsed}
+          />
+
+          <main className="content-area">
+            <div className="content-container">
+              {renderPageContent(currentPage, user)}
             </div>
-        )
-    }
+          </main>
+        </div>
+      </div>
 
-    if (!user) {
-        return null
-    }
-
-    return (
-        <>
-            <div className="dashboard-layout">
-                <Sidebar
-                    user={user}
-                    currentPage={currentPage}
-                    onNavigate={handleNavigate}
-                    isOpen={sidebarOpen}
-                    onToggle={() => setSidebarOpen(!sidebarOpen)}
-                    isCollapsed={sidebarCollapsed}
-                    onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-                />
-
-                <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
-                    <Header
-                        user={user}
-                        onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-                        isCollapsed={sidebarCollapsed}
-                    />
-
-                    <main className="content-area">
-                        <div className="content-container">
-                            {renderPageContent(currentPage, user)}
-                        </div>
-                    </main>
-                </div>
-            </div>
-
-            <style jsx global>{`
+      <style jsx global>{`
         * {
           margin: 0;
           padding: 0;
@@ -153,7 +155,7 @@ export default function DashboardPage() {
         }
       `}</style>
 
-            <style jsx>{`
+      <style jsx>{`
         .dashboard-layout {
           display: flex;
           min-height: 100vh;
@@ -191,112 +193,119 @@ export default function DashboardPage() {
           }
         }
       `}</style>
-        </>
-    )
+    </>
+  )
 }
 
 function renderPageContent(page: string, user: User) {
-    // Page content components will be implemented here
-    switch (page) {
-        case 'Dashboard':
-            return <DashboardContent user={user} />
+  // Page content components will be implemented here
+  switch (page) {
+    case 'Dashboard':
+      return <DashboardContent user={user} />
 
-        case 'LCKH':
-            return <PagePlaceholder title="LCKH" icon="bi-journal-text" description="Modul Lembar Catatan Kegiatan Harian" />
+    case 'Absensi':
+      // Render component absensi langsung dengan sidebar & header
+      return <AbsensiPage />
 
-        case 'Nilai':
-            return <PagePlaceholder title="Nilai" icon="bi-clipboard-data" description="Modul Penilaian Siswa" />
+    case 'Ketidakhadiran':
+      return <KetidakhadiranPage />
 
-        case 'Rapor':
-            return <PagePlaceholder title="Rapor" icon="bi-file-earmark-text" description="Modul Rapor Siswa" />
+    case 'LCKH':
+      return <PagePlaceholder title="LCKH" icon="bi-journal-text" description="Modul Lembar Catatan Kegiatan Harian" />
 
-        default:
-            return <PagePlaceholder title={page} icon="bi-file-earmark" description={`Halaman ${page}`} />
-    }
+    case 'Nilai':
+      return <PagePlaceholder title="Nilai" icon="bi-clipboard-data" description="Modul Penilaian Siswa" />
+
+    case 'Rapor':
+      return <PagePlaceholder title="Rapor" icon="bi-file-earmark-text" description="Modul Rapor Siswa" />
+
+    default:
+      return <PagePlaceholder title={page} icon="bi-file-earmark" description={`Halaman ${page}`} />
+  }
 }
 
 function DashboardContent({ user }: { user: User }) {
-    return (
-        <div className="dashboard-content">
-            <div className="welcome-card">
-                <h1>Selamat Datang, {user.nama}!</h1>
-                <p>Academic Center & Access - MAN Insan Cendekia Gowa</p>
+  return (
+    <div className="dashboard-content">
+      <div className="welcome-card">
+        <h1>Selamat Datang, {user.nama}!</h1>
+        <p>Academic Center & Access - MAN Insan Cendekia Gowa</p>
+      </div>
+
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-icon blue">
+            <i className="bi bi-people"></i>
+          </div>
+          <div className="stat-info">
+            <div className="stat-label">Total Akses</div>
+            <div className="stat-value">{user.pagesArray.length}</div>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon green">
+            <i className="bi bi-shield-check"></i>
+          </div>
+          <div className="stat-info">
+            <div className="stat-label">Role</div>
+            <div className="stat-value">{user.roles.length}</div>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon purple">
+            <i className="bi bi-grid-3x3"></i>
+          </div>
+          <div className="stat-info">
+            <div className="stat-label">Menu</div>
+            <div className="stat-value">{user.pagesTree.length}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="info-grid">
+        <div className="info-card">
+          <div className="info-header">
+            <i className="bi bi-person-badge"></i>
+            <h3>Informasi Akun</h3>
+          </div>
+          <div className="info-content">
+            <div className="info-row">
+              <span className="info-label">Nama</span>
+              <span className="info-value">{user.nama}</span>
             </div>
-
-            <div className="stats-grid">
-                <div className="stat-card">
-                    <div className="stat-icon blue">
-                        <i className="bi bi-people"></i>
-                    </div>
-                    <div className="stat-info">
-                        <div className="stat-label">Total Akses</div>
-                        <div className="stat-value">{user.pagesArray.length}</div>
-                    </div>
-                </div>
-
-                <div className="stat-card">
-                    <div className="stat-icon green">
-                        <i className="bi bi-shield-check"></i>
-                    </div>
-                    <div className="stat-info">
-                        <div className="stat-label">Role</div>
-                        <div className="stat-value">{user.roles.length}</div>
-                    </div>
-                </div>
-
-                <div className="stat-card">
-                    <div className="stat-icon purple">
-                        <i className="bi bi-grid-3x3"></i>
-                    </div>
-                    <div className="stat-info">
-                        <div className="stat-label">Menu</div>
-                        <div className="stat-value">{user.pagesTree.length}</div>
-                    </div>
-                </div>
+            <div className="info-row">
+              <span className="info-label">Username</span>
+              <span className="info-value">{user.username}</span>
             </div>
-
-            <div className="info-grid">
-                <div className="info-card">
-                    <div className="info-header">
-                        <i className="bi bi-person-badge"></i>
-                        <h3>Informasi Akun</h3>
-                    </div>
-                    <div className="info-content">
-                        <div className="info-row">
-                            <span className="info-label">Nama</span>
-                            <span className="info-value">{user.nama}</span>
-                        </div>
-                        <div className="info-row">
-                            <span className="info-label">Username</span>
-                            <span className="info-value">{user.username}</span>
-                        </div>
-                        <div className="info-row">
-                            <span className="info-label">Guru ID</span>
-                            <span className="info-value">{user.guruId}</span>
-                        </div>
-                        <div className="info-row">
-                            <span className="info-label">Divisi</span>
-                            <span className="info-value">{user.divisi || '-'}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="info-card">
-                    <div className="info-header">
-                        <i className="bi bi-grid"></i>
-                        <h3>Akses Halaman</h3>
-                    </div>
-                    <div className="info-content">
-                        <div className="pages-list">
-                            {user.pagesArray.map((page) => (
-                                <span key={page} className="page-badge">{page}</span>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+            <div className="info-row">
+              <span className="info-label">Guru ID</span>
+              <span className="info-value">{user.guruId}</span>
             </div>
+            <div className="info-row">
+              <span className="info-label">Divisi</span>
+              <span className="info-value">{user.divisi || '-'}</span>
+            </div>
+          </div>
+        </div>
 
-            <style jsx>{`
+        <div className="info-card">
+          <div className="info-header">
+            <i className="bi bi-grid"></i>
+            <h3>Akses Halaman</h3>
+          </div>
+          <div className="info-content">
+            <div className="pages-list">
+              {user.pagesArray.map((page) => (
+                <span key={page} className="page-badge">{page}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
         .dashboard-content {
           display: flex;
           flex-direction: column;
@@ -462,21 +471,21 @@ function DashboardContent({ user }: { user: User }) {
           }
         }
       `}</style>
-        </div>
-    )
+    </div>
+  )
 }
 
 function PagePlaceholder({ title, icon, description }: { title: string; icon: string; description: string }) {
-    return (
-        <div className="page-placeholder">
-            <div className="placeholder-icon">
-                <i className={`bi ${icon}`}></i>
-            </div>
-            <h2>{title}</h2>
-            <p>{description}</p>
-            <div className="coming-soon">Coming Soon</div>
+  return (
+    <div className="page-placeholder">
+      <div className="placeholder-icon">
+        <i className={`bi ${icon}`}></i>
+      </div>
+      <h2>{title}</h2>
+      <p>{description}</p>
+      <div className="coming-soon">Coming Soon</div>
 
-            <style jsx>{`
+      <style jsx>{`
         .page-placeholder {
           display: flex;
           flex-direction: column;
@@ -525,6 +534,6 @@ function PagePlaceholder({ title, icon, description }: { title: string; icon: st
           font-size: 0.9rem;
         }
       `}</style>
-        </div>
-    )
+    </div>
+  )
 }

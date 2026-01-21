@@ -1,0 +1,254 @@
+/* Sidebar - Hybrid CSS (Custom Classes + Tailwind) */
+
+.sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 40;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 256px;
+    background: linear-gradient(180deg, #0f1e3d 0%, #0a1628 100%);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(-100%);
+    transition: all 0.3s ease-in-out;
+    z-index: 40;
+}
+
+.sidebar.open {
+    transform: translateX(0);
+}
+
+.sidebar.collapsed {
+    width: 70px;
+}
+
+@media (min-width: 992px) {
+    .sidebar {
+        transform: translateX(0);
+    }
+
+    .sidebar-overlay {
+        display: none;
+    }
+}
+
+.sidebar-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.sidebar.collapsed .sidebar-header {
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 8px;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sidebar.collapsed .brand {
+    justify-content: center;
+    width: 100%;
+}
+
+.brand-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.sidebar-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.toggle-btn {
+    width: 32px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.sidebar.collapsed .toggle-btn {
+    display: flex !important;
+    margin: 8px auto 0;
+}
+
+@media (min-width: 992px) {
+    .toggle-btn {
+        display: flex;
+    }
+}
+
+.sidebar-nav {
+    margin-top: 24px;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 20px;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.menu-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 24px;
+    background: transparent;
+    border: none;
+    color: white;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.menu-btn:hover {
+    background: rgba(30, 64, 117, 0.3);
+}
+
+.menu-btn.active {
+    background: rgba(30, 64, 117, 0.5);
+}
+
+.menu-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.menu-icon {
+    width: 20px;
+    height: 20px;
+    font-size: 1.25rem;
+}
+
+.menu-label {
+    font-size: 0.875rem;
+}
+
+.sidebar.collapsed .menu-label {
+    display: none;
+}
+
+.sidebar.collapsed .chevron {
+    display: none;
+}
+
+.sidebar.collapsed .menu-btn {
+    justify-content: center;
+    padding: 10px;
+}
+
+.chevron {
+    width: 16px;
+    height: 16px;
+    font-size: 1rem;
+    transition: transform 0.3s;
+}
+
+.chevron.rotate {
+    transform: rotate(180deg);
+}
+
+.submenu {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out;
+}
+
+.submenu.open {
+    max-height: 160px;
+}
+
+.submenu-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 24px;
+    padding-left: 56px;
+    background: transparent;
+    border: none;
+    color: #9ca3af;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.submenu-btn:hover {
+    background: rgba(30, 64, 117, 0.3);
+    color: white;
+}
+
+.submenu-btn.active {
+    color: white;
+}
+
+.sidebar.collapsed .submenu-btn {
+    justify-content: center;
+    padding: 10px;
+    padding-left: 10px;
+}
+
+.sidebar.collapsed .submenu {
+    padding-left: 0;
+}
