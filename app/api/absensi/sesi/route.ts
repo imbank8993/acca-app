@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
                 mapel: body.mapel,
                 tanggal: body.tanggal,
                 jam_ke: body.jam_ke,
-                hari: body.hari || new Date(body.tanggal).toLocaleDateString('id-ID', { weekday: 'long' }),
+                hari: body.hari || ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][new Date(body.tanggal + 'T12:00:00').getDay()],
                 nama_guru: body.nama_guru,
                 status_sesi: 'DRAFT',
                 draft_type: 'DRAFT_DEFAULT',
@@ -221,12 +221,7 @@ export async function PATCH(request: NextRequest) {
             );
         }
 
-        if (existing.status_sesi === 'FINAL' && body.status_sesi !== 'FINAL') {
-            return NextResponse.json<ApiResponse>(
-                { ok: false, error: 'Sesi sudah FINAL, tidak bisa diubah' },
-                { status: 403 }
-            );
-        }
+
 
         // Build update object
         const updates: any = {};

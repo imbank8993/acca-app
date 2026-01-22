@@ -101,6 +101,7 @@ export interface ApiResponse<T = any> {
     ok: boolean;
     error?: string;
     data?: T;
+    holidays?: any[];
 }
 
 export interface MyScopes {

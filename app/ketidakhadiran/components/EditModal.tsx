@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Swal from 'sweetalert2';
+import { useEffect, useState } from "react";
+import Swal from "sweetalert2";
 
 interface EditModalProps {
   isOpen: boolean;
@@ -11,32 +11,52 @@ interface EditModalProps {
 }
 
 export default function EditModal({ isOpen, onClose, onSuccess, data }: EditModalProps) {
-  const [status, setStatus] = useState('');
-  const [tglMulai, setTglMulai] = useState('');
-  const [tglSelesai, setTglSelesai] = useState('');
-  const [keterangan, setKeterangan] = useState('');
-  const [scope, setScope] = useState<'ONE' | 'ALL'>('ONE');
+  const [status, setStatus] = useState("");
+  const [tglMulai, setTglMulai] = useState("");
+  const [tglSelesai, setTglSelesai] = useState("");
+  const [keterangan, setKeterangan] = useState("");
+  const [scope, setScope] = useState<"ONE" | "ALL">("ONE");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen && data) {
-      setStatus(data.status);
-      setTglMulai(data.tgl_mulai);
-      setTglSelesai(data.tgl_selesai);
-      setKeterangan(data.keterangan);
-      setScope('ONE');
+      setStatus(data.status ?? "");
+      setTglMulai(data.tgl_mulai ?? "");
+      setTglSelesai(data.tgl_selesai ?? "");
+      setKeterangan(data.keterangan ?? "");
+      setScope("ONE");
     }
   }, [isOpen, data]);
 
+  // ESC + lock scroll
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen || !data) return null;
+
+  const isIzin = String(data.jenis || "").toUpperCase() === "IZIN";
 
   const handleSubmit = async () => {
     if (!status || !tglMulai || !tglSelesai) {
-      Swal.fire({ 
-        title: 'Validasi', 
-        text: 'Semua field wajib diisi', 
-        icon: 'warning', 
-        confirmButtonColor: '#0b1b3a' 
+      await Swal.fire({
+        title: "Validasi",
+        text: "Semua field wajib diisi",
+        icon: "warning",
+        confirmButtonColor: "#0b1b3a",
       });
       return;
     }
@@ -49,51 +69,51 @@ export default function EditModal({ isOpen, onClose, onSuccess, data }: EditModa
         status,
         tgl_mulai: tglMulai,
         tgl_selesai: tglSelesai,
-        keterangan
+        keterangan,
       };
 
-      const { supabase } = await import('@/lib/supabase');
-      const { data: { session } } = await supabase.auth.getSession();
+      const { supabase } = await import("@/lib/supabase");
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-      }
+      const headers: HeadersInit = { "Content-Type": "application/json" };
+      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
 
       const res = await fetch(`/api/ketidakhadiran/${data.id}`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers,
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       const result = await res.json();
 
       if (result.ok) {
         await Swal.fire({
-          title: 'Berhasil!',
-          text: result.message || 'Data berhasil diupdate',
-          icon: 'success',
-          confirmButtonColor: '#0b1b3a',
-          timer: 1500,
-          showConfirmButton: false
+          title: "Berhasil!",
+          text: result.message || "Data berhasil diupdate",
+          icon: "success",
+          confirmButtonColor: "#0b1b3a",
+          timer: 1400,
+          showConfirmButton: false,
         });
         onSuccess();
         onClose();
       } else {
-        Swal.fire({ 
-          title: 'Gagal', 
-          text: result.error || 'Terjadi kesalahan', 
-          icon: 'error', 
-          confirmButtonColor: '#0b1b3a' 
+        await Swal.fire({
+          title: "Gagal",
+          text: result.error || "Terjadi kesalahan",
+          icon: "error",
+          confirmButtonColor: "#0b1b3a",
         });
       }
     } catch (error: any) {
       console.error(error);
-      Swal.fire({
-        title: 'Error',
-        text: error.message || 'Terjadi kesalahan sistem',
-        icon: 'error',
-        confirmButtonColor: '#0b1b3a'
+      await Swal.fire({
+        title: "Error",
+        text: error.message || "Terjadi kesalahan sistem",
+        icon: "error",
+        confirmButtonColor: "#0b1b3a",
       });
     } finally {
       setSubmitting(false);
@@ -102,205 +122,180 @@ export default function EditModal({ isOpen, onClose, onSuccess, data }: EditModa
 
   return (
     <div
-      className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200"
-      onClick={onClose}
+      className="
+        fixed inset-0 z-[60]
+        grid place-items-center
+        bg-slate-900/60 backdrop-blur-[6px]
+        px-[max(18px,env(safe-area-inset-left))]
+        py-[max(18px,env(safe-area-inset-top))]
+        pb-[max(24px,env(safe-area-inset-bottom))]
+      "
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
+      {/* ZONA KH MODAL: semua style detail diikat oleh class ini */}
       <div
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-        onClick={e => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
+        className="
+          kh-modal
+          w-full max-w-[680px]
+          rounded-[22px]
+          bg-white
+          shadow-2xl ring-1 ring-slate-900/5
+          overflow-hidden
+          max-h-[calc(100dvh-46px-env(safe-area-inset-top)-env(safe-area-inset-bottom))]
+          flex flex-col
+        "
       >
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-slate-50 to-slate-100/80 px-10 pt-10 pb-8 border-b border-slate-200">
-          <button
-            onClick={onClose}
-            className="absolute top-8 right-8 w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white text-slate-400 hover:text-slate-600 transition-all shadow-sm"
-          >
-            <i className="bi bi-x-lg text-lg"></i>
-          </button>
-          
-          <div className="flex items-start gap-6 pr-16">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/30">
-              <i className="bi bi-pencil-square text-white text-2xl"></i>
+        <div className="kh-modal__header">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="kh-modal__title">Edit Data Absen</h3>
+              <p className="kh-modal__sub truncate">
+                {data.nama} <span className="text-slate-400">({data.nisn})</span>
+              </p>
             </div>
-            <div>
-              <h3 className="text-2xl font-bold text-slate-900 tracking-tight mb-2">Edit Data</h3>
-              <div className="space-y-1">
-                <div className="text-base font-bold text-slate-700">{data.nama}</div>
-                <div className="text-sm text-slate-500 font-mono">{data.nisn}</div>
-              </div>
-            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="kh-modal__x"
+              aria-label="Tutup"
+            >
+              <i className="bi bi-x-lg" />
+            </button>
           </div>
         </div>
 
         {/* Body */}
-        <div className="px-10 py-8 max-h-[calc(100vh-240px)] overflow-y-auto">
-          <div className="max-w-xl mx-auto space-y-7">
+        <div className="kh-modal__body">
+          {/* Jenis Card */}
+          <div className={isIzin ? "kh-badge kh-badge--izin" : "kh-badge kh-badge--sakit"}>
+            <div className="kh-badge__icon">
+              <i className={`bi ${isIzin ? "bi-calendar-check-fill" : "bi-heart-pulse-fill"}`} />
+            </div>
+            <div>
+              <div className="kh-badge__label">JENIS DATA</div>
+              <div className="kh-badge__value">{data.jenis}</div>
+            </div>
+          </div>
 
-            {/* Jenis Ketidakhadiran Card */}
-            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
-              <div className="flex items-center gap-5">
-                <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
-                  data.jenis === 'IZIN' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-red-500 text-white'
-                }`}>
-                  <i className={`bi ${data.jenis === 'IZIN' ? 'bi-calendar-check-fill' : 'bi-heart-pulse-fill'} text-xl`}></i>
+          <div className="kh-form">
+            {/* Status */}
+            <div className="kh-field">
+              <label className="kh-label">Status Kehadiran</label>
+              <div className="kh-control">
+                <select value={status} onChange={(e) => setStatus(e.target.value)} className="kh-input">
+                  {isIzin ? (
+                    <>
+                      <option value="MADRASAH">Madrasah (Tugas Sekolah)</option>
+                      <option value="PERSONAL">Personal (Izin Pribadi)</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="Ringan">Sakit Ringan</option>
+                      <option value="Sedang">Sakit Sedang</option>
+                      <option value="Berat">Sakit Berat</option>
+                      <option value="Kontrol">Kontrol Dokter</option>
+                    </>
+                  )}
+                </select>
+                <i className="bi bi-chevron-down kh-icon-right" />
+              </div>
+            </div>
+
+            {/* Dates */}
+            <div className="kh-grid-2">
+              <div className="kh-field">
+                <label className="kh-label">Tanggal Mulai</label>
+                <div className="kh-control">
+                  <input
+                    type="date"
+                    value={tglMulai}
+                    onChange={(e) => setTglMulai(e.target.value)}
+                    className="kh-input"
+                  />
                 </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Jenis Ketidakhadiran
-                  </div>
-                  <div className={`text-lg font-bold ${data.jenis === 'IZIN' ? 'text-blue-600' : 'text-red-600'}`}>
-                    {data.jenis}
-                  </div>
+              </div>
+
+              <div className="kh-field">
+                <label className="kh-label">Tanggal Selesai</label>
+                <div className="kh-control">
+                  <input
+                    type="date"
+                    value={tglSelesai}
+                    onChange={(e) => setTglSelesai(e.target.value)}
+                    className="kh-input"
+                  />
                 </div>
               </div>
             </div>
 
-            {/* Form Section */}
-            <div className="space-y-6">
-              
-              {/* Status Kehadiran */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-3">
-                  Status Kehadiran
-                </label>
-                <div className="relative">
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-full h-14 pl-5 pr-12 bg-white border-2 border-slate-200 rounded-xl text-slate-900 text-base font-semibold focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer"
-                  >
-                    {data.jenis === 'IZIN' ? (
-                      <>
-                        <option value="MADRASAH">Madrasah (Tugas Sekolah)</option>
-                        <option value="PERSONAL">Personal (Izin Pribadi)</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="Ringan">Sakit Ringan</option>
-                        <option value="Sedang">Sakit Sedang</option>
-                        <option value="Berat">Sakit Berat</option>
-                        <option value="Kontrol">Kontrol Dokter</option>
-                      </>
-                    )}
-                  </select>
-                  <i className="bi bi-chevron-down absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
-                </div>
+            {/* Keterangan */}
+            <div className="kh-field">
+              <label className="kh-label">Keterangan</label>
+              <textarea
+                value={keterangan}
+                onChange={(e) => setKeterangan(e.target.value)}
+                rows={3}
+                className="kh-input kh-textarea"
+                placeholder="Masukkan keterangan..."
+              />
+              <div className="kh-hint">
+                Tips: buat singkat, jelas, dan sesuai dokumen pendukung.
+              </div>
+            </div>
+
+            {/* Scope */}
+            <div className="kh-field">
+              <label className="kh-label kh-label--tiny">Terapkan Perubahan</label>
+
+              <div className="kh-seg">
+                <button
+                  type="button"
+                  onClick={() => setScope("ONE")}
+                  className={scope === "ONE" ? "kh-seg__btn is-active" : "kh-seg__btn"}
+                >
+                  Siswa Ini
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScope("ALL")}
+                  className={scope === "ALL" ? "kh-seg__btn is-active" : "kh-seg__btn"}
+                >
+                  Semua (Grup)
+                </button>
               </div>
 
-              {/* Periode Tanggal */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-3">
-                  Periode
-                </label>
-                <div className="grid grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">
-                      Tanggal Mulai
-                    </label>
-                    <input
-                      type="date"
-                      value={tglMulai}
-                      onChange={(e) => setTglMulai(e.target.value)}
-                      className="w-full h-14 px-5 bg-white border-2 border-slate-200 rounded-xl text-slate-900 text-base font-semibold focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">
-                      Tanggal Selesai
-                    </label>
-                    <input
-                      type="date"
-                      value={tglSelesai}
-                      onChange={(e) => setTglSelesai(e.target.value)}
-                      className="w-full h-14 px-5 bg-white border-2 border-slate-200 rounded-xl text-slate-900 text-base font-semibold focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                    />
-                  </div>
-                </div>
+              <div className="kh-hint">
+                Gunakan <b>Semua (Grup)</b> jika perubahan berlaku untuk data sejenis pada periode yang sama.
               </div>
-
-              {/* Keterangan */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-3">
-                  Keterangan
-                </label>
-                <textarea
-                  value={keterangan}
-                  onChange={(e) => setKeterangan(e.target.value)}
-                  rows={4}
-                  placeholder="Tambahkan catatan detail..."
-                  className="w-full px-5 py-4 bg-white border-2 border-slate-200 rounded-xl text-slate-900 text-base font-medium focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all resize-none"
-                />
-              </div>
-
-              {/* Terapkan Perubahan Ke */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-3">
-                  Terapkan Perubahan Ke
-                </label>
-                <div className="bg-slate-100 rounded-xl p-2 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setScope('ONE')}
-                    className={`h-14 rounded-lg font-bold text-sm transition-all ${
-                      scope === 'ONE'
-                        ? 'bg-white text-slate-900 shadow-md'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <i className="bi bi-person-fill mr-2"></i>
-                    Siswa Ini Saja
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScope('ALL')}
-                    className={`h-14 rounded-lg font-bold text-sm transition-all ${
-                      scope === 'ALL'
-                        ? 'bg-white text-slate-900 shadow-md'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <i className="bi bi-people-fill mr-2"></i>
-                    Semua Grup
-                  </button>
-                </div>
-                <p className="text-xs text-slate-500 mt-3 text-center leading-relaxed">
-                  Grup = siswa dengan jenis, tanggal, dan keterangan yang sama
-                </p>
-              </div>
-
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-10 py-6 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
+        <div className="kh-modal__footer">
           <button
+            type="button"
             onClick={onClose}
             disabled={submitting}
-            className="h-12 px-8 rounded-xl text-sm font-bold text-slate-700 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all disabled:opacity-50"
+            className="kh-btn kh-btn--ghost"
           >
             Batal
           </button>
+
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="h-12 px-8 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg shadow-blue-500/30 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
+            className="kh-btn kh-btn--primary"
           >
-            {submitting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                <span>Menyimpan...</span>
-              </>
-            ) : (
-              <>
-                <i className="bi bi-check-circle-fill"></i>
-                <span>Simpan Perubahan</span>
-              </>
-            )}
+            {submitting ? <span className="kh-spin" /> : <i className="bi bi-check-lg" />}
+            Simpan
           </button>
         </div>
       </div>

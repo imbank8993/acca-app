@@ -119,6 +119,147 @@ export default function KetidakhadiranPage() {
         loadData();
     }, [filterKelas, filterJenis, filterMonths, searchQuery]);
 
+    const handleExport = async () => {
+        try {
+            // Use xlsx-js-style for styling support
+            const XLSX = await import('xlsx-js-style');
+
+            // Define Styles
+            const headerStyle = {
+                fill: { fgColor: { rgb: "0B1B3A" } }, // Navy Theme
+                font: { color: { rgb: "FFFFFF" }, bold: true, sz: 12 },
+                alignment: { horizontal: "center", vertical: "center" },
+                border: {
+                    top: { style: "thin", color: { rgb: "000000" } },
+                    bottom: { style: "thin", color: { rgb: "000000" } },
+                    left: { style: "thin", color: { rgb: "000000" } },
+                    right: { style: "thin", color: { rgb: "000000" } }
+                }
+            };
+
+            const cellStyle = {
+                border: {
+                    top: { style: "thin", color: { rgb: "CCCCCC" } },
+                    bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+                    left: { style: "thin", color: { rgb: "CCCCCC" } },
+                    right: { style: "thin", color: { rgb: "CCCCCC" } }
+                }
+            };
+
+            // Helper to format data
+            const formatData = (dataRows: KetidakhadiranRow[]) => {
+                return dataRows.map((row, index) => ({
+                    No: index + 1,
+                    NISN: row.nisn,
+                    Nama: row.nama,
+                    Kelas: row.kelas,
+                    Jenis: row.jenis,
+                    Status: row.status === 'MADRASAH' ? 'Madrasah' : row.status === 'PERSONAL' ? 'Personal' : row.status,
+                    'Tgl Mulai': row.tgl_mulai,
+                    'Tgl Selesai': row.tgl_selesai,
+                    Keterangan: row.keterangan || '-',
+                    'Diinput Pada': new Date(row.created_at).toLocaleDateString('id-ID')
+                }));
+            };
+
+            // Helper to create and style sheet
+            const createStyledSheet = (data: any[]) => {
+                const ws = XLSX.utils.json_to_sheet(data);
+
+                // Column Widths
+                const colWidths = [
+                    { wch: 5 },  // No
+                    { wch: 15 }, // NISN
+                    { wch: 35 }, // Nama
+                    { wch: 10 }, // Kelas
+                    { wch: 10 }, // Jenis
+                    { wch: 15 }, // Status
+                    { wch: 15 }, // Tgl Mulai
+                    { wch: 15 }, // Tgl Selesai
+                    { wch: 50 }, // Keterangan
+                    { wch: 20 }  // Created At
+                ];
+                ws['!cols'] = colWidths;
+
+                // Row Heights (Header taller)
+                if (!ws['!rows']) ws['!rows'] = [];
+                ws['!rows'][0] = { hpt: 30 }; // Header height
+
+                // Apply Styles
+                const range = XLSX.utils.decode_range(ws['!ref'] as string);
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const address = XLSX.utils.encode_cell({ r: 0, c: C });
+                    if (!ws[address]) continue;
+                    ws[address].s = headerStyle;
+                }
+
+                // Apply cell border to data
+                for (let R = 1; R <= range.e.r; ++R) {
+                    for (let C = range.s.c; C <= range.e.c; ++C) {
+                        const address = XLSX.utils.encode_cell({ r: R, c: C });
+                        if (!ws[address]) continue;
+                        ws[address].s = cellStyle;
+                    }
+                }
+
+                return ws;
+            };
+
+            // Filter Data
+            const allData = formatData(rows);
+            const izinData = formatData(rows.filter(r => r.jenis === 'IZIN'));
+            const sakitData = formatData(rows.filter(r => r.jenis === 'SAKIT'));
+
+            // Create Workbook
+            const wb = XLSX.utils.book_new();
+
+            // Append Sheets based on Role
+            if (userRole === 'OP_Izin') {
+                // OP_Izin: Only Izin sheet
+                if (izinData.length > 0) XLSX.utils.book_append_sheet(wb, createStyledSheet(izinData), "Izin");
+                else XLSX.utils.book_append_sheet(wb, createStyledSheet([{ Info: "Tidak ada data" }]), "Izin");
+
+            } else if (userRole === 'OP_UKS') {
+                // OP_UKS: Only Sakit sheet
+                if (sakitData.length > 0) XLSX.utils.book_append_sheet(wb, createStyledSheet(sakitData), "Sakit");
+                else XLSX.utils.book_append_sheet(wb, createStyledSheet([{ Info: "Tidak ada data" }]), "Sakit");
+
+            } else {
+                // Admin / Default: All Sheets
+                if (allData.length > 0) XLSX.utils.book_append_sheet(wb, createStyledSheet(allData), "Semua Data");
+                else XLSX.utils.book_append_sheet(wb, createStyledSheet([{ Info: "Tidak ada data" }]), "Semua Data");
+
+                if (izinData.length > 0) XLSX.utils.book_append_sheet(wb, createStyledSheet(izinData), "Izin");
+                if (sakitData.length > 0) XLSX.utils.book_append_sheet(wb, createStyledSheet(sakitData), "Sakit");
+            }
+
+            // Generate filename based on role
+            let fileName = `Ketidakhadiran_${new Date().toISOString().split('T')[0]}.xlsx`;
+            if (userRole === 'OP_Izin') fileName = `Ketidakhadiran_Izin_${new Date().toISOString().split('T')[0]}.xlsx`;
+            if (userRole === 'OP_UKS') fileName = `Ketidakhadiran_Sakit_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+            XLSX.writeFile(wb, fileName);
+
+            Swal.fire({
+                title: 'Berhasil',
+                text: 'File Excel berhasil diunduh',
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false,
+                confirmButtonColor: '#0b1b3a'
+            });
+
+        } catch (error) {
+            console.error('Export error:', error);
+            Swal.fire({
+                title: 'Gagal',
+                text: 'Gagal mengexport data. Pastikan library terinstall.',
+                icon: 'error',
+                confirmButtonColor: '#0b1b3a'
+            });
+        }
+    };
+
     const loadData = async () => {
         try {
             setLoading(true);
@@ -149,6 +290,23 @@ export default function KetidakhadiranPage() {
             setLoading(false);
         }
     };
+
+    // ... (rest of the file)
+
+    // In return statement:
+    /*
+                    <div className="kh-toolbar">
+                        <button className="btn-kh-soft" onClick={loadData}>
+                            <i className="bi bi-arrow-clockwise"></i>
+                        </button>
+                        <button className="btn-kh-soft" onClick={handleExport} title="Export Excel">
+                            <i className="bi bi-file-earmark-excel"></i> Export
+                        </button>
+                        <button className="btn-kh-navy" onClick={() => setIsAddModalOpen(true)}>
+                            + Tambah
+                        </button>
+                    </div>
+    */
 
     const calculateKPI = (data: KetidakhadiranRow[]) => {
         const stats: KPIStats = {
@@ -291,8 +449,11 @@ export default function KetidakhadiranPage() {
                         <div className="kh-sub">Kelola data izin dan sakit siswa</div>
                     </div>
                     <div className="kh-toolbar">
-                        <button className="btn-kh-soft" onClick={loadData}>
-                            Refresh
+                        <button className="btn-kh-soft" onClick={loadData} title="Refresh Data">
+                            <i className="bi bi-arrow-clockwise"></i>
+                        </button>
+                        <button className="btn-kh-excel" onClick={handleExport} title="Export to Excel">
+                            <i className="bi bi-file-earmark-excel-fill"></i>Export
                         </button>
                         <button className="btn-kh-navy" onClick={() => setIsAddModalOpen(true)}>
                             + Tambah
@@ -301,7 +462,7 @@ export default function KetidakhadiranPage() {
                 </div>
 
                 {/* KPI Cards */}
-                <div className="kh-kpis" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+                <div className="kh-kpis">
                     <div className="kh-kpi">
                         <div className="kh-kpi-icon">Σ</div>
                         <div>
@@ -339,7 +500,7 @@ export default function KetidakhadiranPage() {
 
                 {/* Filter Card */}
                 <div className="kh-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem' }}>
+                    <div className="kh-filters-grid">
                         <div>
                             <label style={{ fontSize: '0.82rem', fontWeight: 700, display: 'block', marginBottom: '0.3rem', color: '#1e293b' }}>
                                 Cari (NISN/Nama/Kelas)

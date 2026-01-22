@@ -15,9 +15,7 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
     const [status, setStatus] = useState('MADRASAH');
 
     // IZIN fields
-    const [lomba, setLomba] = useState('');
-    const [penyelenggara, setPenyelenggara] = useState('');
-    const [alamat, setAlamat] = useState('');
+    const [ketIzin, setKetIzin] = useState('');
 
     // SAKIT fields
     const [ketSakit, setKetSakit] = useState('');
@@ -45,11 +43,11 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
 
         let keterangan = '';
         if (jenis === 'IZIN') {
-            if (!lomba || !penyelenggara || !alamat) {
-                Swal.fire({ title: 'Validasi', text: 'Semua kolom keterangan wajib diisi untuk IZIN', icon: 'warning' });
+            if (!ketIzin) {
+                Swal.fire({ title: 'Validasi', text: 'Keterangan izin wajib diisi', icon: 'warning' });
                 return;
             }
-            keterangan = `${lomba}|${penyelenggara}|${alamat}`;
+            keterangan = ketIzin;
         } else {
             if (!ketSakit) {
                 Swal.fire({ title: 'Validasi', text: 'Keterangan sakit wajib diisi', icon: 'warning', confirmButtonColor: '#0b1b3a' });
@@ -217,40 +215,16 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
 
                     {/* Conditional Keterangan */}
                     {jenis === 'IZIN' ? (
-                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-5">
-                            <h4 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider">Detail Izin</h4>
-                            <div className="form-group mb-3">
-                                <label>Nama Lomba / Kegiatan</label>
-                                <input
-                                    type="text"
-                                    className="form-input"
-                                    placeholder="Contoh: Olimpiade Matematika"
-                                    value={lomba}
-                                    onChange={(e) => setLomba(e.target.value)}
-                                />
-                            </div>
-                            <div className="grid-2">
-                                <div className="form-group">
-                                    <label>Penyelenggara</label>
-                                    <input
-                                        type="text"
-                                        className="form-input"
-                                        placeholder="Contoh: Dinas Pendidikan"
-                                        value={penyelenggara}
-                                        onChange={(e) => setPenyelenggara(e.target.value)}
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Lokasi / Alamat</label>
-                                    <input
-                                        type="text"
-                                        className="form-input"
-                                        placeholder="Contoh: Makassar"
-                                        value={alamat}
-                                        onChange={(e) => setAlamat(e.target.value)}
-                                    />
-                                </div>
-                            </div>
+                        <div className="form-group mb-5">
+                            <label>Keterangan Izin</label>
+                            <p className="text-xs text-slate-500 mb-2">Gunakan tanda <b>|</b> untuk memisahkan informasi (Misal: Lomba | Penyelenggara | Lokasi)</p>
+                            <textarea
+                                className="form-input textarea"
+                                rows={3}
+                                placeholder="Contoh: Olimpiade Matematika | Dinas Pendidikan | Makassar"
+                                value={ketIzin}
+                                onChange={(e) => setKetIzin(e.target.value)}
+                            />
                         </div>
                     ) : (
                         <div className="form-group mb-5">
@@ -377,12 +351,19 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
         .grid-2 {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 16px;
-          margin-bottom: 16px;
+          gap: 24px;
+          margin-bottom: 24px;
+        }
+
+        @media (max-width: 640px) {
+          .grid-2 {
+            grid-template-columns: 1fr;
+            gap: 20px;
+          }
         }
 
         .form-group {
-          margin-bottom: 16px;
+          margin-bottom: 24px;
         }
 
         .form-group label {
@@ -390,7 +371,7 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
           font-size: 0.875rem;
           font-weight: 600;
           color: #334155; /* High contrast label */
-          margin-bottom: 8px;
+          margin-bottom: 10px;
         }
 
         .select-wrapper {
@@ -399,9 +380,9 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
 
         .form-input {
           width: 100%;
-          padding: 10px 12px;
+          padding: 14px 16px;
           border: 1px solid #cbd5e1;
-          border-radius: 8px;
+          border-radius: 10px;
           font-size: 0.95rem;
           color: #0f172a; /* High contrast input text */
           background: white;
@@ -412,7 +393,7 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
         .form-input:focus {
           outline: none;
           border-color: #3aa6ff;
-          box-shadow: 0 0 0 3px rgba(58, 166, 255, 0.1);
+          box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.1);
         }
 
         .form-input::placeholder {
@@ -421,17 +402,18 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
 
         .textarea {
           resize: vertical;
-          min-height: 80px;
+          min-height: 100px;
+          line-height: 1.5;
         }
 
         .select-icon {
           position: absolute;
-          right: 12px;
+          right: 16px;
           top: 50%;
           transform: translateY(-50%);
           color: #64748b;
           pointer-events: none;
-          font-size: 0.8rem;
+          font-size: 0.9rem;
         }
 
         .bg-slate-50 { background-color: #f8fafc; }
@@ -439,7 +421,7 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
         .rounded-xl { border-radius: 0.75rem; }
         .border-slate-200 { border-color: #e2e8f0; }
         .mb-3 { margin-bottom: 0.75rem; }
-        .mb-5 { margin-bottom: 1.25rem; }
+        .mb-5 { margin-bottom: 2rem; }
         .text-sm { font-size: 0.875rem; }
         .font-bold { font-weight: 700; }
         .text-slate-700 { color: #334155; }
@@ -458,7 +440,7 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
         }
 
         .btn-cancel {
-          padding: 10px 20px;
+          padding: 14px 20px;
           background: white;
           border: 1px solid #cbd5e1;
           color: #475569;
@@ -474,7 +456,7 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
         }
 
         .btn-save {
-          padding: 10px 24px;
+          padding: 14px 24px;
           background: #0b1b3a; /* Navy Theme */
           border: none;
           color: white;
