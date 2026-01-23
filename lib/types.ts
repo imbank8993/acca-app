@@ -5,7 +5,7 @@ export interface User {
     auth_id: string | null;
     username: string;
     password?: string; // Only for migration, not exposed to frontend
-    guruId: string;
+    nip: string; // Renamed from guruId
     nama: string;
     role: string; // Raw role string: "GURU,KAMAD" or "GURU|KAMAD"
     roles: string[]; // Parsed roles: ["GURU", "KAMAD"]
@@ -41,7 +41,7 @@ export interface SessionData {
 
 export interface JadwalGuru {
     id: number;
-    guru_id: string;
+    nip: string; // Renamed from guru_id
     nama_guru: string;
     hari: string; // Senin, Selasa, Rabu, Kamis, Jumat, Sabtu
     jam_ke: string; // Format: "1", "2-5", "3-4"
@@ -62,7 +62,7 @@ export interface AbsensiSesi {
     kelas: string;
     mapel: string;
     jam_ke: string; // Range: "2-5"
-    guru_id: string;
+    nip: string; // Renamed from guru_id
     nama_guru: string; // Snapshot
     status_sesi: 'DRAFT' | 'FINAL';
     draft_type: 'DRAFT_DEFAULT' | 'DRAFT_GURU' | 'FINAL';
@@ -108,7 +108,7 @@ export interface MyScopes {
     ok: boolean;
     error?: string;
     guru?: {
-        guruId: string;
+        nip: string; // Renamed from guruId
         nama: string;
     };
     kelasList?: string[];

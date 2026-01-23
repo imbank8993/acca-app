@@ -7,7 +7,7 @@ import type { AbsensiSesi, ApiResponse } from '@/lib/types';
  * Ambil sesi absensi berdasarkan filter
  * 
  * Query params:
- * - guru_id: Filter by guru ID
+ * - nip: Filter by guru NIP
  * - kelas: Filter by kelas
  * - tanggal: Filter by tanggal (ISO format)
  * - tahun_ajaran: Filter by tahun ajaran
@@ -17,7 +17,7 @@ import type { AbsensiSesi, ApiResponse } from '@/lib/types';
 export async function GET(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams;
-        const guru_id = searchParams.get('guru_id');
+        const nip = searchParams.get('nip');
         const kelas = searchParams.get('kelas');
         const tanggal = searchParams.get('tanggal');
         const tahun_ajaran = searchParams.get('tahun_ajaran');
@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
             .order('jam_ke', { ascending: true });
 
         // Apply filters
-        if (guru_id) {
-            query = query.eq('guru_id', guru_id);
+        if (nip) {
+            query = query.eq('nip', nip);
         }
         if (kelas) {
             query = query.eq('kelas', kelas);
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
  * Buat sesi absensi baru atau ambil sesi yang sudah ada
  * 
  * Body: {
- *   guru_id, kelas, mapel, tanggal, jam_ke, nama_guru,
+ *   nip, kelas, mapel, tanggal, jam_ke, nama_guru,
  *   tahun_ajaran?, semester?, materi?, catatan?
  * }
  */
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
 
         // Validasi required fields
-        const required = ['guru_id', 'kelas', 'mapel', 'tanggal', 'jam_ke', 'nama_guru'];
+        const required = ['nip', 'kelas', 'mapel', 'tanggal', 'jam_ke', 'nama_guru'];
         for (const field of required) {
             if (!body[field]) {
                 return NextResponse.json<ApiResponse>(
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
         const { data: jadwal } = await supabase
             .from('jadwal_guru')
             .select('id')
-            .eq('guru_id', body.guru_id)
+            .eq('nip', body.nip)
             .eq('kelas', body.kelas)
             .eq('mata_pelajaran', body.mapel)
             .eq('jam_ke', body.jam_ke)
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
             .insert({
                 sesi_id,
                 jadwal_id: jadwal?.id || null,
-                guru_id: body.guru_id,
+                nip: body.nip,
                 kelas: body.kelas,
                 mapel: body.mapel,
                 tanggal: body.tanggal,
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
                 catatan: body.catatan || null,
                 tahun_ajaran: body.tahun_ajaran || '2024/2025',
                 semester: body.semester || 2,
-                created_by: body.guru_id,
+                created_by: body.nip,
             })
             .select()
             .single();

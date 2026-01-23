@@ -5,7 +5,7 @@ import type { ApiResponse } from '@/lib/types';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { months, year, role, guru_id, mode, kelas } = body;
+        const { months, year, role, nip, mode, kelas } = body;
 
         // Create Authenticated Client
         const authHeader = request.headers.get('Authorization');
@@ -207,8 +207,8 @@ export async function POST(request: NextRequest) {
 
             // Role-based filtering
             if (role !== 'ADMIN') {
-                if (!guru_id) return NextResponse.json<ApiResponse>({ ok: false, error: 'Guru ID wajib untuk role Guru' }, { status: 400 });
-                query = query.eq('guru_id', guru_id);
+                if (!nip) return NextResponse.json<ApiResponse>({ ok: false, error: 'NIP wajib untuk role Guru' }, { status: 400 });
+                query = query.eq('nip', nip);
             }
 
             const { data: sessions, error: sessionError } = await query;

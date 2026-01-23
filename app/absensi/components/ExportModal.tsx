@@ -7,7 +7,7 @@ interface ExportModalProps {
     isOpen: boolean;
     onClose: () => void;
     userRole: string; // 'GURU' | 'ADMIN'
-    guruId?: string; // Required if role is GURU
+    nip?: string; // Required if role is GURU
 }
 
 const MONTHS = [
@@ -25,7 +25,7 @@ const MONTHS = [
     { value: 12, label: 'Desember' }
 ];
 
-export default function ExportModal({ isOpen, onClose, userRole, guruId }: ExportModalProps) {
+export default function ExportModal({ isOpen, onClose, userRole, nip }: ExportModalProps) {
     const [selectedMonths, setSelectedMonths] = useState<number[]>([new Date().getMonth() + 1]);
     const [year, setYear] = useState(new Date().getFullYear());
     const [exporting, setExporting] = useState(false);
@@ -49,11 +49,11 @@ export default function ExportModal({ isOpen, onClose, userRole, guruId }: Expor
                 // Let's reuse `/api/scopes` but maybe without guru_id to get all? Or just use what we have.
                 // Or fetch distinct 'kelas' from 'siswa' table?
                 // Let's use a new simple fetch to `/api/data/kelas` if it existed, but it doesn't.
-                // Let's use `/api/scopes?guru_id=${guruId}` if GURU, or just a hardcoded list if easy?
+                // Let's use `/api/scopes?nip=${nip}` if GURU, or just a hardcoded list if easy?
                 // Better: fetch distinct kelas from 'siswa' if possible.
                 // Let's try to fetch all classes via a direct query if possible or assume a list for now.
                 // Wait, use `api/scopes` is probably best existing way.
-                const res = await fetch(`/api/scopes?guru_id=${guruId}`); // Even if Wali, they are a Guru usually.
+                const res = await fetch(`/api/scopes?nip=${nip}`); // Even if Wali, they are a Guru usually.
                 const json = await res.json();
                 if (json.ok && json.data?.kelasList) {
                     setKelasList(json.data.kelasList);
@@ -116,7 +116,7 @@ export default function ExportModal({ isOpen, onClose, userRole, guruId }: Expor
                     months: selectedMonths,
                     year,
                     role: userRole,
-                    guru_id: guruId,
+                    nip: nip,
                     mode: exportMode, // Pass mode
                     kelas: exportMode === 'WALI' ? selectedKelas : undefined // Pass selected class
                 })

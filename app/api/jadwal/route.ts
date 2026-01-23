@@ -7,7 +7,7 @@ import type { JadwalGuru, ApiResponse } from '@/lib/types';
  * Ambil jadwal guru berdasarkan filter
  * 
  * Query params:
- * - guru_id: Filter by guru ID
+ * - nip: Filter by guru NIP
  * - hari: Filter by hari (Senin, Selasa, dll)
  * - kelas: Filter by kelas
  * - aktif: Filter by status aktif (true/false)
@@ -15,7 +15,7 @@ import type { JadwalGuru, ApiResponse } from '@/lib/types';
 export async function GET(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams;
-        const guru_id = searchParams.get('guru_id');
+        const nip = searchParams.get('nip');
         const hari = searchParams.get('hari');
         const kelas = searchParams.get('kelas');
         const aktif = searchParams.get('aktif');
@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
             .order('jam_ke', { ascending: true });
 
         // Apply filters
-        if (guru_id) {
-            query = query.eq('guru_id', guru_id);
+        if (nip) {
+            query = query.eq('nip', nip);
         }
         if (hari) {
             query = query.eq('hari', hari);

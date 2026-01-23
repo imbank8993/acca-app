@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
         // Get current authenticated user from request headers
         let petugas_role = null;
-        let petugas_guru_id = null;
+        let petugas_nip = null;
         let petugas_nama = null;
 
         try {
@@ -54,18 +54,18 @@ export async function POST(request: NextRequest) {
                 if (user && user.id) {
                     console.log('[BULK] Logged in user UUID:', user.id); // Debug
 
-                    // Query users table to get role and guru_id using auth_id column
+                    // Query users table to get role and nip using auth_id column
                     const { data: userData, error: userError } = await supabase
                         .from('users')
-                        .select('role, guru_id, nama')
+                        .select('role, nip, nama')
                         .eq('auth_id', user.id)  // Changed from 'id' to 'auth_id'
                         .single();
 
                     if (userData && !userError) {
                         petugas_role = userData.role || null;
-                        petugas_guru_id = userData.guru_id || null;
+                        petugas_nip = userData.nip || null;
                         petugas_nama = userData.nama || user.email?.split('@')[0] || null;
-                        console.log('[BULK] Petugas detected from users table:', { petugas_role, petugas_guru_id, petugas_nama });
+                        console.log('[BULK] Petugas detected from users table:', { petugas_role, petugas_nip, petugas_nama });
                     } else {
                         console.warn('[BULK] User not found in users table:', userError);
                         console.warn('[BULK] Attempted to find user with UUID:', user.id);
@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
                 status,
                 keterangan,
                 petugas_role,
-                petugas_guru_id,
+                petugas_nip,
                 petugas_nama,
                 aktif: true,
                 created_at: new Date().toISOString(),

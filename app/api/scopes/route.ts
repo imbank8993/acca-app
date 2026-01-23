@@ -8,16 +8,16 @@ import type { MyScopes, ApiResponse } from '@/lib/types';
  * Digunakan untuk populate dropdown di halaman absensi
  * 
  * Query params:
- * - guru_id: ID guru (required)
+ * - nip: ID guru (required)
  */
 export async function GET(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams;
-        const guru_id = searchParams.get('guru_id');
+        const nip = searchParams.get('nip');
 
-        if (!guru_id) {
+        if (!nip) {
             return NextResponse.json<ApiResponse>(
-                { ok: false, error: 'guru_id wajib diisi' },
+                { ok: false, error: 'nip wajib diisi' },
                 { status: 400 }
             );
         }
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         const { data: jadwalList, error } = await supabase
             .from('jadwal_guru')
             .select('*')
-            .eq('guru_id', guru_id)
+            .eq('nip', nip)
             .eq('aktif', true);
 
         if (error) {
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
                 ok: true,
                 data: {
                     ok: true,
-                    guru: { guruId: guru_id, nama: '' },
+                    guru: { nip: nip, nama: '' },
                     kelasList: [],
                     mapelByKelas: {},
                     jamKeByKelasMapel: {}
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
 
         const response: MyScopes = {
             ok: true,
-            guru: { guruId: guru_id, nama: namaGuru },
+            guru: { nip: nip, nama: namaGuru },
             kelasList,
             mapelByKelas: mapelByKelasArray,
             jamKeByKelasMapel: jamKeByKelasMapelArray

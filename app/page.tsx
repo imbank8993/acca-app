@@ -13,17 +13,27 @@ export default function Home() {
 
   const checkAuthAndRedirect = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Auth timeout')), 3000)
+      )
+
+      // Race between auth check and timeout
+      const { data: { session } } = await Promise.race([
+        supabase.auth.getSession(),
+        timeoutPromise
+      ]) as any
 
       if (session) {
-        // User is logged in, redirect to dashboard
         router.push('/dashboard')
       } else {
-        // User is not logged in, redirect to login
         router.push('/login')
       }
     } catch (error) {
-      console.error('Auth check error:', error)
+      console.error('Auth check error or timeout:', error)
+      // On error/timeout, assume logged out or force redirect to move user forward
+      // If we are in dev and want to force dashboard, we could, but let's stick to safe login redirect
+      // checking local storage might be better but let's just push to login
       router.push('/login')
     }
   }

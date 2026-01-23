@@ -10,7 +10,7 @@ interface Scope {
     kelasList: string[];
     mapelByKelas: Record<string, string[]>;
     jamKeByKelasMapel: Record<string, string[]>;
-    guru?: { nama: string; guruId: string };
+    guru?: { nama: string; nip: string };
 }
 
 interface Sesi {
@@ -43,10 +43,10 @@ interface AbsensiRow {
 }
 
 export default function AbsensiPage() {
-    const guruId = 'G-IC-001';
+    const nip = 'G-IC-001';
 
     const [namaGuru, setNamaGuru] = useState('');
-    const [guruIdDisplay, setGuruIdDisplay] = useState('');
+    const [nipDisplay, setNipDisplay] = useState('');
     const [scope, setScope] = useState<Scope | null>(null);
     const [kelas, setKelas] = useState('');
     const [mapel, setMapel] = useState('');
@@ -87,8 +87,8 @@ export default function AbsensiPage() {
     };
 
     useEffect(() => {
-        if (guruId) loadScopes();
-    }, [guruId]);
+        if (nip) loadScopes();
+    }, [nip]);
 
     useEffect(() => {
         if (scope && kelas) {
@@ -107,13 +107,13 @@ export default function AbsensiPage() {
 
     async function loadScopes() {
         try {
-            const res = await fetch(`/api/scopes?guru_id=${guruId}`);
+            const res = await fetch(`/api/scopes?nip=${nip}`);
             const json = await res.json();
             if (json.ok && json.data) {
                 setScope(json.data);
                 if (json.data.guru?.nama) {
                     setNamaGuru(json.data.guru.nama);
-                    setGuruIdDisplay(json.data.guru.guruId); // Assume this state exists based on context use
+                    setNipDisplay(json.data.guru.nip); // Assume this state exists based on context use
                 }
                 if (json.data.kelasList?.length > 0) setKelas(json.data.kelasList[0]);
             }
@@ -146,7 +146,7 @@ export default function AbsensiPage() {
             const sesiRes = await authFetch('/api/absensi/sesi', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ guru_id: guruId, kelas, mapel, tanggal, jam_ke: jamKe, nama_guru: namaGuru })
+                body: JSON.stringify({ nip: nip, kelas, mapel, tanggal, jam_ke: jamKe, nama_guru: namaGuru })
             });
             const sesiJson = await sesiRes.json();
             if (!sesiJson.ok) throw new Error(sesiJson.error || 'Gagal memuat absensi');
@@ -264,23 +264,7 @@ export default function AbsensiPage() {
         }
     }
 
-    async function saveAbsensiInternal(sesiId: string, data: AbsensiRow[], makeFinal: boolean) {
-        const resSesi = await authFetch('/api/absensi/sesi', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sesi_id: sesiId, status_sesi: makeFinal ? 'FINAL' : 'DRAFT' })
-        });
-        if (!resSesi.ok) throw new Error('Gagal update status sesi');
 
-        // We do not save system_source to DB (it's frontend transient mainly, or we could add jsonb col)
-        // For now, rows are saved as is.
-        const resDetail = await authFetch('/api/absensi/detail', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sesi_id: sesiId, details: data })
-        });
-        if (!resDetail.ok) throw new Error('Gagal menyimpan detail absensi');
-    }
 
     async function refreshKetidakhadiran() {
         if (!currentSesi || !kelas || !tanggal) {
@@ -543,7 +527,7 @@ export default function AbsensiPage() {
                 <div>
                     <h1 className="absensi-title">Absensi Guru</h1>
                     <p className="absensi-subtitle">
-                        Login: {namaGuru || '...'} · GuruID: {guruIdDisplay || guruId}
+                        Login: {namaGuru || '...'} · NIP: {nipDisplay || nip}
                     </p>
                 </div>
             </div>
@@ -760,7 +744,7 @@ export default function AbsensiPage() {
                 isOpen={isExportModalOpen}
                 onClose={() => setIsExportModalOpen(false)}
                 userRole={userRole}
-                guruId={guruId}
+                nip={nip}
             />
         </div >
     );

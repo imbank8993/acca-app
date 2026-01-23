@@ -43,6 +43,7 @@ const getMenuIcon = (name: string): string => {
     'rekap data': 'fa-chart-simple',
     'rekap absen&jurnal': 'fa-chart-simple',
     'master data': 'fa-database',
+    'pengaturan data': 'fa-sliders',
     'export data': 'fa-file-export',
     'layanan guru': 'fa-hands-helping',
     'pengaturan akun': 'fa-gear',
@@ -84,11 +85,25 @@ export default function Sidebar({
         {/* Header */}
         <div className="sidebar-header">
           <div className="brand">
-            <img
+            {/* <img
               src="https://drive.google.com/thumbnail?id=1dB7qVU5MT9HuPgSSLf6ZMIHcQDC6nJh3&sz=w100"
               alt="ACCA Logo"
               className="brand-logo"
-            />
+            /> */}
+            <div className="brand-logo-placeholder" style={{
+              width: 40,
+              height: 40,
+              backgroundColor: '#3aa6ff',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '1.2rem',
+              marginRight: 10
+            }}>
+              <i className="fa-solid fa-graduation-cap"></i>
+            </div>
             {!isCollapsed && <h2 className="sidebar-title">ACCA</h2>}
           </div>
 

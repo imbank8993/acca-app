@@ -34,7 +34,7 @@ export async function PATCH(
 
         // Get current authenticated user from request headers
         let petugas_role = null;
-        let petugas_guru_id = null;
+        let petugas_nip = null;
         let petugas_nama = null;
 
         try {
@@ -54,15 +54,15 @@ export async function PATCH(
                     // Query users table using auth_id
                     const { data: userData } = await supabase
                         .from('users')
-                        .select('role, guru_id, nama')
+                        .select('role, nip, nama')
                         .eq('auth_id', user.id)
                         .single();
 
                     if (userData) {
                         petugas_role = userData.role || null;
-                        petugas_guru_id = userData.guru_id || null;
+                        petugas_nip = userData.nip || null;
                         petugas_nama = userData.nama || user.email?.split('@')[0] || null;
-                        console.log('[PATCH] Petugas detected:', { petugas_role, petugas_guru_id, petugas_nama });
+                        console.log('[PATCH] Petugas detected:', { petugas_role, petugas_nip, petugas_nama });
                     }
                 }
             }
@@ -129,7 +129,7 @@ export async function PATCH(
             const updateData: any = {
                 updated_at: new Date().toISOString(),
                 petugas_role,
-                petugas_guru_id,
+                petugas_nip,
                 petugas_nama
             };
 
@@ -166,7 +166,7 @@ export async function PATCH(
         const updateData: any = {
             updated_at: new Date().toISOString(),
             petugas_role,
-            petugas_guru_id,
+            petugas_nip,
             petugas_nama
         };
 
