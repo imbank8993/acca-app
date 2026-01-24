@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getUserByAuthId } from '@/lib/auth'
@@ -14,6 +14,42 @@ import DataSettingsPage from '@/components/settings/DataSettingsPage'
 import ResetDataPage from '@/components/reset/ResetDataPage'
 
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="loading-screen">
+        <div className="loading-content">
+          <div className="spinner"></div>
+          <p>Memuat Dashboard...</p>
+        </div>
+        <style jsx>{`
+          .loading-screen {
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #061126, #0b1b3a, #0f2a56);
+          }
+          .loading-content { text-align: center; color: #eaf2ff; }
+          .spinner {
+            display: inline-block;
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(58, 166, 255, 0.2);
+            border-top-color: #3aa6ff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 16px;
+          }
+          @keyframes spin { to { transform: rotate(360deg); } }
+        `}</style>
+      </div>
+    }>
+      <DashboardLogic />
+    </Suspense>
+  )
+}
+
+function DashboardLogic() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [user, setUser] = useState<User | null>(null)
