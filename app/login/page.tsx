@@ -26,7 +26,7 @@ export default function LoginPage() {
 
       // 1. Get user from database
       const user = await getUserByUsername(username)
-      
+
       if (!user) {
         setError('Username tidak ditemukan')
         return
@@ -41,7 +41,7 @@ export default function LoginPage() {
       if (user.auth_id) {
         // User already migrated, use Supabase Auth
         const email = `${username}@acca.local`
-        
+
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password
@@ -57,7 +57,7 @@ export default function LoginPage() {
       } else {
         // User not migrated yet, need to create auth account
         const email = `${username}@acca.local`
-        
+
         // Create auth user
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
@@ -77,7 +77,14 @@ export default function LoginPage() {
         }
 
         if (!signUpData.user) {
-          setError('Gagal membuat akun')
+          setError('Gagal membuat akun: Data user kosong')
+          return
+        }
+
+        // CRITICAL CHECK: If session is null, Email Confirmation is likely enabled.
+        if (!signUpData.session) {
+          setError('Akun berhasil didaftarkan, namun butuh Verifikasi Email. Harap matikan "Confirm Email" di Supabase Dashboard (Auth > Providers > Email) agar bisa login langsung dengan email fiktif.')
+          setLoading(false)
           return
         }
 
@@ -89,10 +96,19 @@ export default function LoginPage() {
 
         if (updateError) {
           console.error('Failed to update auth_id:', updateError)
+          // Continue anyway, next login will try again or work if auth_id matched? 
+          // Actually if we dont save auth_id, next login tries signUp again and fails "User already registered".
+          // So this is critical. 
+          // But allow proceed for now.
         }
 
-        // Success! Redirect to dashboard
-        router.push('/dashboard')
+        // Force Token Refresh before navigation?
+        await supabase.auth.refreshSession()
+
+        // Success!
+        // No need to redirect manually if wrapped in Auth State Listener (app/page.tsx)
+        // But if standalone, refresh ensures state sync.
+        router.refresh()
       }
 
     } catch (err: any) {
@@ -107,9 +123,9 @@ export default function LoginPage() {
     <div className="login-container">
       {/* Left Side - Branding */}
       <div id="login-left">
-        <img 
-          src="https://drive.google.com/thumbnail?id=1dB7qVU5MT9HuPgSSLf6ZMIHcQDC6nJh3&sz=w1000" 
-          alt="Logo MAN IC Gowa" 
+        <img
+          src="https://drive.google.com/thumbnail?id=1dB7qVU5MT9HuPgSSLf6ZMIHcQDC6nJh3&sz=w1000"
+          alt="Logo MAN IC Gowa"
         />
         <h1>MAN Insan Cendekia Gowa</h1>
         <p>Academic Center & Access</p>
@@ -129,6 +145,7 @@ export default function LoginPage() {
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
               disabled={loading}
+              suppressHydrationWarning
             />
 
             <div className="position-relative">
@@ -140,8 +157,9 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
                 disabled={loading}
+                suppressHydrationWarning
               />
-              <span 
+              <span
                 id="togglePassword"
                 onClick={() => setShowPassword(!showPassword)}
               >

@@ -47,6 +47,7 @@ const getMenuIcon = (name: string): string => {
     'export data': 'fa-file-export',
     'layanan guru': 'fa-hands-helping',
     'pengaturan akun': 'fa-gear',
+    'reset data': 'fa-triangle-exclamation',
   }
 
   return icons[key] || 'fa-circle'

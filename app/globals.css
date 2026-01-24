@@ -1,8 +1,16 @@
 @import "tailwindcss";
 
+/* =========================================================
+   GLOBAL BASE
+========================================================= */
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* ✅ Layout tokens (sinkron dengan header/sidebar Ustadz) */
+  --app-header-h: 65px;
+  --app-sidebar-w: 256px;
+  --app-sidebar-w-collapsed: 70px;
 }
 
 @theme inline {
@@ -19,89 +27,179 @@
   }
 }
 
+/* =========================================================
+   ✅ iOS SAFE SCROLL FIX (PENTING)
+   Kalau tidak ada ini, iPhone 13 sering "kepotong"
+========================================================= */
+html,
+body {
+  height: auto;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+
+  /* ✅ iOS: scroll halus */
+  -webkit-overflow-scrolling: touch;
 }
 
-/* Status Radio Styling */
+/* =========================================================
+   ✅ APP SHELL LAYOUT (WAJIB UNTUK HEADER FIXED)
+   Sesuaikan class kalau wrapper layout Ustadz beda.
+   Saya targetkan selector yang umum + aman.
+========================================================= */
+
+/* Wrapper utama (kalau ada) */
+#app,
+.app,
+.app-shell,
+.dashboard-layout,
+.layout,
+.wrapper {
+  min-height: 100dvh;   /* ✅ bukan 100vh */
+  height: auto;
+  overflow: visible;
+}
+
+/* Konten utama (tempat halaman tampil) — sering bernama main/content */
+main,
+.main,
+.main-content,
+.content,
+.page-content {
+  /* offset header fixed */
+  padding-top: var(--app-header-h);
+  padding-bottom: env(safe-area-inset-bottom);
+
+  /* offset sidebar di desktop */
+  margin-left: var(--app-sidebar-w);
+
+  /* tinggi aman iOS */
+  min-height: 100dvh;
+
+  /* scroll terjadi di sini (kalau layout Ustadz mengunci body) */
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Jika sidebar collapsed, biasanya ada class di body/app.
+   Kalau Ustadz pakai class lain, sesuaikan salah satu:
+   .collapsed / .is-collapsed / .sidebar-collapsed */
+.collapsed main,
+.is-collapsed main,
+.sidebar-collapsed main,
+.collapsed .main,
+.is-collapsed .main,
+.sidebar-collapsed .main,
+.collapsed .main-content,
+.is-collapsed .main-content,
+.sidebar-collapsed .main-content,
+.collapsed .content,
+.is-collapsed .content,
+.sidebar-collapsed .content,
+.collapsed .page-content,
+.is-collapsed .page-content,
+.sidebar-collapsed .page-content {
+  margin-left: var(--app-sidebar-w-collapsed);
+}
+
+/* Mobile: sidebar overlay -> konten full */
+@media (max-width: 992px) {
+  main,
+  .main,
+  .main-content,
+  .content,
+  .page-content {
+    margin-left: 0;
+  }
+}
+
+/* =========================================================
+   Status Radio Styling (punya Ustadz)
+========================================================= */
 .status-radio-group {
-    display: flex;
-    background-color: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 999px;
-    padding: 3px;
-    width: 100%;
+  display: flex;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  padding: 3px;
+  width: 100%;
 }
 
 .status-radio-item {
-    flex: 1;
-    position: relative;
+  flex: 1;
+  position: relative;
 }
 
 .status-radio-item input {
-    position: absolute;
-    opacity: 0;
-    cursor: pointer;
-    height: 0;
-    width: 0;
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
 }
 
 .status-radio-label {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    padding: 6px 0;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #64748b;
-    border-radius: 999px;
-    cursor: pointer;
-    transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 6px 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .status-radio-item input:checked + .status-radio-label {
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .status-radio-item input:checked + .status-radio-label[data-status="HADIR"] {
-    background-color: white;
-    color: #1e293b;
-    border: 1px solid #cbd5e1;
+  background-color: white;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
 }
 
 .status-radio-item input:checked + .status-radio-label[data-status="IZIN"] {
-    background-color: #3b82f6;
-    color: white;
+  background-color: #3b82f6;
+  color: white;
 }
 
 .status-radio-item input:checked + .status-radio-label[data-status="SAKIT"] {
-    background-color: #f59e0b;
-    color: white;
+  background-color: #f59e0b;
+  color: white;
 }
 
 .status-radio-item input:checked + .status-radio-label[data-status="ALPHA"] {
-    background-color: #ef4444;
-    color: white;
+  background-color: #ef4444;
+  color: white;
 }
 
 .status-radio-item:hover .status-radio-label {
-    color: #334155;
-    background-color: #f1f5f9;
+  color: #334155;
+  background-color: #f1f5f9;
 }
 
 .status-radio-item input:checked:hover + .status-radio-label {
-    color: white; /* Maintain white text on hover for colored buttons */
+  color: white;
 }
 .status-radio-item input:checked:hover + .status-radio-label[data-status="HADIR"] {
-   color: #1e293b; 
-   background-color: white;
+  color: #1e293b;
+  background-color: white;
 }
 
-
-/* Dark Mode */
+/* =========================================================
+   Dark Mode (punya Ustadz)
+========================================================= */
 html.dark {
   color-scheme: dark;
 }

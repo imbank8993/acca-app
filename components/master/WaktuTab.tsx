@@ -1,8 +1,8 @@
-'use client'
-
-import { useState, useEffect, useRef } from 'react'
-import { exportToExcel, generateTemplate, readExcel } from '@/lib/excel-utils'
+import { useState, useEffect } from 'react'
+import { exportToExcel } from '@/lib/excel-utils'
 import Pagination from '@/components/ui/Pagination'
+import Swal from 'sweetalert2'
+import ImportModal from '@/components/ui/ImportModal'
 
 interface Waktu {
   id: number;
@@ -16,13 +16,6 @@ interface Waktu {
 
 const HARI_LIST = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 const PROGRAM_LIST = ['Reguler', 'UTBK'];
-// User asked: "tampilkan pilihan semua program, IBS dan Unggulan dihapus"
-// So maybe just Reguler and UTBK? Or maybe there are others?
-// "pilihan semua program" implies a filter option "Semua Program".
-// "IBS dan Unggulan dihapus" implies removing them from the list.
-// Let's stick to Reguler and UTBK matching the screenshot minus the deleted ones.
-
-
 
 export default function WaktuTab() {
   const [waktuList, setWaktuList] = useState<Waktu[]>([])
@@ -33,7 +26,7 @@ export default function WaktuTab() {
   const [totalItems, setTotalItems] = useState(0)
 
   // Filtering
-  const [filterProgram, setFilterProgram] = useState('Semua Program') // Default: Semua
+  const [filterProgram, setFilterProgram] = useState('Semua Program')
   const [filterHari, setFilterHari] = useState('Senin')
 
   // Modal State
@@ -43,10 +36,6 @@ export default function WaktuTab() {
 
   // Import State
   const [showImportModal, setShowImportModal] = useState(false)
-  const [showImportTambahModal, setShowImportTambahModal] = useState(false)
-  const [importing, setImporting] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const fileInputRefTambah = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState<Partial<Waktu>>({
     hari: 'Senin',
@@ -88,10 +77,7 @@ export default function WaktuTab() {
   }
 
   const handleAddNew = () => {
-    // Determine next jam_ke based on existing list for the selected day/program
     const currentHari = filterHari === 'Semua' ? 'Senin' : filterHari;
-
-    // Filter list for max calculation only for current context
     const relevantList = waktuList.filter(w => w.hari === currentHari && w.program === filterProgram);
     const maxJam = relevantList.length > 0 ? Math.max(...relevantList.map(w => w.jam_ke)) : 0;
 
@@ -114,7 +100,18 @@ export default function WaktuTab() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Hapus jam pelajaran ini?')) return
+    const result = await Swal.fire({
+      title: 'Hapus Jam Ini?',
+      text: "Data yang dihapus tidak bisa dikembalikan.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Ya, Hapus',
+      cancelButtonText: 'Batal'
+    })
+
+    if (!result.isConfirmed) return
 
     try {
       const res = await fetch(`/api/master/waktu?id=${id}`, {
@@ -147,13 +144,16 @@ export default function WaktuTab() {
     }
   }
 
-  const saveWaktu = async (data: Waktu, isUpdate: boolean) => {
+  const saveWaktu = async (data: Waktu, isUpdate: boolean, upsert: boolean = false) => {
     if (!data.mulai || !data.selesai) {
       throw new Error('Jam Mulai dan Selesai harus diisi');
     }
 
     const method = isUpdate ? 'PUT' : 'POST'
-    const res = await fetch('/api/master/waktu', {
+    let url = '/api/master/waktu'
+    if (upsert) url += '?upsert=true'
+
+    const res = await fetch(url, {
       method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -173,7 +173,6 @@ export default function WaktuTab() {
 
   // Excel Functions
   const handleExport = () => {
-    // Export all displayed data
     const dataToExport = waktuList.map((w, index) => ({
       'No': index + 1,
       'Hari': w.hari || '',
@@ -187,121 +186,55 @@ export default function WaktuTab() {
   }
 
   const handleDownloadTemplate = () => {
-    generateTemplate(['No', 'Hari', 'Program', 'Jam Ke', 'Waktu Mulai', 'Waktu Selesai', 'Jenis'], 'Template_Waktu');
+    // Moved to generic logic
   }
 
-  // --- IMPORT UTAMA (REPLACE ALL) ---
-  const handleImportUtama = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const mapImportRow = (row: any) => {
+    const getVal = (targetKeys: string[]) => {
+      // Normalize target keys
+      const normalizedTargets = targetKeys.map(k => k.toLowerCase().trim());
 
-    if (!confirm('PERINGATAN: Import Utama akan MENGHAPUS SEMUA data waktu yang ada dan menggantinya dengan data dari file.\n\nApakah Anda yakin ingin melanjutkan?')) {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
+      // Find matching key in row
+      const foundKey = Object.keys(row).find(k =>
+        normalizedTargets.includes(k.toLowerCase().trim())
+      );
 
-    setImporting(true);
-    try {
-      const jsonData = await readExcel(file);
-
-      // 1. Delete All Data
-      const delRes = await fetch('/api/master/waktu?scope=all', { method: 'DELETE' });
-      if (!delRes.ok) throw new Error('Gagal menghapus data lama');
-
-      // 2. Insert New Data
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const row of jsonData) {
-        const payload = mapRowToPayload(row);
-        if (!payload) { failCount++; continue; }
-
-        try {
-          await saveWaktu(payload as Waktu, false);
-          successCount++;
-        } catch (err) {
-          console.error('Import Utama Insert Error:', err);
-          failCount++;
-        }
-      }
-
-      alert(`Import Utama Selesai.\nTotal Data Masuk: ${successCount}\nGagal: ${failCount}`);
-      fetchWaktu();
-      setShowImportModal(false);
-
-    } catch (err: any) {
-      console.error('Import Error:', err);
-      alert('Gagal memproses import utama: ' + err.message);
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
-
-  // --- IMPORT TAMBAH (APPEND) ---
-  const handleImportTambah = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImporting(true);
-    try {
-      const jsonData = await readExcel(file);
-      let successCount = 0;
-      let duplicateCount = 0;
-      let failCount = 0;
-
-      for (const row of jsonData) {
-        const payload = mapRowToPayload(row);
-        if (!payload) { failCount++; continue; }
-
-        try {
-          await saveWaktu(payload as Waktu, false);
-          successCount++;
-        } catch (err: any) {
-          if (err.message && (err.message.includes('sudah ada') || err.message.includes('duplicate'))) {
-            duplicateCount++;
-          } else {
-            console.error('Import Tambah Error:', err);
-            failCount++;
-          }
-        }
-      }
-
-      alert(`Import Tambah Selesai.\nBerhasil Ditambahkan: ${successCount}\nDuplikat (Dilewati): ${duplicateCount}\nGagal: ${failCount}`);
-      fetchWaktu();
-      setShowImportTambahModal(false);
-      setShowModal(false);
-
-    } catch (err: any) {
-      console.error('Import Tambah Error:', err);
-      alert('Gagal memproses import tambah: ' + err.message);
-    } finally {
-      setImporting(false);
-      if (fileInputRefTambah.current) fileInputRefTambah.current.value = '';
-    }
-  }
-
-  const mapRowToPayload = (row: any) => {
-    const getVal = (keys: string[]) => {
-      for (const k of keys) {
-        if (row[k] !== undefined) return row[k];
-      }
-      return '';
+      if (foundKey) return row[foundKey];
+      return undefined;
     };
 
-    const isIstirahatRaw = getVal(['Jenis', 'is_istirahat']);
+    const isIstirahatRaw = getVal(['Jenis', 'is_istirahat', 'Tipe']);
     const isIstirahat = isIstirahatRaw === true || String(isIstirahatRaw).toLowerCase() === 'true' || String(isIstirahatRaw).toLowerCase() === 'istirahat';
 
     // Helper to convert Excel time (serial or string) to HH:mm
     const formatTime = (val: any): string => {
-      if (!val) return '00:00';
+      if (val === undefined || val === null) return '00:00';
+
+      // Excel Serial Time (fraction of day) example: 0.5 = 12:00
       if (typeof val === 'number') {
-        const totalSeconds = Math.round(val * 86400);
+        // If > 1, it might include date, take fraction only
+        let fraction = val % 1;
+
+        // Handle edge case if it is basically an integer like 0 or 1, might be 00:00
+        if (val === 0) return '00:00';
+
+        const totalSeconds = Math.round(fraction * 86400);
         const hours = Math.floor(totalSeconds / 3600);
         const minutes = Math.floor((totalSeconds % 3600) / 60);
+        // const seconds = totalSeconds % 60; 
         return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
       }
-      return String(val).trim();
+
+      const s = String(val).trim();
+      // "07:00", "7:00", "07.00", "7.00"
+      // Replace dot with colon
+      const normalized = s.replace('.', ':');
+      if (/^\d{1,2}:\d{2}/.test(normalized)) {
+        const parts = normalized.split(':');
+        return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+      }
+
+      return normalized;
     };
 
     const hari = getVal(['Hari', 'hari']) || 'Senin';
@@ -318,9 +251,6 @@ export default function WaktuTab() {
       selesai: formatTime(getVal(['Waktu Selesai', 'selesai', 'Selesai'])),
       is_istirahat: isIstirahat
     };
-  }
-
-  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
   }
 
   return (
@@ -422,82 +352,6 @@ export default function WaktuTab() {
         }}
       />
 
-      {/* Import Modal */}
-      {
-        showImportModal && (
-          <div className="modal-overlay">
-            <div className="modal-content" style={{ maxWidth: '400px' }}>
-              <div className="modal-header">
-                <h2>Import (Ganti Semua)</h2>
-                <button onClick={() => setShowImportModal(false)} className="close-btn">&times;</button>
-              </div>
-              <div className="modal-body">
-                <div className="flex flex-col gap-4">
-                  <p className="text-sm text-gray-600">
-                    Unduh template Excel, isi data, lalu upload kembali.
-                  </p>
-                  <button className="btn-secondary w-full" onClick={handleDownloadTemplate}>
-                    <i className="bi bi-file-earmark-excel"></i> Download Template
-                  </button>
-
-                  <div className="border-t pt-4">
-                    <label className="block mb-2 text-sm font-medium">Upload File Excel</label>
-                    <input
-                      type="file"
-                      accept=".xlsx, .xls"
-                      ref={fileInputRef}
-                      onChange={handleImportUtama}
-                      disabled={importing}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
-                    />
-                  </div>
-
-                  {importing && <div className="text-center text-blue-600 font-medium">Memproses data...</div>}
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      }
-
-      {/* Import Tambah Modal */}
-      {
-        showImportTambahModal && (
-          <div className="modal-overlay" style={{ zIndex: 1050 }}>
-            <div className="modal-content" style={{ maxWidth: '400px' }}>
-              <div className="modal-header">
-                <h2>Import Data (Append)</h2>
-                <button onClick={() => setShowImportTambahModal(false)} className="close-btn">&times;</button>
-              </div>
-              <div className="modal-body">
-                <div className="flex flex-col gap-4">
-                  <p className="text-sm text-gray-600">
-                    Data akan ditambahkan ke database. Data duplikat akan dilewati.
-                  </p>
-                  <button className="btn-secondary w-full" onClick={handleDownloadTemplate}>
-                    <i className="bi bi-file-earmark-excel"></i> Download Template
-                  </button>
-
-                  <div className="border-t pt-4">
-                    <label className="block mb-2 text-sm font-medium">Upload File Excel</label>
-                    <input
-                      type="file"
-                      accept=".xlsx, .xls"
-                      ref={fileInputRefTambah}
-                      onChange={handleImportTambah}
-                      disabled={importing}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
-                    />
-                  </div>
-
-                  {importing && <div className="text-center text-blue-600 font-medium">Memproses data...</div>}
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      }
-
       {
         showModal && (
           <div className="modal-overlay">
@@ -584,9 +438,6 @@ export default function WaktuTab() {
                   </div>
                 </div>
                 <div className="modal-footer">
-                  <button type="button" onClick={() => setShowImportTambahModal(true)} className="btn-secondary" style={{ marginRight: 'auto' }}>
-                    <i className="bi bi-file-earmark-plus"></i> Import +
-                  </button>
                   <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Batal</button>
                   <button type="submit" disabled={saving} className="btn-primary">
                     {saving ? 'Menyimpan...' : 'Simpan'}
@@ -598,77 +449,639 @@ export default function WaktuTab() {
         )
       }
 
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={() => {
+          fetchWaktu();
+          setShowImportModal(false);
+        }}
+        templateColumns={['No', 'Hari', 'Program', 'Jam Ke', 'Waktu Mulai', 'Waktu Selesai', 'Jenis']}
+        templateName="Template_Waktu"
+        apiEndpoint="/api/master/waktu?upsert=true"
+        mapRowData={mapImportRow}
+      />
+
       <style jsx>{`
-        .tab-content { padding: 24px; background: #fff; border-radius: 0 0 12px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-        .action-bar h3 { margin: 0; color: #374151; font-size: 1.1rem; }
-        
-        .filter-bar { display: flex; gap: 16px; align-items: flex-end; margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #f3f4f6; }
-        .filter-group { display: flex; flex-direction: column; gap: 6px; }
-        .filter-group label { font-size: 0.85rem; color: #6b7280; font-weight: 500; }
-        .filter-group select, .filter-group input { padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; min-width: 150px; }
-        
-        .action-buttons-group { display: flex; gap: 8px; margin-left: auto; }
-        .ml-auto { margin-left: auto; }
+/* =====================================================
+   TAB (WITH FILTER BAR) — PREMIUM NAVY (FULL REPLACE)
+   Fix utama:
+   - Mobile iPhone 13 (390x844): filter jadi stack, tabel jadi card view
+   - Tidak terpotong / tidak overflow (min-width:0 + wrap kuat)
+   - Aksi icon tetap 1 baris di desktop
+   - Modal responsif (mobile full)
+   - Badge istirahat / KBM tetap jelas & lembut
+===================================================== */
 
-        .btn-primary { background: linear-gradient(135deg, #3aa6ff, #1c4c99); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .btn-secondary { background: #e5e7eb; color: #374151; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .btn-secondary:hover { background: #d1d5db; }
-        
-        .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th, .data-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        .data-table th { background: #f3f4f6; font-weight: 700; color: #111827; }
-        .data-table td { color: #1f2937; }
-        
-        .row-istirahat { background-color: #fcf6f6; }
-        .badge-istirahat { background: #fee2e2; color: #7f1d1d; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; border: 1px solid #fecaca; }
-        .badge-kbm { background: #dcfce7; color: #14532d; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; border: 1px solid #bbf7d0; }
-        
-        .action-buttons { display: flex; gap: 8px; }
-        .justify-center { justify-content: center; }
-        .btn-icon { width: 32px; height: 32px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; color: #4b5563; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-        .btn-icon:hover { background: #f3f4f6; color: #111827; border-color: #9ca3af; }
-        .btn-icon.edit:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
-        .btn-icon.delete:hover { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
+:global(:root){
+  --n-bg:#f5f7fb;
+  --n-card:#ffffff;
+  --n-ink:#0b1324;
+  --n-muted:#64748b;
 
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background: #fff; border-radius: 12px; width: 100%; max-width: 450px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
-        .modal-header { padding: 20px 24px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; border-radius: 12px 12px 0 0; }
-        .modal-header h2 { font-size: 1.25rem; font-weight: 700; color: #111827; margin: 0; }
-        .modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
-        .modal-footer { padding: 20px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px; background: #f9fafb; border-radius: 0 0 12px 12px; }
-        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280; }
-        
-        .form-info { background: #eff6ff; color: #1e3a8a; padding: 12px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 8px; border: 1px solid #dbeafe; }
-        .form-group { display: flex; flex-direction: column; gap: 8px; flex: 1; }
-        .form-row { display: flex; gap: 16px; }
-        .checkbox-group { display: flex; align-items: center; }
-        .checkbox-label { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; color: #111827; font-weight: 500; }
-        
-        label { font-size: 0.9rem; font-weight: 600; color: #374151; margin-bottom: 4px; display: block; }
-        input, select { padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem; color: #111827; width: 100%; }
-        input::placeholder { color: #9ca3af; }
-        input:focus, select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
-        .required { color: #dc2626; margin-left: 2px; }
-        .text-center { text-align: center; }
-        .font-mono { font-family: monospace; }
-        .font-bold { font-weight: 700; }
-        .font-medium { font-weight: 500; }
-        
-        .w-full { width: 100%; }
-        .flex { display: flex; }
-        .flex-col { flex-direction: column; }
-        .gap-4 { gap: 16px; }
-        .text-sm { font-size: 0.875rem; }
-        .text-gray-600 { color: #1f2937; font-weight: 500; }
-        .text-gray-500 { color: #374151; }
-        .border-t { border-top: 1px solid #e5e7eb; }
-        .pt-4 { padding-top: 16px; }
-        .mb-2 { margin-bottom: 8px; }
-        .font-medium { font-weight: 500; }
-        .block { display: block; }
-        .text-blue-600 { color: #2563eb; }
-      `}</style>
+  --n-navy-950:#07162e;
+  --n-navy-900:#0b1f3a;
+  --n-navy-800:#0f2a56;
+
+  --n-border: rgba(15, 42, 86, .14);
+  --n-soft: rgba(15, 42, 86, .06);
+
+  --n-shadow: 0 12px 30px rgba(15, 23, 42, .10);
+  --n-shadow-2: 0 10px 18px rgba(15, 23, 42, .08);
+
+  --n-radius: 16px;
+  --n-radius-sm: 12px;
+
+  --n-blue:#2563eb;
+  --n-green:#16a34a;
+  --n-red:#ef4444;
+
+  --n-ring: 0 0 0 4px rgba(37,99,235,.12);
+}
+
+/* =========================
+   Wrap
+========================= */
+.tab-content{
+  padding: 16px;
+  background: var(--n-bg);
+  border-radius: 0 0 16px 16px;
+  box-shadow: none;
+
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/* =========================
+   Action Bar (Top)
+========================= */
+.action-bar{
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+  border: 1px solid var(--n-border);
+  border-radius: var(--n-radius);
+  padding: 14px;
+  box-shadow: 0 8px 18px rgba(15,23,42,.06);
+  min-width: 0;
+}
+
+.action-bar h3{
+  margin: 0;
+  color: rgba(11,31,58,.92);
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: .1px;
+}
+
+/* =========================
+   Filter Bar
+========================= */
+.filter-bar{
+  display:flex;
+  gap: 14px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+  padding: 14px;
+
+  background: #fff;
+  border: 1px solid var(--n-border);
+  border-radius: var(--n-radius);
+  box-shadow: 0 8px 18px rgba(15,23,42,.06);
+
+  min-width: 0;
+}
+
+.filter-group{
+  display:flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.filter-group label{
+  font-size: .82rem;
+  color: rgba(100,116,139,.95);
+  font-weight: 800;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.filter-group select,
+.filter-group input{
+  padding: 10px 12px;
+  border: 1px solid rgba(15,42,86,.18);
+  border-radius: 12px;
+  min-width: 150px;
+  background: #fff;
+  color: #0f172a;
+  font-size: .95rem;
+  font-weight: 650;
+  transition: box-shadow .18s ease, border-color .18s ease;
+}
+
+.filter-group select:focus,
+.filter-group input:focus{
+  outline: none;
+  border-color: rgba(37,99,235,.45);
+  box-shadow: var(--n-ring);
+}
+
+.ml-auto{ margin-left: auto; }
+
+/* =========================
+   Buttons (shared)
+========================= */
+.action-buttons-group{
+  display:flex;
+  gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.btn-primary,
+.btn-secondary{
+  border: none;
+  padding: 10px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 900;
+  font-size: .92rem;
+  white-space: nowrap;
+  user-select: none;
+  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, filter .18s ease, border-color .18s ease;
+}
+
+.btn-primary{
+  background: linear-gradient(180deg, var(--n-navy-800), var(--n-navy-900));
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(15,42,86,.18);
+}
+.btn-primary:hover{
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+
+.btn-secondary{
+  background: #fff;
+  color: var(--n-navy-800);
+  border: 1px solid var(--n-border);
+}
+.btn-secondary:hover{
+  background: rgba(15,42,86,.04);
+  box-shadow: var(--n-shadow-2);
+  transform: translateY(-1px);
+}
+
+/* =========================
+   Table (Desktop)
+========================= */
+.data-table{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+  border: 1px solid var(--n-border);
+  border-radius: var(--n-radius);
+  overflow: hidden;
+  box-shadow: var(--n-shadow);
+}
+
+.data-table th,
+.data-table td{
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(15,42,86,.08);
+  color: #0f172a;
+  vertical-align: middle;
+}
+
+.data-table th{
+  background: linear-gradient(180deg, rgba(11,31,58,.98), rgba(15,42,86,.96));
+  color: rgba(255,255,255,.95);
+  font-weight: 900;
+  letter-spacing: .2px;
+  border-bottom: 1px solid rgba(255,255,255,.14);
+}
+
+.data-table tr:last-child td{ border-bottom: none; }
+
+.data-table tbody tr{
+  background: #fff;
+  transition: background .15s ease;
+}
+.data-table tbody tr:hover{
+  background: rgba(15,42,86,.03);
+}
+
+/* Desktop: kolom aksi 1 baris */
+.data-table td:last-child{ white-space: nowrap; }
+
+/* =========================
+   Row highlight (Istirahat)
+========================= */
+.row-istirahat{
+  background-color: rgba(239,68,68,.06);
+}
+
+/* Badges */
+.badge-istirahat{
+  background: rgba(239,68,68,.10);
+  color: #7f1d1d;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 900;
+  border: 1px solid rgba(239,68,68,.22);
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.badge-kbm{
+  background: rgba(22,163,74,.10);
+  color: #14532d;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 900;
+  border: 1px solid rgba(22,163,74,.22);
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+/* =========================
+   Actions
+========================= */
+.action-buttons{
+  display:flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+.justify-center{ justify-content: center; }
+
+.btn-icon{
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(15,42,86,.18);
+  background: #fff;
+  color: rgba(15,42,86,.70);
+  cursor: pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease, color .18s ease;
+  flex: 0 0 auto;
+}
+.btn-icon:hover{
+  background: rgba(15,42,86,.05);
+  color: rgba(11,31,58,.92);
+  border-color: rgba(15,42,86,.26);
+  box-shadow: 0 10px 18px rgba(15,23,42,.10);
+  transform: translateY(-1px);
+}
+.btn-icon.edit:hover{
+  background: rgba(37,99,235,.10);
+  color: #2563eb;
+  border-color: rgba(37,99,235,.22);
+}
+.btn-icon.delete:hover{
+  background: rgba(239,68,68,.10);
+  color: #dc2626;
+  border-color: rgba(239,68,68,.22);
+}
+
+/* =========================
+   Modal
+========================= */
+.modal-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.55);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  z-index: 1000;
+  padding: 14px;
+  backdrop-filter: blur(6px);
+}
+
+.modal-content{
+  background: #fff;
+  border-radius: var(--n-radius);
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 30px 70px rgba(2,6,23,.35);
+  border: 1px solid rgba(15,42,86,.14);
+  overflow: hidden;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header{
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(15,42,86,.10);
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+}
+
+.modal-header h2{
+  font-size: 1.12rem;
+  font-weight: 900;
+  color: rgba(11,31,58,.95);
+  margin: 0;
+}
+
+.modal-body{
+  padding: 18px;
+  display:flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: auto;
+}
+
+.modal-footer{
+  padding: 16px 18px;
+  border-top: 1px solid rgba(15,42,86,.10);
+  display:flex;
+  justify-content:flex-end;
+  gap: 10px;
+  background: #fff;
+}
+
+.close-btn{
+  background: none;
+  border:none;
+  font-size: 1.6rem;
+  cursor:pointer;
+  color: rgba(15,42,86,.70);
+}
+.close-btn:hover{ color: rgba(11,31,58,.95); }
+
+/* Form info */
+.form-info{
+  background: rgba(37,99,235,.08);
+  color: #1e3a8a;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: .92rem;
+  border: 1px solid rgba(37,99,235,.18);
+}
+
+/* Form */
+.form-group{
+  display:flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+.form-row{
+  display:flex;
+  gap: 14px;
+  min-width: 0;
+}
+.checkbox-group{ display:flex; align-items:center; }
+.checkbox-label{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  cursor:pointer;
+  user-select:none;
+  color:#0f172a;
+  font-weight: 700;
+}
+
+label{
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: rgba(15,42,86,.85);
+  margin-bottom: 2px;
+  display:block;
+}
+
+input, select{
+  padding: 10px 12px;
+  border: 1px solid rgba(15,42,86,.18);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  color: #111827;
+  width: 100%;
+  background: #fff;
+  transition: box-shadow .18s ease, border-color .18s ease;
+}
+
+input::placeholder{ color: rgba(148,163,184,.95); }
+
+input:focus, select:focus{
+  outline:none;
+  border-color: rgba(37,99,235,.45);
+  box-shadow: var(--n-ring);
+}
+
+.required{ color:#dc2626; margin-left: 2px; }
+
+.text-center{ text-align: center; }
+.font-mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+.font-bold{ font-weight: 900; }
+.font-medium{ font-weight: 650; }
+
+/* Utils (yang dipakai) */
+.w-full{ width: 100%; }
+.flex{ display:flex; }
+.flex-col{ flex-direction: column; }
+.gap-4{ gap: 16px; }
+.text-sm{ font-size: .875rem; }
+.text-gray-600{ color: rgba(100,116,139,.95); font-weight: 650; }
+.text-gray-500{ color: rgba(100,116,139,.90); }
+.border-t{ border-top: 1px solid rgba(15,42,86,.10); }
+.pt-4{ padding-top: 16px; }
+.mb-2{ margin-bottom: 8px; }
+.block{ display:block; }
+.text-blue-600{ color:#2563eb; }
+
+/* =====================================================
+   RESPONSIVE: iPhone 13 (390x844)
+===================================================== */
+@media (max-width: 768px){
+  .tab-content{
+    padding: 12px;
+    border-radius: 0;
+  }
+
+  .action-bar{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .filter-bar{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .filter-group select,
+  .filter-group input{
+    min-width: 0;
+    width: 100%;
+  }
+
+  .action-buttons-group{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-left: 0;
+  }
+  .action-buttons-group :global(button){
+    width: 100%;
+    justify-content: center;
+  }
+  .action-buttons-group :global(.btn-primary){
+    grid-column: 1 / -1;
+  }
+
+  /* TABLE → CARD */
+  .data-table thead{ display:none; }
+
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td{
+    display:block;
+    width:100%;
+  }
+
+  .data-table{
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .data-table tbody{
+    display:flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .data-table tbody tr{
+    background: #fff;
+    border: 1px solid rgba(15,42,86,.14);
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 12px 26px rgba(15,23,42,.10);
+    overflow: hidden;
+  }
+
+  .data-table td{
+    padding: 10px 0;
+    border-bottom: 1px dashed rgba(15,42,86,.10);
+
+    display:flex;
+    justify-content: space-between;
+    align-items:flex-start;
+    gap: 10px;
+    text-align: right;
+
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .data-table td:last-child{
+    border-bottom: none;
+    padding-top: 12px;
+    justify-content: flex-end;
+    background: rgba(15,42,86,.04);
+    margin: 0 -14px -14px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .data-table td::before{
+    content: attr(data-label);
+    font-weight: 900;
+    color: rgba(15,42,86,.70);
+    text-align: left;
+    font-size: .74rem;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+
+    flex: 0 0 92px;
+    max-width: 92px;
+  }
+
+  .data-table td > *{
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  /* badges jangan pecah */
+  .data-table td > .badge-istirahat,
+  .data-table td > .badge-kbm{
+    flex: 0 0 auto;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  /* modal full */
+  .modal-content{
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .form-row{
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .modal-footer{
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+  .modal-footer :global(button){
+    width: 100%;
+    justify-content: center;
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 390px){
+  .data-table td::before{
+    flex-basis: 86px;
+    max-width: 86px;
+  }
+  .btn-icon{
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+  }
+}
+`}</style>
+
     </div >
   )
 }

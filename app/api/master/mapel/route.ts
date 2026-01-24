@@ -53,15 +53,44 @@ export async function GET(request: NextRequest) {
     }
 }
 
+// Helper to check for duplicate name
+async function checkDuplicateName(supabase: any, nama: string, excludeKode: string | null = null) {
+    let query = supabase
+        .from('master_mapel')
+        .select('kode, nama')
+        .ilike('nama', nama)
+    // .eq('aktif', true) // Should we restrict to active only? Usually duplicates are bad even against inactive ones to avoid confusion. Let's check all.
+
+    if (excludeKode) {
+        query = query.neq('kode', excludeKode)
+    }
+
+    const { data } = await query.limit(1).single();
+    return data;
+}
+
 export async function POST(request: NextRequest) {
     try {
         const supabase = await createClient()
+        const { searchParams } = new URL(request.url)
+        const upsert = searchParams.get('upsert') === 'true'
         const body = await request.json()
 
         if (!body.kode || !body.nama) {
             return NextResponse.json(
                 { ok: false, error: 'Kode dan Nama Mapel wajib diisi' },
                 { status: 400 }
+            )
+        }
+
+        // 1. Check if 'nama' is already used by a DIFFERENT kode
+        // If upsert is true, we anticipate updating the EXISTING kode.
+        // But if 'nama' belongs to ANOTHER kode, that is an error.
+        const duplicateName = await checkDuplicateName(supabase, body.nama, body.kode);
+        if (duplicateName) {
+            return NextResponse.json(
+                { ok: false, error: `Nama Mapel "${body.nama}" sudah digunakan oleh kode "${duplicateName.kode}"` },
+                { status: 409 }
             )
         }
 
@@ -73,14 +102,14 @@ export async function POST(request: NextRequest) {
             .single()
 
         if (existing) {
-            if (existing.aktif === false) {
-                // Reactivate
+            if (upsert || existing.aktif === false) {
+                // UPDATE / REACTIVATE
                 const { data, error } = await supabase
                     .from('master_mapel')
                     .update({
                         nama: body.nama,
                         kelompok: body.kelompok,
-                        aktif: true // Reactivate
+                        aktif: true
                     })
                     .eq('kode', body.kode)
                     .select()
@@ -126,6 +155,43 @@ export async function PUT(request: NextRequest) {
         const supabase = await createClient()
         const body = await request.json()
 
+        const targetKode = body.kode;
+
+        if (!targetKode && !body.id) {
+            return NextResponse.json(
+                { ok: false, error: 'ID atau Kode Mapel wajib disertakan untuk update' },
+                { status: 400 }
+            )
+        }
+
+        // If we only have ID, we need to fetch the kode first to exclude it from duplicate check?
+        // Or we can query by ID. 
+        // Ideally PUT uses 'kode' as key in this system commonly.
+        // Let's rely on body.kode being present for the exclusion check if possible.
+        // If body.kode is NOT present but body.id is, we might update 'nama'.
+        // We need to know the 'kode' or 'id' to exclude.
+
+        let excludeIdOrKode = targetKode;
+
+        // Check duplicate name
+        // We need to exclude the CURRENT record from the check.
+        // Since checkDuplicateName uses 'kode' to exclude, we should ensure we have it.
+        // If we don't have 'kode' but have 'id', we might need to fetch the record first?
+        // Let's assume 'kode' is usually providing context or just iterate.
+        // Actually, let's just do a specific check here.
+
+        const { data: current } = await supabase.from('master_mapel').select('id, kode').or(`id.eq.${body.id},kode.eq.${body.kode}`).single();
+
+        if (current) {
+            const duplicateName = await checkDuplicateName(supabase, body.nama, current.kode);
+            if (duplicateName) {
+                return NextResponse.json(
+                    { ok: false, error: `Nama Mapel "${body.nama}" sudah digunakan oleh kode "${duplicateName.kode}"` },
+                    { status: 409 }
+                )
+            }
+        }
+
         let query = supabase.from('master_mapel').update({
             kode: body.kode,
             nama: body.nama,
@@ -137,11 +203,6 @@ export async function PUT(request: NextRequest) {
             query = query.eq('id', body.id);
         } else if (body.kode) {
             query = query.eq('kode', body.kode);
-        } else {
-            return NextResponse.json(
-                { ok: false, error: 'ID atau Kode Mapel wajib disertakan untuk update' },
-                { status: 400 }
-            )
         }
 
         const { data, error } = await query.select().single();

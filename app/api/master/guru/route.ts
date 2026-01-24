@@ -53,6 +53,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const supabase = await createClient()
+        const { searchParams } = new URL(request.url)
+        const upsert = searchParams.get('upsert') === 'true'
         const body = await request.json()
 
         if (!body.nip || !body.nama_lengkap) {
@@ -70,8 +72,8 @@ export async function POST(request: NextRequest) {
             .single()
 
         if (existing) {
-            if (existing.aktif === false) {
-                // Reactivate
+            if (upsert || existing.aktif === false) {
+                // UPDATE / REACTIVATE
                 const { data, error } = await supabase
                     .from('master_guru')
                     .update({
@@ -85,7 +87,7 @@ export async function POST(request: NextRequest) {
                         alamat: body.alamat,
                         email: body.email,
                         no_hp: body.no_hp,
-                        aktif: true, // Reactivate
+                        aktif: true,
                         updated_at: new Date().toISOString(),
                     })
                     .eq('nip', body.nip)

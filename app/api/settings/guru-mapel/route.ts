@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
             .from('guru_mapel')
             .select('*')
             .eq('aktif', true)
-            .order('created_at', { ascending: false })
+            .order('nama_guru', { ascending: true })
 
         if (tahun_ajaran) {
             query = query.eq('tahun_ajaran', tahun_ajaran)
@@ -42,58 +42,89 @@ export async function POST(request: NextRequest) {
         const supabase = await createClient()
         const body = await request.json()
 
-        // 1. Check if record exists (Guru + Mapel + Tahun Ajaran)
-        const { data: existing, error: checkError } = await supabase
+        // 1. Validate Input
+        if (!body.nip || !body.nama_mapel || !body.tahun_ajaran || !body.semester) {
+            return NextResponse.json({ ok: false, error: 'NIP, Nama Mapel, Tahun Ajaran, dan Semester wajib diisi.' }, { status: 400 })
+        }
+
+        // 2. Validate Master Data (Guru & Mapel)
+        // Check Guru
+        const { data: guruData, error: guruError } = await supabase
+            .from('master_guru')
+            .select('nama_lengkap')
+            .eq('nip', body.nip)
+            .single()
+
+        if (guruError || !guruData) {
+            return NextResponse.json({ ok: false, error: `Guru dengan NIP ${body.nip} tidak ditemukan di Master Guru.` }, { status: 400 })
+        }
+
+        if (guruData.nama_lengkap.trim().toLowerCase() !== body.nama_guru.trim().toLowerCase()) {
+            return NextResponse.json({
+                ok: false,
+                error: `Nama guru tidak sesuai Master. Input: "${body.nama_guru}", Master: "${guruData.nama_lengkap}".`
+            }, { status: 400 })
+        }
+
+        // Check Mapel
+        const { data: mapelData, error: mapelError } = await supabase
+            .from('master_mapel')
+            .select('id')
+            .eq('nama', body.nama_mapel)
+            .maybeSingle()
+
+        // If not found by name, maybe body.nama_mapel is a code? Or just strictly name. 
+        // User template says "Nama_Mapel". Let's assume strict name match for now.
+        if (mapelError || !mapelData) {
+            return NextResponse.json({ ok: false, error: `Mapel "${body.nama_mapel}" tidak ditemukan di Master Mapel.` }, { status: 400 })
+        }
+
+        // 3. Upsert Logic (Check existing record for same Guru, Mapel, TA AND Semester)
+        const { data: existing } = await supabase
             .from('guru_mapel')
-            .select('id, aktif')
+            .select('id')
             .eq('nip', body.nip)
             .eq('nama_mapel', body.nama_mapel)
             .eq('tahun_ajaran', body.tahun_ajaran)
+            .eq('semester', body.semester) // Added Semester check
             .maybeSingle()
 
-        if (checkError) throw checkError
-
         if (existing) {
-            if (existing.aktif) {
-                return NextResponse.json(
-                    { ok: false, error: 'Guru ini sudah mengajar mata pelajaran tersebut di tahun ajaran ini.' },
-                    { status: 409 }
-                )
-            } else {
-                // Reactivate
-                const { data, error } = await supabase
-                    .from('guru_mapel')
-                    .update({
-                        nama_guru: body.nama_guru,
-                        semester: body.semester ?? 'Ganjil',
-                        aktif: true,
-                    })
-                    .eq('id', existing.id)
-                    .select()
-                    .single()
-
-                if (error) throw error
-                return NextResponse.json({ ok: true, data })
+            if (body._mode === 'skip') {
+                return NextResponse.json({ ok: true, skipped: true, message: 'Data sudah ada (Skipped).' })
             }
-        }
+            // Update
+            const { data, error } = await supabase
+                .from('guru_mapel')
+                .update({
+                    nama_guru: guruData.nama_lengkap, // Sync name from Master
+                    aktif: true,
+                })
+                .eq('id', existing.id)
+                .select()
+                .single()
 
-        const { data, error } = await supabase
-            .from('guru_mapel')
-            .insert([
-                {
+            if (error) throw error
+            return NextResponse.json({ ok: true, data, message: 'Data diperbarui.' })
+        } else {
+            // Insert
+            const { data, error } = await supabase
+                .from('guru_mapel')
+                .insert([{
                     nip: body.nip,
-                    nama_guru: body.nama_guru,
+                    nama_guru: guruData.nama_lengkap,
                     nama_mapel: body.nama_mapel,
                     tahun_ajaran: body.tahun_ajaran,
-                    semester: body.semester ?? 'Ganjil',
-                    aktif: body.aktif ?? true,
-                },
-            ])
-            .select()
-            .single()
+                    semester: body.semester,
+                    aktif: true,
+                }])
+                .select()
+                .single()
 
-        if (error) throw error
-        return NextResponse.json({ ok: true, data })
+            if (error) throw error
+            return NextResponse.json({ ok: true, data, message: 'Data ditambahkan.' })
+        }
+
     } catch (error: any) {
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
     }
@@ -132,6 +163,25 @@ export async function DELETE(request: NextRequest) {
         const supabase = await createClient()
         const { searchParams } = new URL(request.url)
         const id = searchParams.get('id')
+        const scope = searchParams.get('scope')
+
+        if (scope === 'all') {
+            const { error } = await supabase.from('guru_mapel').delete().gt('id', 0)
+            if (error) throw error
+            return NextResponse.json({ ok: true })
+        }
+
+        if (scope === 'partial') {
+            const yearsParam = searchParams.get('years')
+            const field = searchParams.get('field') || 'tahun_ajaran'
+
+            if (!yearsParam) throw new Error('Parameter years required')
+            const years = yearsParam.split(',').map(y => y.trim())
+
+            const { error } = await supabase.from('guru_mapel').delete().in(field, years)
+            if (error) throw error
+            return NextResponse.json({ ok: true })
+        }
 
         if (!id) throw new Error('ID is required')
 

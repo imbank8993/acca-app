@@ -40,20 +40,54 @@ export async function POST(request: NextRequest) {
         const supabase = await createClient()
         const body = await request.json()
 
-        const { data, error } = await supabase
-            .from('libur')
-            .insert([
-                {
-                    tanggal: body.tanggal,
-                    jam_ke: body.jam_ke || 'Semua',
-                    keterangan: body.keterangan,
-                },
-            ])
-            .select()
-            .single()
+        // Upsert Logic: Check if (tanggal, jam_ke) exists
+        // Note: jam_ke usually 'Semua' or specific like '1', '2'.
+        // We verify if an entry for this exact time slot already exists.
 
-        if (error) throw error
-        return NextResponse.json({ ok: true, data })
+        const tanggal = body.tanggal
+        const jam_ke = body.jam_ke || 'Semua'
+
+        if (!tanggal) throw new Error('Tanggal wajib diisi')
+
+        // Check availability
+        const { data: existing } = await supabase
+            .from('libur')
+            .select('id')
+            .eq('tanggal', tanggal)
+            .eq('jam_ke', jam_ke)
+            .maybeSingle()
+
+        if (existing) {
+            // Update Existing
+            const { data, error } = await supabase
+                .from('libur')
+                .update({
+                    keterangan: body.keterangan,
+                    // We don't change tanggal/jam_ke because they match
+                })
+                .eq('id', existing.id)
+                .select()
+                .single()
+
+            if (error) throw error
+            return NextResponse.json({ ok: true, data, message: 'Data diperbarui (Duplicate replaced)' })
+        } else {
+            // Insert New
+            const { data, error } = await supabase
+                .from('libur')
+                .insert([
+                    {
+                        tanggal: tanggal,
+                        jam_ke: jam_ke,
+                        keterangan: body.keterangan,
+                    },
+                ])
+                .select()
+                .single()
+
+            if (error) throw error
+            return NextResponse.json({ ok: true, data, message: 'Data ditambahkan' })
+        }
     } catch (error: any) {
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
     }
@@ -89,6 +123,23 @@ export async function DELETE(request: NextRequest) {
         const supabase = await createClient()
         const { searchParams } = new URL(request.url)
         const id = searchParams.get('id')
+        const scope = searchParams.get('scope')
+
+        if (scope === 'all') {
+            const { error } = await supabase.from('libur').delete().gt('id', 0)
+            if (error) throw error
+            return NextResponse.json({ ok: true })
+        }
+
+        if (scope === 'partial') {
+            const yearsParam = searchParams.get('years')
+            const field = searchParams.get('field') || 'tahun'
+
+            if (!yearsParam) throw new Error('Parameter years required')
+            const years = yearsParam.split(',').map(y => y.trim())
+
+            return await deleteLiburByYears(supabase, years)
+        }
 
         if (!id) throw new Error('ID is required')
 
@@ -102,4 +153,29 @@ export async function DELETE(request: NextRequest) {
     } catch (error: any) {
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
     }
+}
+
+// Helper to delete by years (Date Range)
+async function deleteLiburByYears(supabase: any, years: string[]) {
+    let errors = []
+
+    for (const year of years) {
+        if (!/^\d{4}$/.test(year)) continue // Skip invalid years
+
+        // Delete all records where date starts with 'YYYY-'
+        // Or using range
+        const { error } = await supabase
+            .from('libur')
+            .delete()
+            .gte('tanggal', `${year}-01-01`)
+            .lte('tanggal', `${year}-12-31`)
+
+        if (error) errors.push(error.message)
+    }
+
+    if (errors.length > 0) {
+        throw new Error('Gagal menghapus beberapa tahun: ' + errors.join(', '))
+    }
+
+    return NextResponse.json({ ok: true })
 }

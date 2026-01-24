@@ -56,6 +56,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const supabase = await createClient()
+        const { searchParams } = new URL(request.url)
+        const upsert = searchParams.get('upsert') === 'true'
         const body = await request.json()
 
         if (!body.nama) {
@@ -73,8 +75,8 @@ export async function POST(request: NextRequest) {
             .single()
 
         if (existing) {
-            if (existing.aktif === false) {
-                // Reactivate
+            if (upsert || existing.aktif === false) {
+                // UPDATE / REACTIVATE
                 const { data, error } = await supabase
                     .from('master_kelas')
                     .update({

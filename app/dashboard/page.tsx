@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getUserByAuthId } from '@/lib/auth'
 import type { User } from '@/lib/types'
@@ -10,11 +10,12 @@ import Header from '@/components/Header'
 import AbsensiPage from '../absensi/page'
 import KetidakhadiranPage from '../ketidakhadiran/page'
 import MasterDataPage from '@/components/master/MasterDataPage'
-import AcademicDataPage from '@/components/academic/AcademicDataPage'
 import DataSettingsPage from '@/components/settings/DataSettingsPage'
+import ResetDataPage from '@/components/reset/ResetDataPage'
 
 export default function DashboardPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState('Dashboard')
@@ -23,25 +24,24 @@ export default function DashboardPage() {
 
   useEffect(() => {
     checkAuth()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const checkAuth = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
 
       if (!session) {
-        // In dev mode, maybe allows bypass? No, let's Stick to login.
         router.push('/login')
         return
       }
 
-      // Get user data from database
       let userData = await getUserByAuthId(session.user.id)
 
-      // FALLBACK: If DB fails (tables don't exist yet as per recent conversation),
-      // provide a MOCK user so the UI can be reviewed.
       if (!userData) {
-        console.warn('User not found in DB (or DB error). Using MOCK user for UI verification.');
+        console.warn('User not found in DB (or DB error). Using MOCK user for UI verification.')
         userData = {
           id: 0,
           auth_id: session.user.id,
@@ -51,28 +51,32 @@ export default function DashboardPage() {
           role: 'ADMIN',
           roles: ['ADMIN', 'GURU'],
           divisi: 'IT',
-          pages: 'Dashboard,Master Data,Data Akademik,Pengaturan Data',
-          pagesArray: ['Dashboard', 'Master Data', 'Data Akademik', 'Pengaturan Data'],
+          pages: 'Dashboard,Master Data,Pengaturan Data,Reset Data',
+          pagesArray: ['Dashboard', 'Master Data', 'Pengaturan Data', 'Reset Data'],
           pagesTree: [
             { title: 'Dashboard', page: 'Dashboard', children: [] },
             { title: 'Master Data', page: 'Master Data', children: [] },
-            { title: 'Data Akademik', page: 'Data Akademik', children: [] },
-            { title: 'Pengaturan Data', page: 'Pengaturan Data', children: [] }
+            { title: 'Pengaturan Data', page: 'Pengaturan Data', children: [] },
+            { title: 'Reset Data', page: 'Reset Data', children: [] }
           ],
           aktif: true,
           photoUrl: null
-        }
+        } as any
       }
 
       setUser(userData)
 
-      // Set initial page based on user's first page access
-      if (userData.pagesTree.length > 0) {
-        const firstPage = userData.pagesTree[0]
-        if (firstPage.page) {
-          setCurrentPage(firstPage.page)
-        } else if (firstPage.children.length > 0 && firstPage.children[0].page) {
-          setCurrentPage(firstPage.children[0].page)
+      const pageParam = searchParams.get('page')
+      if (pageParam && userData.pagesArray.includes(pageParam)) {
+        setCurrentPage(pageParam)
+      } else {
+        if (userData.pagesTree.length > 0) {
+          const firstPage = userData.pagesTree[0]
+          if (firstPage.page) {
+            setCurrentPage(firstPage.page)
+          } else if (firstPage.children.length > 0 && firstPage.children[0].page) {
+            setCurrentPage(firstPage.children[0].page)
+          }
         }
       }
     } catch (error) {
@@ -85,7 +89,11 @@ export default function DashboardPage() {
 
   const handleNavigate = (page: string) => {
     setCurrentPage(page)
-    setSidebarOpen(false) // Close sidebar on mobile after navigation
+    setSidebarOpen(false)
+
+    const newUrl = new URL(window.location.href)
+    newUrl.searchParams.set('page', page)
+    window.history.pushState({}, '', newUrl)
   }
 
   if (loading) {
@@ -95,9 +103,10 @@ export default function DashboardPage() {
           <div className="spinner"></div>
           <p>Memuat...</p>
         </div>
+
         <style jsx>{`
           .loading-screen {
-            min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -121,16 +130,16 @@ export default function DashboardPage() {
           }
 
           @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+              transform: rotate(360deg);
+            }
           }
         `}</style>
       </div>
     )
   }
 
-  if (!user) {
-    return null
-  }
+  if (!user) return null
 
   return (
     <>
@@ -146,20 +155,16 @@ export default function DashboardPage() {
         />
 
         <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
-          <Header
-            user={user}
-            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-            isCollapsed={sidebarCollapsed}
-          />
+          <Header user={user} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} isCollapsed={sidebarCollapsed} />
 
+          {/* ✅ FIX iOS: gunakan padding-top (bukan margin-top), dan tinggi pakai dvh */}
           <main className="content-area">
-            <div className="content-container">
-              {renderPageContent(currentPage, user)}
-            </div>
+            <div className="content-container">{renderPageContent(currentPage, user)}</div>
           </main>
         </div>
       </div>
 
+      {/* ===== GLOBAL RESET + iOS SAFE SCROLL ===== */}
       <style jsx global>{`
         * {
           margin: 0;
@@ -167,12 +172,18 @@ export default function DashboardPage() {
           box-sizing: border-box;
         }
 
-        html, body {
+        html,
+        body {
           font-family: 'Poppins', 'Segoe UI', sans-serif;
           font-size: 14px;
           line-height: 1.5;
-          height: 100%;
+
+          /* ✅ iOS Safari: jangan kunci height 100% */
+          height: auto;
+          min-height: 100%;
+
           overflow-x: hidden;
+          -webkit-overflow-scrolling: touch;
         }
 
         body {
@@ -180,41 +191,61 @@ export default function DashboardPage() {
         }
       `}</style>
 
+      {/* ===== LAYOUT SHELL (Fix kepotong iPhone 13) ===== */}
       <style jsx>{`
         .dashboard-layout {
           display: flex;
-          min-height: 100vh;
+          width: 100%;
+          min-height: 100dvh; /* ✅ iPhone safe */
+          overflow: hidden; /* cegah horizontal overflow */
+          background: #f5f7fb;
         }
 
         .main-content {
           flex: 1;
           margin-left: 260px;
           transition: margin-left 0.3s ease;
+
+          min-width: 0; /* ✅ penting agar child tidak maksa lebar */
+          width: 100%;
         }
 
         .main-content.collapsed {
           margin-left: 70px;
         }
 
+        /* ✅ offset header fixed: pakai padding-top */
         .content-area {
-          margin-top: 65px;
-          padding: 24px;
-          min-height: calc(100vh - 65px);
+          padding-top: 90px;
+          padding-left: 24px;
+          padding-right: 24px;
+          padding-bottom: 24px;
+
+          min-height: 100dvh;
           background: #f5f7fb;
+
+          min-width: 0;
+          overflow: visible;
         }
 
         .content-container {
           max-width: 1400px;
           margin: 0 auto;
+
+          min-width: 0;
+          width: 100%;
         }
 
         @media (max-width: 992px) {
-          .main-content {
+          .main-content,
+          .main-content.collapsed {
             margin-left: 0;
           }
 
-          .main-content.collapsed {
-            margin-left: 0;
+          .content-area {
+            padding-left: 14px;
+            padding-right: 14px;
+            padding-bottom: 18px;
           }
         }
       `}</style>
@@ -223,13 +254,11 @@ export default function DashboardPage() {
 }
 
 function renderPageContent(page: string, user: User) {
-  // Page content components will be implemented here
   switch (page) {
     case 'Dashboard':
       return <DashboardContent user={user} />
 
     case 'Absensi':
-      // Render component absensi langsung dengan sidebar & header
       return <AbsensiPage />
 
     case 'Ketidakhadiran':
@@ -247,11 +276,11 @@ function renderPageContent(page: string, user: User) {
     case 'Master Data':
       return <MasterDataPage />
 
-    case 'Data Akademik':
-      return <AcademicDataPage />
-
     case 'Pengaturan Data':
       return <DataSettingsPage />
+
+    case 'Reset Data':
+      return <ResetDataPage />
 
     default:
       return <PagePlaceholder title={page} icon="bi-file-earmark" description={`Halaman ${page}`} />
@@ -332,7 +361,9 @@ function DashboardContent({ user }: { user: User }) {
           <div className="info-content">
             <div className="pages-list">
               {user.pagesArray.map((page) => (
-                <span key={page} className="page-badge">{page}</span>
+                <span key={page} className="page-badge">
+                  {page}
+                </span>
               ))}
             </div>
           </div>
@@ -453,6 +484,7 @@ function DashboardContent({ user }: { user: User }) {
           font-size: 1.05rem;
           font-weight: 600;
           color: #0b1b3a;
+          margin: 0;
         }
 
         .info-content {
@@ -464,6 +496,7 @@ function DashboardContent({ user }: { user: User }) {
           justify-content: space-between;
           padding: 12px 0;
           border-bottom: 1px solid #f3f4f6;
+          gap: 14px;
         }
 
         .info-row:last-child {
@@ -478,6 +511,9 @@ function DashboardContent({ user }: { user: User }) {
         .info-value {
           font-weight: 600;
           color: #0b1b3a;
+          text-align: right;
+          min-width: 0;
+          word-break: break-word;
         }
 
         .pages-list {
@@ -490,14 +526,22 @@ function DashboardContent({ user }: { user: User }) {
           padding: 6px 12px;
           background: linear-gradient(135deg, #3aa6ff, #1c4c99);
           color: #fff;
-          border-radius: 6px;
+          border-radius: 8px;
           font-size: 0.85rem;
-          font-weight: 500;
+          font-weight: 600;
         }
 
         @media (max-width: 768px) {
+          .welcome-card {
+            padding: 26px 18px;
+          }
+
           .welcome-card h1 {
-            font-size: 1.5rem;
+            font-size: 1.45rem;
+          }
+
+          .welcome-card p {
+            font-size: 0.95rem;
           }
 
           .info-grid {

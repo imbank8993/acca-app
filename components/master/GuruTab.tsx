@@ -1,8 +1,8 @@
-'use client'
-
-import { useState, useEffect, useRef } from 'react'
-import { exportToExcel, generateTemplate, readExcel } from '@/lib/excel-utils'
+import { useState, useEffect } from 'react'
+import { exportToExcel } from '@/lib/excel-utils'
 import Pagination from '@/components/ui/Pagination'
+import Swal from 'sweetalert2'
+import ImportModal from '@/components/ui/ImportModal'
 
 interface RiwayatPendidikan {
   level: string; // SD, SMP, SMA, S1, S2, S3
@@ -45,10 +45,6 @@ export default function GuruTab() {
 
   // Import Modal
   const [showImportModal, setShowImportModal] = useState(false)
-  const [showImportTambahModal, setShowImportTambahModal] = useState(false)
-  const [importing, setImporting] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const fileInputRefTambah = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState<Partial<Guru>>({
     nip: '',
@@ -180,13 +176,16 @@ export default function GuruTab() {
     }
   }
 
-  const saveGuru = async (data: Guru, isUpdate: boolean) => {
+  const saveGuru = async (data: Guru, isUpdate: boolean, upsert: boolean = false) => {
     if (!data.nip || !data.nama_lengkap) {
       throw new Error('NIP dan Nama Lengkap wajib diisi')
     }
 
     const method = isUpdate ? 'PUT' : 'POST'
-    const res = await fetch('/api/master/guru', {
+    let url = '/api/master/guru'
+    if (upsert) url += '?upsert=true'
+
+    const res = await fetch(url, {
       method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -223,7 +222,6 @@ export default function GuruTab() {
     }
   }
 
-  // Excel Functions
   // Excel Functions
   const handleExport = () => {
     const dataToExport = guruList.map((g, index) => {
@@ -270,109 +268,44 @@ export default function GuruTab() {
     );
   }
 
-  // --- IMPORT UTAMA (REPLACE ALL) ---
-  const handleImportUtama = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const mapImportRow = (row: any) => {
+    const getVal = (targetKeys: string[]) => {
+      // Normalize target keys
+      const normalizedTargets = targetKeys.map(k => k.toLowerCase().trim());
 
-    if (!confirm('PERINGATAN: Import Utama akan MENGHAPUS SEMUA data guru yang ada dan menggantinya dengan data dari file.\n\nApakah Anda yakin ingin melanjutkan?')) {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
+      // Find matching key in row
+      const foundKey = Object.keys(row).find(k =>
+        normalizedTargets.includes(k.toLowerCase().trim())
+      );
 
-    setImporting(true);
-    try {
-      const jsonData = await readExcel(file);
-
-      // 1. Delete All Data
-      const delRes = await fetch('/api/master/guru?scope=all', { method: 'DELETE' });
-      if (!delRes.ok) throw new Error('Gagal menghapus data lama');
-
-      // 2. Insert New Data
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const row of jsonData) {
-        const payload = mapRowToPayload(row);
-        if (!payload) { failCount++; continue; }
-
-        try {
-          await saveGuru(payload as Guru, false);
-          successCount++;
-        } catch (err) {
-          console.error('Import Utama Insert Error:', err);
-          failCount++;
-        }
-      }
-
-      alert(`Import Utama Selesai.\nTotal Data Masuk: ${successCount}\nGagal: ${failCount}`);
-      fetchGuru();
-      setShowImportModal(false);
-
-    } catch (err: any) {
-      console.error('Import Error:', err);
-      alert('Gagal memproses import utama: ' + err.message);
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
-
-  // --- IMPORT TAMBAH (APPEND) ---
-  const handleImportTambah = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImporting(true);
-    try {
-      const jsonData = await readExcel(file);
-      let successCount = 0;
-      let duplicateCount = 0;
-      let failCount = 0;
-
-      for (const row of jsonData) {
-        const payload = mapRowToPayload(row);
-        if (!payload) { failCount++; continue; }
-
-        try {
-          await saveGuru(payload as Guru, false);
-          successCount++;
-        } catch (err: any) {
-          if (err.message && (err.message.includes('sudah terdaftar') || err.message.includes('duplicate'))) {
-            duplicateCount++;
-          } else {
-            console.error('Import Tambah Error:', err);
-            failCount++;
-          }
-        }
-      }
-
-      alert(`Import Tambah Selesai.\nBerhasil Ditambahkan: ${successCount}\nDuplikat (Dilewati): ${duplicateCount}\nGagal: ${failCount}`);
-      fetchGuru();
-      setShowImportTambahModal(false);
-      setShowModal(false);
-
-    } catch (err: any) {
-      console.error('Import Tambah Error:', err);
-      alert('Gagal memproses import tambah: ' + err.message);
-    } finally {
-      setImporting(false);
-      if (fileInputRefTambah.current) fileInputRefTambah.current.value = '';
-    }
-  }
-
-  const mapRowToPayload = (row: any) => {
-    const getVal = (keys: string[]) => {
-      for (const k of keys) {
-        if (row[k] !== undefined) return row[k];
-      }
-      return '';
+      if (foundKey) return row[foundKey];
+      return undefined;
     };
 
     const idRaw = getVal(['NIP', 'nip', 'ID/NIP', 'ID Guru']);
     const namaRaw = getVal(['Nama Lengkap', 'nama_lengkap']);
 
     if (!idRaw || !namaRaw) return null;
+
+    // Helper for date parsing
+    const parseDate = (val: any) => {
+      if (!val) return null;
+      if (typeof val === 'number') {
+        // Excel Serial Date
+        const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+        return d.toISOString().split('T')[0];
+      }
+      const s = String(val).trim();
+      // ISO YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      // DD/MM/YYYY
+      if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
+        const p = s.split(/[\/\-]/);
+        // Assuming DD-MM-YYYY
+        return `${p[2]}-${p[0].padStart(2, '0')}-${p[1].padStart(2, '0')}`;
+      }
+      return s; // Fallback
+    };
 
     // Parse Riwayat Pendidikan
     let eduList: RiwayatPendidikan[] = [];
@@ -390,13 +323,13 @@ export default function GuruTab() {
     }
 
     return {
-      nip: String(idRaw),
-      nama_lengkap: String(namaRaw),
+      nip: String(idRaw).trim(),
+      nama_lengkap: String(namaRaw).trim(),
       tempat_lahir: getVal(['Tempat Lahir', 'tempat_lahir']),
-      tanggal_lahir: getVal(['Tanggal Lahir', 'tanggal_lahir']) || null,
+      tanggal_lahir: parseDate(getVal(['Tanggal Lahir', 'tanggal_lahir'])),
       golongan: getVal(['Golongan', 'golongan']),
       pangkat: getVal(['Pangkat', 'pangkat']),
-      tmt_tugas: getVal(['TMT Tugas', 'tmt_tugas']) || null,
+      tmt_tugas: parseDate(getVal(['TMT Tugas', 'tmt_tugas'])),
       alamat: getVal(['Alamat', 'alamat']),
       email: getVal(['Email', 'email']),
       no_hp: getVal(['No HP', 'no_hp']),
@@ -405,8 +338,6 @@ export default function GuruTab() {
     };
   }
 
-  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  }
 
   return (
     <div className="tab-content">
@@ -508,78 +439,6 @@ export default function GuruTab() {
         }}
       />
 
-      {/* Import Modal */}
-      {showImportModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h2>Import (Ganti Semua)</h2>
-              <button onClick={() => setShowImportModal(false)} className="close-btn">&times;</button>
-            </div>
-            <div className="modal-body">
-              <div className="flex flex-col gap-4">
-                <p className="text-sm text-gray-600">
-                  Unduh template Excel, isi data, lalu upload kembali.
-                </p>
-                <button className="btn-secondary w-full" onClick={handleDownloadTemplate}>
-                  <i className="bi bi-file-earmark-excel"></i> Download Template
-                </button>
-
-                <div className="border-t pt-4">
-                  <label className="block mb-2 text-sm font-medium">Upload File Excel</label>
-                  <input
-                    type="file"
-                    accept=".xlsx, .xls"
-                    ref={fileInputRef}
-                    onChange={handleImportUtama}
-                    disabled={importing}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
-                  />
-                </div>
-
-                {importing && <div className="text-center text-blue-600 font-medium">Memproses data...</div>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Import Tambah Modal */}
-      {showImportTambahModal && (
-        <div className="modal-overlay" style={{ zIndex: 1050 }}>
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h2>Import Data (Append)</h2>
-              <button onClick={() => setShowImportTambahModal(false)} className="close-btn">&times;</button>
-            </div>
-            <div className="modal-body">
-              <div className="flex flex-col gap-4">
-                <p className="text-sm text-gray-600">
-                  Data akan ditambahkan ke database. Data duplikat akan dilewati.
-                </p>
-                <button className="btn-secondary w-full" onClick={handleDownloadTemplate}>
-                  <i className="bi bi-file-earmark-excel"></i> Download Template
-                </button>
-
-                <div className="border-t pt-4">
-                  <label className="block mb-2 text-sm font-medium">Upload File Excel</label>
-                  <input
-                    type="file"
-                    accept=".xlsx, .xls"
-                    ref={fileInputRefTambah}
-                    onChange={handleImportTambah}
-                    disabled={importing}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
-                  />
-                </div>
-
-                {importing && <div className="text-center text-blue-600 font-medium">Memproses data...</div>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -646,10 +505,9 @@ export default function GuruTab() {
                     </select>
                   </div>
 
-                  <div className="form-group full">
-                    <label>Alamat</label>
-                    <textarea name="alamat" rows={2} value={formData.alamat || ''} onChange={handleInputChange} className="form-textarea"></textarea>
-                  </div>
+
+
+                  <div className="section-title full">Kontak & Alamat</div>
 
                   <div className="form-group">
                     <label>Email</label>
@@ -686,9 +544,7 @@ export default function GuruTab() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" onClick={() => setShowImportTambahModal(true)} className="btn-secondary" style={{ marginRight: 'auto' }}>
-                  <i className="bi bi-file-earmark-plus"></i> Import +
-                </button>
+                {/* Import button removed */}
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Batal</button>
                 <button type="submit" disabled={saving} className="btn-primary">
                   {saving ? 'Menyimpan...' : 'Simpan'}
@@ -785,87 +641,671 @@ export default function GuruTab() {
         </div>
       )}
 
+      {/* Standardized Import Modal */}
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={() => {
+          fetchGuru();
+          setShowImportModal(false);
+        }}
+        templateColumns={['No', 'NIP', 'Nama Lengkap', 'Tempat Lahir', 'Tanggal Lahir', 'Golongan', 'Pangkat', 'TMT Tugas', 'Alamat', 'Email', 'No HP', ...PENDIDIKAN_LEVELS.flatMap(l => [l, `Tahun ${l}`]), 'Status Aktif']}
+        templateName="Template_Guru"
+        apiEndpoint="/api/master/guru?upsert=true"
+        mapRowData={mapImportRow}
+      />
+
       <style jsx>{`
-        .tab-content { padding: 24px; background: #fff; border-radius: 0 0 12px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-        .action-bar h3 { margin: 0; color: #374151; font-size: 1.1rem; }
-        
-        .search-box { display: flex; align-items: center; background: #f3f4f6; padding: 10px 16px; border-radius: 8px; width: 300px; }
-        .search-box input { border: none; background: transparent; width: 100%; outline: none; margin-left: 8px; }
-        
-        .action-buttons-group { display: flex; gap: 8px; }
-        
-        .btn-primary { background: linear-gradient(135deg, #3aa6ff, #1c4c99); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .btn-secondary { background: #e5e7eb; color: #374151; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .btn-secondary:hover { background: #d1d5db; }
-        
-        .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th, .data-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-        .data-table th { background: #f3f4f6; font-weight: 700; color: #111827; }
-        .data-table td { color: #1f2937; }
-        
-        .status-badge { padding: 4px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 600; }
-        .status-badge.active { background: #dcfce7; color: #14532d; border: 1px solid #bbf7d0; }
-        .status-badge.inactive { background: #fee2e2; color: #7f1d1d; border: 1px solid #fecaca; }
-        
-        .badge-edu { background: #e0e7ff; color: #312e81; padding: 4px 8px; border-radius: 6px; font-weight: 600; font-size: 0.85rem; border: 1px solid #c7d2fe; }
+/* =====================================================
+   TAB CONTENT — PREMIUM NAVY (FULL REPLACE)
+   Fix:
+   - Desktop: aksi icon 1 baris (no wrap)
+   - Mobile iPhone 13 (390x844): card view table tidak “terpotong”
+   - Status badge: tanpa bulatan/dot
+   - FIX penting: elemen badge (L/P, Status) tidak ikut flex:1 pada card view
+   - Tetap kompatibel dengan class util yang sudah dipakai (font-mono, dll)
+===================================================== */
 
-        .action-buttons { display: flex; gap: 8px; }
-        .btn-icon { width: 32px; height: 32px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; color: #4b5563; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-        .btn-icon:hover { background: #f3f4f6; color: #111827; border-color: #9ca3af; }
-        
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background: #fff; border-radius: 12px; width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
-        .modal-content.view-mode { max-width: 600px; }
-        .modal-header { padding: 20px 24px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; border-radius: 12px 12px 0 0; }
-        .modal-header h2 { font-size: 1.25rem; font-weight: 700; color: #111827; margin: 0; }
-        .modal-body { padding: 24px; }
-        .modal-footer { padding: 20px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px; background: #f9fafb; border-radius: 0 0 12px 12px; }
-        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280; }
-        
-        .section-title { font-weight: 700; color: #111827; margin-top: 16px; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; }
+:global(:root){
+  --n-bg:#f5f7fb;
+  --n-card:#ffffff;
+  --n-ink:#0b1324;
+  --n-muted:#64748b;
 
-        .pendidikan-grid { display: flex; flex-direction: column; gap: 8px; }
-        .pendidikan-row { display: grid; grid-template-columns: 50px 1fr 100px; gap: 10px; align-items: center; padding: 10px; background: #f3f4f6; border-radius: 8px; border: 1px solid #e5e7eb; }
-        .level-label { font-weight: 800; color: #1e40af; font-size: 0.9rem; }
-        .input-sekolah { background: #fff !important; color: #111827 !important; font-weight: 600 !important; }
-        .input-tahun { background: #fff !important; color: #111827 !important; text-align: center; font-weight: 600 !important; }
+  --n-navy-950:#07162e;
+  --n-navy-900:#0b1f3a;
+  --n-navy-800:#0f2a56;
+  --n-navy-700:#173a72;
 
-        .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600; }
-        .btn-danger:hover { background: #fecaca; }
+  --n-border: rgba(15, 42, 86, .14);
+  --n-soft: rgba(15, 42, 86, .06);
+  --n-soft-2: rgba(15, 42, 86, .10);
 
-        .detail-item label { font-size: 0.85rem; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: 0.05em; }
-        .detail-item .value { font-size: 1.05rem; color: #111827; font-weight: 500; }
-        
-        .edu-item { display: flex; align-items: center; gap: 12px; padding: 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; }
-        .edu-level { font-weight: 700; color: #2563eb; width: 40px; }
-        .edu-name { color: #111827; font-weight: 600; }
-        
-        label { font-size: 0.9rem; font-weight: 600; color: #374151; margin-bottom: 4px; display: block; }
-        input, select, textarea { padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem; color: #111827; width: 100%; }
-        input::placeholder { color: #9ca3af; }
-        input:focus, select:focus, textarea:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
-        .btn-icon.delete:hover { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
-        .required { color: #dc2626; margin-left: 2px; }
-        .font-mono { font-family: monospace; }
-        .font-medium { font-weight: 500; }
-        .font-semibold { font-weight: 600; }
+  --n-shadow: 0 12px 30px rgba(15, 23, 42, .10);
+  --n-shadow-2: 0 10px 18px rgba(15, 23, 42, .08);
 
-        .w-full { width: 100%; }
-        .flex { display: flex; }
-        .flex-col { flex-direction: column; }
-        .gap-4 { gap: 16px; }
-        .text-sm { font-size: 0.875rem; }
-        .text-gray-600 { color: #374151; font-weight: 500; }
-        .text-gray-500 { color: #4b5563; }
-        .border-t { border-top: 1px solid #e5e7eb; }
-        .pt-4 { padding-top: 16px; }
-        .mb-2 { margin-bottom: 8px; }
-        .font-medium { font-weight: 500; }
-        .block { display: block; }
-        .text-center { text-align: center; }
-        .text-blue-600 { color: #2563eb; }
-      `}</style>
+  --n-radius: 16px;
+  --n-radius-sm: 12px;
+
+  --n-blue:#2563eb;
+  --n-green:#16a34a;
+  --n-red:#ef4444;
+}
+
+/* =========================
+   Page Wrap
+========================= */
+.tab-content{
+  padding: 20px;
+  background: var(--n-bg);
+  border-radius: 0 0 16px 16px;
+  box-shadow: none;
+  color: var(--n-ink);
+
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/* =========================
+   Action Bar
+========================= */
+.action-bar{
+  display:flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+  border: 1px solid var(--n-border);
+  border-radius: var(--n-radius);
+  box-shadow: 0 8px 18px rgba(15,23,42,.06);
+
+  min-width: 0;
+}
+.action-bar h3{
+  margin: 0;
+  color: rgba(11,31,58,.88);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: .1px;
+}
+
+/* =========================
+   Search
+========================= */
+.search-box{
+  display:flex;
+  align-items:center;
+  background: #fff;
+  padding: 10px 14px;
+  border-radius: 999px;
+  width: 360px;
+  max-width: 100%;
+
+  border: 1px solid var(--n-border);
+  box-shadow: 0 6px 14px rgba(15,23,42,.05);
+
+  min-width: 0;
+}
+.search-box input{
+  border:none;
+  background:transparent;
+  width:100%;
+  outline:none;
+  margin-left: 8px;
+  min-width: 0;
+
+  color: var(--n-ink);
+  font-weight: 700;
+  font-size: .95rem;
+}
+.search-box input::placeholder{
+  color: rgba(100,116,139,.95);
+  font-weight: 600;
+}
+.search-box:focus-within{
+  border-color: rgba(15, 42, 86, .28);
+  box-shadow: 0 0 0 4px rgba(15,42,86,.10), 0 8px 18px rgba(15,23,42,.06);
+}
+
+/* =========================
+   Buttons
+========================= */
+.action-buttons-group{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger{
+  border: none;
+  padding: 10px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: .92rem;
+  user-select: none;
+  white-space: nowrap;
+  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, filter .18s ease, border-color .18s ease;
+}
+
+.btn-primary{
+  background: linear-gradient(180deg, var(--n-navy-800), var(--n-navy-900));
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(15,42,86,.18);
+}
+.btn-primary:hover{
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+
+.btn-secondary{
+  background: #fff;
+  color: var(--n-navy-800);
+  border: 1px solid var(--n-border);
+}
+.btn-secondary:hover{
+  background: rgba(15,42,86,.04);
+  box-shadow: var(--n-shadow-2);
+  transform: translateY(-1px);
+}
+
+.btn-danger{
+  background: rgba(239,68,68,.10);
+  color: #991b1b;
+  border: 1px solid rgba(239,68,68,.18);
+}
+.btn-danger:hover{
+  background: rgba(239,68,68,.14);
+  box-shadow: 0 10px 18px rgba(185,28,28,.10);
+  transform: translateY(-1px);
+}
+
+/* =========================
+   Table (Desktop)
+========================= */
+.data-table{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+  border: 1px solid var(--n-border);
+  border-radius: var(--n-radius);
+  overflow: hidden;
+  box-shadow: var(--n-shadow);
+}
+
+.data-table th,
+.data-table td{
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(15,42,86,.08);
+  color: #0f172a;
+  vertical-align: middle;
+}
+
+.data-table th{
+  background: linear-gradient(180deg, rgba(11,31,58,.98), rgba(15,42,86,.96));
+  color: rgba(255,255,255,.95);
+  font-weight: 900;
+  letter-spacing: .2px;
+  border-bottom: 1px solid rgba(255,255,255,.14);
+}
+
+.data-table tr:last-child td{ border-bottom: none; }
+
+.data-table tbody tr{
+  background: #fff;
+  transition: background .15s ease;
+}
+.data-table tbody tr:hover{
+  background: rgba(15,42,86,.03);
+}
+
+/* Desktop: kolom aksi 1 baris */
+.data-table td:last-child{ white-space: nowrap; }
+
+/* =========================
+   Badges
+========================= */
+.status-badge{
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  border: 1px solid var(--n-border);
+  background: var(--n-soft);
+  color: var(--n-navy-800);
+}
+/* HILANGKAN dot/pseudo apapun */
+.status-badge::before{ display:none !important; content:none !important; }
+
+.status-badge.active{
+  background: rgba(22,163,74,.10);
+  color: #14532d;
+  border-color: rgba(22,163,74,.22);
+}
+.status-badge.inactive{
+  background: rgba(239,68,68,.10);
+  color: #7f1d1d;
+  border-color: rgba(239,68,68,.22);
+}
+
+/* Edu badge */
+.badge-edu{
+  background: rgba(99,102,241,.10);
+  color: #312e81;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.82rem;
+  border: 1px solid rgba(99,102,241,.18);
+  white-space: nowrap;
+}
+
+/* =========================
+   Row Action Buttons
+========================= */
+.action-buttons{
+  display:flex;
+  gap: 8px;
+  flex-wrap: nowrap; /* 1 baris */
+  align-items: center;
+}
+.btn-icon{
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(15,42,86,.18);
+  background: #fff;
+  color: rgba(15,42,86,.70);
+  cursor: pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease, color .18s ease;
+  flex: 0 0 auto;
+}
+.btn-icon:hover{
+  background: rgba(15,42,86,.05);
+  color: rgba(11,31,58,.92);
+  border-color: rgba(15,42,86,.26);
+  box-shadow: 0 10px 18px rgba(15,23,42,.10);
+  transform: translateY(-1px);
+}
+.btn-icon.delete:hover{
+  background: rgba(239,68,68,.10);
+  color: #991b1b;
+  border-color: rgba(239,68,68,.22);
+}
+
+/* =========================
+   Modal
+========================= */
+.modal-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.55);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  z-index: 1000;
+  padding: 14px;
+  backdrop-filter: blur(6px);
+}
+.modal-content{
+  background: #fff;
+  border-radius: var(--n-radius);
+  width: 100%;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 30px 70px rgba(2,6,23,.35);
+  border: 1px solid rgba(15,42,86,.14);
+}
+.modal-content.view-mode{ max-width: 600px; }
+.modal-header{
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(15,42,86,.10);
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+}
+.modal-header h2{
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--n-navy-900);
+  margin: 0;
+}
+.modal-body{ padding: 18px; }
+.modal-footer{
+  padding: 16px 18px;
+  border-top: 1px solid rgba(15,42,86,.10);
+  display:flex;
+  justify-content:flex-end;
+  gap: 10px;
+  background: #fff;
+}
+.close-btn{
+  background: none;
+  border:none;
+  font-size: 1.6rem;
+  cursor:pointer;
+  color: rgba(15,42,86,.70);
+}
+.close-btn:hover{ color: var(--n-navy-900); }
+
+/* Section title */
+.section-title{
+  font-weight: 900;
+  color: var(--n-navy-900);
+  margin-top: 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(15,42,86,.10);
+  padding-bottom: 10px;
+  text-transform: uppercase;
+  font-size: .78rem;
+  letter-spacing: .08em;
+}
+
+/* Pendidikan rows */
+.pendidikan-grid{ display:flex; flex-direction: column; gap: 8px; }
+.pendidikan-row{
+  display:grid;
+  grid-template-columns: 56px 1fr 110px;
+  gap: 10px;
+  align-items:center;
+  padding: 10px;
+  background: rgba(15,42,86,.04);
+  border-radius: 12px;
+  border: 1px solid rgba(15,42,86,.10);
+}
+.level-label{
+  font-weight: 900;
+  color: #1d4ed8;
+  font-size: .9rem;
+}
+.input-sekolah,
+.input-tahun{
+  background: #fff !important;
+  color: #111827 !important;
+  font-weight: 700 !important;
+}
+.input-tahun{ text-align: center; }
+
+/* Detail item */
+.detail-item label{
+  font-size: .82rem;
+  font-weight: 900;
+  color: rgba(100,116,139,.95);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.detail-item .value{
+  font-size: 1rem;
+  color: #111827;
+  font-weight: 650;
+}
+
+/* Edu list */
+.edu-item{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+  padding: 10px;
+  background: rgba(15,42,86,.04);
+  border: 1px solid rgba(15,42,86,.10);
+  border-radius: 12px;
+}
+.edu-level{
+  font-weight: 900;
+  color: #2563eb;
+  width: 44px;
+}
+.edu-name{
+  color: #111827;
+  font-weight: 800;
+}
+
+/* Form controls */
+label{
+  font-size: .9rem;
+  font-weight: 800;
+  color: rgba(15,42,86,.85);
+  margin-bottom: 6px;
+  display:block;
+}
+input, select, textarea{
+  padding: 10px 12px;
+  border: 1px solid rgba(15,42,86,.18);
+  border-radius: 12px;
+  font-size: .95rem;
+  color: #111827;
+  width: 100%;
+  background: #fff;
+  transition: box-shadow .18s ease, border-color .18s ease;
+}
+input::placeholder{ color: rgba(148,163,184,.95); }
+input:focus, select:focus, textarea:focus{
+  outline:none;
+  border-color: rgba(37,99,235,.45);
+  box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+}
+.required{ color: #dc2626; margin-left: 2px; }
+
+/* =========================
+   Utilities (tetap)
+========================= */
+.font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+.font-medium { font-weight: 650; }
+.font-semibold { font-weight: 800; }
+
+.w-full { width: 100%; }
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.gap-4 { gap: 16px; }
+.text-sm { font-size: .875rem; }
+.text-gray-600 { color: rgba(100,116,139,.95); font-weight: 650; }
+.text-gray-500 { color: rgba(100,116,139,.90); }
+.border-t { border-top: 1px solid rgba(15,42,86,.10); }
+.pt-4 { padding-top: 16px; }
+.mb-2 { margin-bottom: 8px; }
+.block { display: block; }
+.text-center { text-align: center; }
+.text-blue-600 { color: #2563eb; }
+
+/* =========================
+   Responsive: iPhone 13 (390x844) safe
+========================= */
+@media (max-width: 768px){
+  .tab-content{
+    padding: 12px;
+    border-radius: 0;
+  }
+
+  .action-bar{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .search-box{ width: 100%; }
+
+  .action-buttons-group{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .action-buttons-group :global(button){ width: 100%; }
+  .action-buttons-group :global(.btn-primary){ grid-column: 1 / -1; }
+
+  /* table -> card view */
+  .data-table thead{ display:none; }
+
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td{
+    display:block;
+    width:100%;
+  }
+
+  .data-table{
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .data-table tbody{
+    display:flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .data-table tbody tr{
+    background: #fff;
+    border: 1px solid rgba(15,42,86,.14);
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 12px 26px rgba(15,23,42,.10);
+    overflow: hidden;
+  }
+
+  .data-table td{
+    padding: 10px 0;
+    border-bottom: 1px dashed rgba(15,42,86,.10);
+
+    display:flex;
+    justify-content: space-between;
+    align-items:flex-start;
+    gap: 10px;
+    text-align: right;
+
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .data-table td:last-child{
+    border-bottom: none;
+    padding-top: 12px;
+    justify-content: flex-end;
+    background: rgba(15,42,86,.04);
+    margin: 0 -14px -14px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  /* label kiri */
+  .data-table td::before{
+    content: attr(data-label);
+    font-weight: 900;
+    color: rgba(15,42,86,.70);
+    text-align: left;
+    font-size: .74rem;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+
+    flex: 0 0 92px;
+    max-width: 92px;
+  }
+
+  /* isi kanan (default text) */
+  .data-table td > *{
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  /* ✅ FIX: L/P & Status badge jangan ikut flex:1 */
+  .data-table td[data-label="L/P"]{
+    align-items: center;
+  }
+  .data-table td[data-label="L/P"] > *{
+    flex: 0 0 auto !important;
+    min-width: auto !important;
+    max-width: none !important;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .data-table td[data-label="Status"]{
+    align-items: center;
+  }
+  .data-table td[data-label="Status"] > *{
+    flex: 0 0 auto !important;
+    min-width: auto !important;
+    max-width: none !important;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .action-buttons{
+    justify-content:flex-end;
+    gap: 10px;
+  }
+
+  /* modal full screen on mobile */
+  .modal-content{
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    margin: 0;
+    display:flex;
+    flex-direction: column;
+  }
+  .modal-body{
+    overflow-y: auto;
+    flex: 1;
+  }
+  .modal-footer{
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+  .modal-footer :global(button){
+    width: 100%;
+    justify-content:center;
+    margin: 0 !important;
+  }
+
+  /* pendidikan row rapikan */
+  .pendidikan-row{
+    grid-template-columns: 56px 1fr 92px;
+  }
+}
+
+@media (max-width: 390px){
+  .data-table td::before{
+    flex-basis: 86px;
+    max-width: 86px;
+  }
+  .btn-icon{
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+  }
+}
+`}</style>
+
     </div>
   )
 }

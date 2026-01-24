@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { exportToExcel, generateTemplate, readExcel } from '@/lib/excel-utils'
+import { useState, useEffect } from 'react'
+import { exportToExcel } from '@/lib/excel-utils'
 import Pagination from '@/components/ui/Pagination'
+import Swal from 'sweetalert2'
+import ImportModal from '@/components/ui/ImportModal'
 
 interface RawSiswa {
   nisn: string;
@@ -36,10 +38,6 @@ export default function SiswaTab() {
 
   // Import State
   const [showImportModal, setShowImportModal] = useState(false)
-  const [showImportTambahModal, setShowImportTambahModal] = useState(false) // New state for Tambah Import
-  const [importing, setImporting] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const fileInputRefTambah = useRef<HTMLInputElement>(null) // Ref for Tambah Import
 
   const [formData, setFormData] = useState<Partial<RawSiswa>>({
     gender: 'L',
@@ -51,6 +49,7 @@ export default function SiswaTab() {
 
   useEffect(() => {
     fetchSiswa()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit])
 
   useEffect(() => {
@@ -59,6 +58,7 @@ export default function SiswaTab() {
       fetchSiswa()
     }, 500)
     return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm])
 
   const fetchSiswa = async () => {
@@ -71,6 +71,13 @@ export default function SiswaTab() {
       })
 
       const res = await fetch(`/api/master/students?${params}`)
+
+      if (!res.ok) {
+        const text = await res.text()
+        console.error('API Error:', res.status, text)
+        throw new Error(`Gagal mengambil data: ${res.statusText}`)
+      }
+
       const json = await res.json()
 
       if (json.ok) {
@@ -129,9 +136,12 @@ export default function SiswaTab() {
     }
   }
 
-  const saveSiswa = async (data: RawSiswa, isUpdate: boolean) => {
+  const saveSiswa = async (data: RawSiswa, isUpdate: boolean, upsert: boolean = false) => {
     const method = isUpdate ? 'PUT' : 'POST'
-    const res = await fetch('/api/master/students', {
+    let url = '/api/master/students'
+    if (upsert) url += '?upsert=true'
+
+    const res = await fetch(url, {
       method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -145,7 +155,18 @@ export default function SiswaTab() {
   }
 
   const handleDelete = async (nisn: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus data siswa ini?')) return
+    const result = await Swal.fire({
+      title: 'Hapus Siswa?',
+      text: "Data yang dihapus tidak dapat dikembalikan!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal'
+    })
+
+    if (!result.isConfirmed) return
 
     try {
       setLoading(true)
@@ -155,7 +176,11 @@ export default function SiswaTab() {
       const json = await res.json()
 
       if (json.ok) {
-        alert('Data siswa berhasil dihapus')
+        Swal.fire(
+          'Terhapus!',
+          'Data siswa berhasil dihapus.',
+          'success'
+        )
         fetchSiswa()
       } else {
         throw new Error(json.error || 'Gagal menghapus data')
@@ -188,139 +213,65 @@ export default function SiswaTab() {
       'Nomor HP Ibu': s.nomor_hp_ibu || '',
       'Alamat': s.alamat || '',
       'Asal Sekolah': s.asal_sekolah || '',
-      'Status Aktif': s.aktif ? 'TRUE' : 'FALSE' // Use standard boolean text for re-import reliability
+      'Status Aktif': s.aktif ? 'TRUE' : 'FALSE'
     }))
     exportToExcel(dataToExport, 'Data_Siswa_ACCA', 'Siswa');
   }
 
-  const handleDownloadTemplate = () => {
-    generateTemplate(['No', 'NISN', 'Nama Lengkap', 'Jenis Kelamin', 'Tempat Lahir', 'Tanggal Lahir', 'Nama Ayah', 'Nama Ibu', 'Nomor HP Ayah', 'Nomor HP Ibu', 'Alamat', 'Asal Sekolah', 'Status Aktif'], 'Template_Siswa');
-  }
+  const mapImportRow = (row: any) => {
+    // Helper to find value case-insensitively
+    const getVal = (targetKeys: string[]) => {
+      // Normalize target keys
+      const normalizedTargets = targetKeys.map(k => k.toLowerCase().trim());
 
+      // Find matching key in row
+      const foundKey = Object.keys(row).find(k =>
+        normalizedTargets.includes(k.toLowerCase().trim())
+      );
 
-
-  // --- IMPORT UTAMA (REPLACE ALL) ---
-  const handleImportUtama = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!confirm('PERINGATAN: Import akan MENGHAPUS SEMUA data siswa yang ada saat ini dan menggantinya dengan data dari file.\n\nApakah Anda yakin ingin melanjutkan?')) {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
-
-    setImporting(true);
-    try {
-      const jsonData = await readExcel(file);
-
-      // 1. Delete All Data
-      const delRes = await fetch('/api/master/students?scope=all', { method: 'DELETE' });
-      if (!delRes.ok) throw new Error('Gagal menghapus data lama');
-
-      // 2. Insert New Data
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const row of jsonData) {
-        const payload = mapRowToPayload(row);
-        if (!payload) { failCount++; continue; }
-
-        try {
-          await saveSiswa(payload as RawSiswa, false);
-          successCount++;
-        } catch (err) {
-          console.error('Import Utama Insert Error:', err);
-          failCount++;
-        }
-      }
-
-      alert(`Import Utama Selesai.\nTotal Data Masuk: ${successCount}\nGagal: ${failCount}`);
-      fetchSiswa();
-      setShowImportModal(false);
-
-    } catch (err: any) {
-      console.error('Import Error:', err);
-      alert('Gagal memproses import utama: ' + err.message);
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
-
-  // --- IMPORT TAMBAH (APPEND) ---
-  const handleImportTambah = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setImporting(true);
-    try {
-      const jsonData = await readExcel(file);
-      let successCount = 0;
-      let duplicateCount = 0;
-      let failCount = 0;
-
-      for (const row of jsonData) {
-        const payload = mapRowToPayload(row);
-        if (!payload) { failCount++; continue; }
-
-        try {
-          // Try insert directly. API should return 409 if duplicate NISN
-          await saveSiswa(payload as RawSiswa, false);
-          successCount++;
-        } catch (err: any) {
-          if (err.message && (err.message.includes('sudah terdaftar') || err.message.includes('duplicate'))) {
-            duplicateCount++;
-            // Skip, do not update
-          } else {
-            console.error('Import Tambah Error:', err);
-            failCount++;
-          }
-        }
-      }
-
-      alert(`Import Tambah Selesai.\nBerhasil Ditambahkan: ${successCount}\nDuplikat (Dilewati): ${duplicateCount}\nGagal: ${failCount}`);
-      fetchSiswa();
-      setShowImportTambahModal(false);
-      setShowModal(false); // Close parent add modal if open? or just keep it? Let's assume Import Tambah is standalone modal or inside Add Modal. 
-      // If used inside "Tambah Siswa" modal, might want to close it too.
-
-    } catch (err: any) {
-      console.error('Import Tambah Error:', err);
-      alert('Gagal memproses import tambah: ' + err.message);
-    } finally {
-      setImporting(false);
-      if (fileInputRefTambah.current) fileInputRefTambah.current.value = '';
-    }
-  }
-
-  const mapRowToPayload = (row: any) => {
-    // Normalize Keys (handle case variations or export vs template differences)
-    const getVal = (keys: string[]) => {
-      for (const k of keys) {
-        if (row[k] !== undefined) return row[k];
-      }
-      return '';
+      if (foundKey) return row[foundKey];
+      return undefined;
     };
 
-    const nisnRaw = getVal(['NISN', 'nisn']);
-    const namaRaw = getVal(['Nama Lengkap', 'nama_lengkap']);
+    // Helper for date parsing
+    const parseDate = (val: any) => {
+      if (!val) return null;
+      if (typeof val === 'number') {
+        // Excel Serial Date
+        const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+        return d.toISOString().split('T')[0];
+      }
+      const s = String(val).trim();
+      // ISO YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      // DD/MM/YYYY
+      if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
+        const p = s.split(/[\/\-]/);
+        // Assuming DD-MM-YYYY
+        return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+      }
+      return s; // Fallback
+    };
+
+    const nisnRaw = getVal(['NISN', 'nisn', 'No Induk', 'Nomor Induk']);
+    const namaRaw = getVal(['Nama Lengkap', 'nama', 'Nama']);
 
     if (!nisnRaw || !namaRaw) return null;
 
     return {
-      nisn: String(nisnRaw),
-      nama_lengkap: String(namaRaw),
-      gender: (getVal(['Jenis Kelamin', 'gender', 'L/P']) === 'P' ? 'P' : 'L'),
-      tempat_lahir: getVal(['Tempat Lahir', 'tempat_lahir']),
-      tanggal_lahir: getVal(['Tanggal Lahir', 'tanggal_lahir']) || null,
-      nama_ayah: getVal(['Nama Ayah', 'nama_ayah']),
-      nama_ibu: getVal(['Nama Ibu', 'nama_ibu']),
-      nomor_hp_ayah: String(getVal(['Nomor HP Ayah', 'nomor_hp_ayah', 'No HP Ayah'])),
-      nomor_hp_ibu: String(getVal(['Nomor HP Ibu', 'nomor_hp_ibu', 'No HP Ibu'])),
-      alamat: getVal(['Alamat', 'alamat']),
-      asal_sekolah: getVal(['Asal Sekolah', 'asal_sekolah']),
+      nisn: String(nisnRaw).replace(/[^0-9]/g, ''), // Ensure numeric only string
+      nama_lengkap: String(namaRaw).trim(),
+      gender: (String(getVal(['Jenis Kelamin', 'Gender'])).toUpperCase().startsWith('P') ? 'P' : 'L'),
+      tempat_lahir: getVal(['Tempat Lahir']),
+      tanggal_lahir: parseDate(getVal(['Tanggal Lahir'])),
+      nama_ayah: getVal(['Nama Ayah']),
+      nama_ibu: getVal(['Nama Ibu']),
+      nomor_hp_ayah: String(getVal(['Nomor HP Ayah', 'No HP Ayah']) || ''),
+      nomor_hp_ibu: String(getVal(['Nomor HP Ibu', 'No HP Ibu']) || ''),
+      alamat: getVal(['Alamat']),
+      asal_sekolah: getVal(['Asal Sekolah']),
       // Standardize Status Import
-      aktif: String(getVal(['Status Aktif', 'aktif', 'Status'])).toUpperCase() !== 'FALSE' && String(getVal(['Status Aktif', 'aktif', 'Status'])).toUpperCase() !== 'NON-AKTIF'
+      aktif: String(getVal(['Status Aktif', 'Status'])).toUpperCase() !== 'FALSE' && String(getVal(['Status Aktif', 'Status'])).toUpperCase() !== 'NON-AKTIF'
     };
   }
 
@@ -380,26 +331,26 @@ export default function SiswaTab() {
             ) : (
               siswaList.map((siswa, index) => (
                 <tr key={siswa.nisn}>
-                  <td className="text-center">{(page - 1) * limit + index + 1}</td>
-                  <td className="font-mono">{siswa.nisn}</td>
-                  <td className="font-medium">{siswa.nama_lengkap}</td>
-                  <td><span className={`gender-badge ${siswa.gender}`}>{siswa.gender}</span></td>
-                  <td>
+                  <td className="text-center" data-label="No"><span>{(page - 1) * limit + index + 1}</span></td>
+                  <td className="font-mono" data-label="NISN"><span>{siswa.nisn}</span></td>
+                  <td className="font-medium" data-label="Nama Lengkap"><span>{siswa.nama_lengkap}</span></td>
+                  <td data-label="L/P"><span className={`gender-badge ${siswa.gender}`}>{siswa.gender}</span></td>
+                  <td data-label="TTL">
                     <div className="text-sm">{siswa.tempat_lahir}</div>
                     <div className="text-xs text-gray-500">{siswa.tanggal_lahir}</div>
                   </td>
-                  <td>
+                  <td data-label="Kontak Ortu">
                     <div className="text-sm">{siswa.nama_ayah || '-'} / {siswa.nama_ibu || '-'}</div>
                     <div className="text-xs text-gray-500">
                       {siswa.nomor_hp_ayah || '-'} / {siswa.nomor_hp_ibu || '-'}
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span className={`status-badge ${siswa.aktif ? 'active' : 'inactive'}`}>
                       {siswa.aktif ? 'Aktif' : 'Non-Aktif'}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Aksi">
                     <div className="action-buttons">
                       <button className="btn-icon" onClick={() => handleView(siswa)} title="Lihat Detail">
                         <i className="bi bi-eye"></i>
@@ -427,117 +378,9 @@ export default function SiswaTab() {
         onPageChange={setPage}
         onLimitChange={(newLimit) => {
           setLimit(newLimit);
-          setPage(1); // Reset to page 1 on limit change
+          setPage(1);
         }}
       />
-
-      {/* Import Modal */}
-      {showImportModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h2>Import (Ganti Semua)</h2>
-              <button onClick={() => setShowImportModal(false)} className="close-btn">&times;</button>
-            </div>
-            <div className="modal-body">
-              <div className="flex flex-col gap-4">
-                <p className="text-sm text-gray-600">
-                  Unduh template Excel, isi data, lalu upload kembali.
-                </p>
-                <button className="btn-secondary w-full" onClick={handleDownloadTemplate}>
-                  <i className="bi bi-file-earmark-excel"></i> Download Template
-                </button>
-
-                <div className="border-t pt-4">
-                  <label className="block mb-2 text-sm font-medium">Upload File Excel</label>
-                  <input
-                    type="file"
-                    accept=".xlsx, .xls"
-                    ref={fileInputRef}
-                    onChange={handleImportUtama}
-                    disabled={importing}
-                    className="custom-file-input-siswa block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
-                  />
-                </div>
-
-                {importing && <div className="text-center text-blue-600 font-medium">Memproses data...</div>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Import Tambah Modal */}
-      {showImportTambahModal && (
-        <div className="modal-overlay" style={{ zIndex: 1050 }}>
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h2>Import Data (Append)</h2>
-              <button onClick={() => setShowImportTambahModal(false)} className="close-btn">&times;</button>
-            </div>
-            <div className="modal-body">
-              <div className="flex flex-col gap-4">
-                <p className="text-sm text-gray-600">
-                  Data akan ditambahkan ke database. Data duplikat akan dilewati.
-                </p>
-                <button className="btn-secondary w-full" onClick={handleDownloadTemplate}>
-                  <i className="bi bi-file-earmark-excel"></i> Download Template
-                </button>
-
-                <div className="border-t pt-4">
-                  <label className="block mb-2 text-sm font-medium">Upload File Excel</label>
-                  <input
-                    type="file"
-                    accept=".xlsx, .xls"
-                    ref={fileInputRefTambah}
-                    onChange={handleImportTambah}
-                    disabled={importing}
-                    className="custom-file-input-siswa block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
-                  />
-                </div>
-
-                {importing && <div className="text-center text-blue-600 font-medium">Memproses data...</div>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Import Tambah Modal */}
-      {showImportTambahModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h2>Import Data (Append)</h2>
-              <button onClick={() => setShowImportTambahModal(false)} className="close-btn">&times;</button>
-            </div>
-            <div className="modal-body">
-              <div className="flex flex-col gap-4">
-                <p className="text-sm text-gray-600">
-                  Data akan ditambahkan ke database. Data duplikat akan dilewati.
-                </p>
-                <button className="btn-secondary w-full" onClick={handleDownloadTemplate}>
-                  <i className="bi bi-file-earmark-excel"></i> Download Template
-                </button>
-
-                <div className="border-t pt-4">
-                  <label className="block mb-2 text-sm font-medium">Upload File Excel</label>
-                  <input
-                    type="file"
-                    accept=".xlsx, .xls"
-                    ref={fileInputRefTambah}
-                    onChange={handleImportTambah}
-                    disabled={importing}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
-                  />
-                </div>
-
-                {importing && <div className="text-center text-blue-600 font-medium">Memproses data...</div>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Form Modal (Add/Edit) */}
       {showModal && (
@@ -631,9 +474,6 @@ export default function SiswaTab() {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" onClick={() => setShowImportTambahModal(true)} className="btn-secondary" style={{ marginRight: 'auto' }}>
-                  <i className="bi bi-file-earmark-plus"></i> Import +
-                </button>
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Batal</button>
                 <button type="submit" disabled={saving} className="btn-primary">
                   {saving ? 'Menyimpan...' : 'Simpan'}
@@ -643,6 +483,20 @@ export default function SiswaTab() {
           </div>
         </div>
       )}
+
+      {/* Standardized Import Modal */}
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={() => {
+          fetchSiswa();
+          setShowImportModal(false);
+        }}
+        templateColumns={['No', 'NISN', 'Nama Lengkap', 'Jenis Kelamin', 'Tempat Lahir', 'Tanggal Lahir', 'Nama Ayah', 'Nama Ibu', 'Nomor HP Ayah', 'Nomor HP Ibu', 'Alamat', 'Asal Sekolah', 'Status Aktif']}
+        templateName="Template_Siswa"
+        apiEndpoint="/api/master/students?upsert=true"
+        mapRowData={mapImportRow}
+      />
 
       {/* View Detail Modal */}
       {showViewModal && selectedSiswa && (
@@ -734,119 +588,609 @@ export default function SiswaTab() {
       )}
 
       <style jsx>{`
-        .tab-content { padding: 24px; background: #fff; border-radius: 0 0 12px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-        .search-box { display: flex; align-items: center; background: #f3f4f6; padding: 10px 16px; border-radius: 8px; width: 300px; }
-        .search-box input { border: none; background: transparent; width: 100%; outline: none; margin-left: 8px; color: #111827; font-weight: 500; }
-        .search-box input::placeholder { color: #6b7280; }
-        
-        .action-buttons-group { display: flex; gap: 8px; }
+/* =========================
+   SISWA TAB — PREMIUM NAVY (FULL REPLACE v5)
+   Fix final:
+   - Desktop: Aksi icon 1 baris (no wrap)
+   - Mobile iPhone 13 (390x844): tidak “terpotong”, label tidak makan ruang, konten wrap aman iOS
+   - Status badge: tanpa bulatan hijau
+   - Fix: badge kecil (L/P & Status) tidak ikut flex:1 (penyebab layout kacau)
+========================= */
 
-        .btn-primary { background: linear-gradient(135deg, #3aa6ff, #1c4c99); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .btn-secondary { background: #e5e7eb; color: #374151; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .btn-secondary:hover { background: #d1d5db; }
+:global(:root){
+  --n-bg:#f5f7fb;
+  --n-card:#ffffff;
+  --n-ink:#0b1324;
+  --n-muted:#64748b;
+
+  --n-navy-950:#07162e;
+  --n-navy-900:#0b1f3a;
+  --n-navy-800:#0f2a56;
+
+  --n-border: rgba(15, 42, 86, .14);
+  --n-soft: rgba(15, 42, 86, .06);
+
+  --n-shadow: 0 12px 30px rgba(15, 23, 42, .10);
+  --n-shadow-2: 0 10px 18px rgba(15, 23, 42, .08);
+
+  --n-radius: 16px;
+  --n-radius-sm: 12px;
+
+  --n-blue:#2563eb;
+  --n-pink:#db2777;
+  --n-green:#16a34a;
+  --n-red:#ef4444;
+}
+
+/* ---- Page Wrap ---- */
+.tab-content{
+  padding: 16px;
+  background: var(--n-bg);
+  border-radius: 0 0 16px 16px;
+  color: var(--n-ink);
+
+  /* penting utk layout flex parent */
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/* ---- Action Bar ---- */
+.action-bar{
+  display:flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+  border: 1px solid var(--n-border);
+  border-radius: var(--n-radius);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, .06);
+
+  min-width: 0;
+}
+
+/* ---- Search ---- */
+.search-box{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  width: 360px;
+  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: 999px;
+
+  background: #fff;
+  border: 1px solid var(--n-border);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, .05);
+
+  min-width: 0;
+}
+.search-box :global(i){
+  color: rgba(15, 42, 86, .70);
+  font-size: 1.05rem;
+}
+.search-box input{
+  border: none;
+  background: transparent;
+  width: 100%;
+  outline: none;
+  color: var(--n-ink);
+  font-weight: 600;
+  font-size: .95rem;
+  min-width: 0;
+}
+.search-box input::placeholder{
+  color: rgba(100,116,139,.95);
+  font-weight: 500;
+}
+.search-box:focus-within{
+  border-color: rgba(15, 42, 86, .28);
+  box-shadow: 0 0 0 4px rgba(15, 42, 86, .10), 0 8px 18px rgba(15, 23, 42, .06);
+}
+
+/* ---- Buttons ---- */
+.action-buttons-group{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.btn-primary,
+.btn-secondary{
+  border: none;
+  padding: 10px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: .92rem;
+  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, filter .18s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+.btn-secondary{
+  background: #fff;
+  color: var(--n-navy-800);
+  border: 1px solid var(--n-border);
+}
+.btn-secondary:hover{
+  background: rgba(15, 42, 86, .04);
+  box-shadow: var(--n-shadow-2);
+  transform: translateY(-1px);
+}
+.btn-primary{
+  color: #fff;
+  background: linear-gradient(180deg, var(--n-navy-800), var(--n-navy-900));
+  box-shadow: 0 12px 24px rgba(15, 42, 86, .18);
+}
+.btn-primary:hover{
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+
+/* ---- Table Container ---- */
+.table-container{
+  background: var(--n-card);
+  border: 1px solid var(--n-border);
+  border-radius: var(--n-radius);
+  box-shadow: var(--n-shadow);
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ---- Table ---- */
+.data-table{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: .95rem;
+}
+.data-table th,
+.data-table td{
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(15, 42, 86, .08);
+  color: #0f172a;
+  vertical-align: middle;
+}
+.data-table thead th{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: linear-gradient(180deg, rgba(11,31,58,.98), rgba(15,42,86,.96));
+  color: rgba(255,255,255,.95);
+  font-weight: 800;
+  letter-spacing: .2px;
+  border-bottom: 1px solid rgba(255,255,255,.14);
+}
+.data-table tbody tr{
+  background: #fff;
+  transition: background .15s ease;
+}
+.data-table tbody tr:hover{
+  background: rgba(15, 42, 86, .03);
+}
+
+/* ==== Desktop: Kolom Aksi jangan wrap ==== */
+.data-table td:last-child{ white-space: nowrap; }
+
+/* ---- Badges ---- */
+.gender-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width: 34px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: .82rem;
+  font-weight: 900;
+  border: 1px solid var(--n-border);
+  background: var(--n-soft);
+  color: var(--n-navy-800);
+  white-space: nowrap;
+}
+.gender-badge.L{
+  background: rgba(37, 99, 235, .10);
+  border-color: rgba(37, 99, 235, .18);
+  color: #1d4ed8;
+}
+.gender-badge.P{
+  background: rgba(236, 72, 153, .10);
+  border-color: rgba(236, 72, 153, .18);
+  color: #db2777;
+}
+
+/* ✅ Status badge: TANPA BULATAN */
+.status-badge{
+  display:inline-flex;
+  align-items:center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: .82rem;
+  font-weight: 900;
+  border: 1px solid var(--n-border);
+  background: var(--n-soft);
+  color: var(--n-navy-800);
+  white-space: nowrap;
+}
+.status-badge::before{ display:none !important; content:none !important; }
+
+.status-badge.active{
+  background: rgba(22,163,74,.10);
+  border-color: rgba(22,163,74,.22);
+  color: #15803d;
+}
+.status-badge.inactive{
+  background: rgba(239,68,68,.10);
+  border-color: rgba(239,68,68,.22);
+  color: #b91c1c;
+}
+
+/* ---- Row Action Buttons ---- */
+.action-buttons{
+  display:flex;
+  gap: 8px;
+
+  /* ✅ Desktop: ikon 1 baris */
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+}
+.btn-icon{
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--n-border);
+  background: #fff;
+  color: rgba(15, 42, 86, .78);
+  cursor: pointer;
+  display: inline-flex;
+  align-items:center;
+  justify-content:center;
+  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease, color .18s ease;
+  flex: 0 0 auto; /* ✅ tidak mengecil */
+}
+.btn-icon:hover{
+  background: rgba(15, 42, 86, .05);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, .10);
+  transform: translateY(-1px);
+  color: var(--n-navy-900);
+}
+.btn-icon.edit:hover{
+  background: rgba(37,99,235,.08);
+  border-color: rgba(37,99,235,.20);
+  color: #1d4ed8;
+}
+.btn-icon.delete:hover{
+  background: rgba(239,68,68,.10);
+  border-color: rgba(239,68,68,.22);
+  color: #b91c1c;
+}
+
+/* ---- Pagination wrapper (biar rapi) ---- */
+:global(.pagination){ margin-top: 12px; }
+
+        /* =========================
+           MODAL & FORM PREMIUM STYLE
+           ========================= */
         
-        .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th, .data-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e5e7eb; color: #1f2937; }
-        .data-table th { background: #f9fafb; font-weight: 600; color: #111827; }
+        .modal-overlay { 
+          position: fixed; 
+          top: 0; left: 0; right: 0; bottom: 0; 
+          background: rgba(7, 22, 46, 0.45); 
+          backdrop-filter: blur(4px);
+          display: flex; 
+          justify-content: center; 
+          align-items: center; 
+          z-index: 1000; 
+          padding: 16px; /* Safe area */
+        }
         
-        .gender-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; font-size: 0.8rem; font-weight: 600; }
-        .gender-badge.L { background: #eff6ff; color: #1d4ed8; }
-        .gender-badge.P { background: #fdf2f8; color: #be185d; }
+        .modal-content { 
+          background: #fff; 
+          border-radius: 20px; 
+          width: 100%; 
+          max-width: 650px; 
+          max-height: 90vh; 
+          overflow-y: auto; 
+          box-shadow: 0 24px 48px rgba(0,0,0,0.2);
+          display: flex;
+          flex-direction: column;
+          animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
         
-        .status-badge { padding: 4px 8px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; }
-        .status-badge.active { background: #dcfce7; color: #166534; }
-        .status-badge.inactive { background: #fee2e2; color: #991b1b; }
+        .modal-content.view-mode { max-width: 550px; }
+
+        @keyframes modalSlideUp {
+          from { opacity: 0; transform: translateY(20px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
         
-        .action-buttons { display: flex; gap: 8px; }
-        .btn-icon { width: 32px; height: 32px; border-radius: 6px; border: 1px solid #e5e7eb; background: #fff; color: #6b7280; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-        .btn-icon:hover { background: #f3f4f6; color: #111827; }
-        .btn-icon.edit:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
-        .btn-icon.delete:hover { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+        .modal-header { 
+          padding: 20px 24px; 
+          border-bottom: 1px solid var(--n-border);
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center;
+          background: #fdfeff;
+          border-radius: 20px 20px 0 0;
+        }
+        .modal-header h2 { 
+          color: var(--n-navy-900); 
+          font-weight: 800; 
+          margin: 0; 
+          font-size: 1.25rem; 
+        }
+        .close-btn { 
+          background: none; 
+          border: none; 
+          font-size: 1.5rem; 
+          cursor: pointer; 
+          color: var(--n-muted); 
+          transition: color 0.2s;
+        }
+        .close-btn:hover { color: var(--n-red); }
         
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background: #fff; border-radius: 12px; width: 100%; max-width: 700px; max-height: 90vh; overflow-y: auto; }
-        .modal-content.view-mode { max-width: 600px; }
-        .modal-header h2 { color: #111827; font-weight: 700; margin: 0; }
-        .modal-body { padding: 24px; }
-        .modal-footer { padding: 20px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px; }
-        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #4b5563; }
+        .modal-body { padding: 24px; overflow-y: auto; }
+        .modal-footer { 
+          padding: 20px 24px; 
+          border-top: 1px solid var(--n-border); 
+          display: flex; 
+          justify-content: flex-end; 
+          gap: 12px; 
+          background: #fafbfc;
+          border-radius: 0 0 20px 20px;
+        }
         
+        /* Form & Inputs */
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
         .form-group.full { grid-column: span 2; }
-        .section-title { font-weight: 700; color: #111827; margin-top: 12px; margin-bottom: 4px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
         
-        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        label { 
+          font-size: 0.85rem; 
+          font-weight: 700; 
+          color: var(--n-navy-800); 
+          margin-bottom: 2px;
+        }
+        .required { color: var(--n-red); margin-left: 2px; }
+        
+        input, select, textarea { 
+          padding: 10px 14px; 
+          border: 1px solid var(--n-border); /* uses premium border */
+          border-radius: 10px; 
+          font-size: 0.95rem; 
+          color: var(--n-ink); 
+          font-weight: 500;
+          background: var(--n-bg);
+          width: 100%;
+          transition: all 0.2s;
+        }
+        input:focus, select:focus, textarea:focus { 
+          outline: none; 
+          border-color: var(--n-blue); 
+          background: #fff;
+          box-shadow: 0 0 0 4px rgba(37,99,235,0.1); 
+        }
+        input:disabled { background-color: rgba(0,0,0,0.03); color: #888; cursor: not-allowed; }
+        
+        .form-textarea { resize: vertical; min-height: 80px; }
+        
+        .section-title { 
+          font-weight: 800; 
+          color: var(--n-navy-900); 
+          margin-top: 16px; 
+          margin-bottom: 8px; 
+          border-bottom: 2px solid var(--n-border); 
+          padding-bottom: 8px; 
+          font-size: 1rem;
+        }
+        
+        /* View Detail Styling */
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
         .detail-item { display: flex; flex-direction: column; gap: 4px; }
         .detail-item.full { grid-column: span 2; }
-        .detail-item label { font-size: 0.85rem; color: #4b5563; font-weight: 600; }
-        .detail-item .value { font-size: 1rem; color: #111827; font-weight: 500; }
-
-        label { font-size: 0.9rem; font-weight: 600; color: #374151; }
-        input, select, textarea { padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.95rem; color: #111827; font-weight: 500; }
-        input:focus, select:focus, textarea:focus { outline: none; border-color: #3aa6ff; ring: 2px solid rgba(58, 166, 255, 0.2); }
-        input:disabled { background-color: #f3f4f6; cursor: not-allowed; }
-        .required { color: #dc2626; }
+        .detail-item label { color: var(--n-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .detail-item .value { font-size: 1rem; color: var(--n-ink); font-weight: 600; line-height: 1.4; }
+        .detail-item .value.font-mono { font-family: ui-monospace, monospace; color: var(--n-navy-800); background: var(--n-soft); display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.9rem; }
         
-        .pagination { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
-        .btn-page { width: 36px; height: 36px; border: 1px solid #e5e7eb; background: #fff; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; } 
-        
-        .bg-gray-100 { background-color: #f3f4f6; }
+        .btn-danger { 
+          background: #fff; 
+          color: var(--n-red); 
+          border: 1px solid rgba(239,68,68,0.3); 
+          padding: 10px 18px; 
+          border-radius: 99px; 
+          cursor: pointer; 
+          font-weight: 700;
+          display: flex; align-items: center; gap: 8px;
+        }
+        .btn-danger:hover { background: #fef2f2; border-color: var(--n-red); }
 
-        .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 600; }
-        .btn-danger:hover { background: #fecaca; }
-        
-        .w-full { width: 100%; }
-        .flex { display: flex; }
-        .flex-col { flex-direction: column; }
-        .gap-4 { gap: 16px; }
-        .text-sm { font-size: 0.875rem; }
-        .text-gray-600 { color: #374151; font-weight: 500; }
-        .text-gray-500 { color: #4b5563; }
-        .border-t { border-top: 1px solid #e5e7eb; }
-        .pt-4 { padding-top: 16px; }
-        .mb-2 { margin-bottom: 8px; }
-        .font-medium { font-weight: 500; }
-        .block { display: block; }
-        .text-center { text-align: center; }
-        .text-blue-600 { color: #2563eb; }
+/* =========================
+   RESPONSIVE (Mobile/Card view)
+========================= */
+@media (max-width: 768px){
+  /* ... existing table card view styles ... */
+          
+  /* MODAL MOBILE FIXES */
+  .modal-content { 
+    width: 100%; 
+    height: 100%; 
+    max-height: 100%; 
+    margin: 0; 
+    border-radius: 0; 
+    max-width: none;
+  }
+  .modal-header { border-radius: 0; padding: 16px; }
+  .modal-footer { border-radius: 0; padding: 16px; flex-direction: column-reverse; gap: 10px; }
+  .modal-footer button { width: 100%; justify-content: center; }
+  
+  .form-grid, .detail-grid { grid-template-columns: 1fr; gap: 16px; }
+  .form-group.full, .detail-item.full { grid-column: span 1; }
+  
+  .btn-danger { width: 100%; justify-content: center; margin-bottom: 10px; }
+  
+  /* Table Styles from previous step (Preserved) */
+  .tab-content{
+    padding: 12px;
+    border-radius: 0;
+    max-width: 100%;
+    overflow-x: clip;
+  }
 
-        /* File Input Styling to match design */
-      `}</style>
+  .action-bar{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .search-box{ width: 100%; }
+
+  .action-buttons-group{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .action-buttons-group :global(button){ width: 100%; }
+  .action-buttons-group :global(.btn-primary){ grid-column: 1 / -1; }
+
+  /* Card view */
+  .table-container{
+    overflow: visible;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+  }
+  .data-table{
+    display:block;
+    background: transparent;
+  }
+  .data-table thead{ display:none; }
+
+  .data-table tbody{
+    display:flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .data-table tr{
+    display:block;
+    background: #fff;
+    border: 1px solid rgba(15,42,86,.14);
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 12px 26px rgba(15,23,42,.10);
+  }
+
+  .data-table td{
+    display:flex;
+    justify-content: space-between;
+    align-items:flex-start;
+    border-bottom: 1px dashed rgba(15,42,86,.10);
+    padding: 10px 0;
+    text-align: right;
+    font-size: .95rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .data-table td:last-child{
+    border-bottom: none;
+    padding-top: 12px;
+    justify-content: flex-end;
+    white-space: normal; /* card: boleh wrap */
+  }
+
+  /* label kolom (kiri) */
+  .data-table td::before{
+    content: attr(data-label);
+    font-weight: 900;
+    color: rgba(15,42,86,.70);
+    text-align: left;
+    margin-right: 10px;
+    font-size: .76rem;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    flex: 0 0 92px; /* iPhone 13 aman */
+    max-width: 92px;
+  }
+
+  /* isi kolom (kanan) — default text */
+  .data-table td > *{
+    text-align: right;
+    word-break: break-word;
+    overflow-wrap: anywhere; /* ✅ wrap kuat untuk iOS */
+    white-space: normal;
+    flex: 1 1 auto;
+    min-width: 0; /* ✅ iPhone fix */
+    max-width: 100%;
+  }
+
+  /* ✅ FIX UTAMA: badge kecil JANGAN ikut flex:1 */
+  .data-table td[data-label="L/P"],
+  .data-table td[data-label="Status"]{
+    align-items: center;
+  }
+  .data-table td[data-label="L/P"] > *,
+  .data-table td[data-label="Status"] > *{
+    flex: 0 0 auto !important;
+    min-width: auto !important;
+    max-width: none !important;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .action-buttons{
+    justify-content:flex-end;
+    gap: 10px;
+  }
+}
+
+/* iPhone 13 width = 390 */
+@media (max-width: 390px){
+  .data-table td::before{
+    flex-basis: 86px;
+    max-width: 86px;
+  }
+  .btn-icon{
+    width: 34px;
+    height: 34px;
+  }
+}
+`}</style>
+
       <style jsx global>{`
-        .custom-file-input-siswa::file-selector-button {
-          margin-right: 16px;
-          padding: 8px 16px;
-          border-radius: 99px;
-          border: none;
-          font-size: 0.875rem;
-          font-weight: 600;
-          background-color: #fef2f2;
-          color: #b91c1c;
-          cursor: pointer;
-          transition: background-color 0.2s;
-        }
-        .custom-file-input-siswa::file-selector-button:hover {
-          background-color: #fee2e2;
-        }
-        /* Webkit specific */
-        .custom-file-input-siswa::-webkit-file-upload-button {
-          margin-right: 16px;
-          padding: 8px 16px;
-          border-radius: 99px;
-          border: none;
-          font-size: 0.875rem;
-          font-weight: 600;
-          background-color: #fef2f2;
-          color: #b91c1c;
-          cursor: pointer;
-          transition: background-color 0.2s;
-        }
-        .custom-file-input-siswa::-webkit-file-upload-button:hover {
-          background-color: #fee2e2;
-        }
-      `}</style>
-    </div >
+/* File input button - konsisten premium navy */
+.custom-file-input-siswa::file-selector-button{
+  margin-right: 14px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(15,42,86,.16);
+  font-size: 0.875rem;
+  font-weight: 800;
+  background: rgba(15,42,86,.06);
+  color: rgba(15,42,86,.92);
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .18s ease, background .18s ease;
+}
+.custom-file-input-siswa::file-selector-button:hover{
+  background: rgba(15,42,86,.10);
+  box-shadow: 0 10px 18px rgba(15,23,42,.10);
+  transform: translateY(-1px);
+}
+`}</style>
+
+
+
+    </div>
   )
 }

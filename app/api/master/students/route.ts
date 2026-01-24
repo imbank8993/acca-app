@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
 import type { ApiResponse } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
+    console.log('API GET /api/master/students HIT');
     try {
         const supabase = await createClient();
 
@@ -63,6 +66,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const supabase = await createClient();
+        const { searchParams } = new URL(request.url);
+        const upsert = searchParams.get('upsert') === 'true';
 
         const body = await request.json();
 
@@ -75,15 +80,15 @@ export async function POST(request: NextRequest) {
         }
 
         // Check for existing record (including inactive)
-        const { data: existing, error: fetchError } = await supabase
+        const { data: existing } = await supabase
             .from('master_siswa')
             .select('nisn, aktif')
             .eq('nisn', body.nisn)
             .single();
 
         if (existing) {
-            if (existing.aktif === false) {
-                // Reactivate
+            if (upsert || existing.aktif === false) {
+                // UPDATE / REACTIVATE
                 const { data, error } = await supabase
                     .from('master_siswa')
                     .update({
@@ -97,7 +102,7 @@ export async function POST(request: NextRequest) {
                         nomor_hp_ibu: body.nomor_hp_ibu,
                         alamat: body.alamat,
                         asal_sekolah: body.asal_sekolah,
-                        aktif: true, // Reactivate
+                        aktif: true, // Always active on upsert/reactivate
                         updated_at: new Date().toISOString()
                     })
                     .eq('nisn', body.nisn)
@@ -105,19 +110,11 @@ export async function POST(request: NextRequest) {
                     .single();
 
                 if (error) {
-                    console.error('Error reactivating master_siswa:', error);
-                    return NextResponse.json<ApiResponse>(
-                        { ok: false, error: error.message },
-                        { status: 500 }
-                    );
+                    return NextResponse.json<ApiResponse>({ ok: false, error: error.message }, { status: 500 });
                 }
-
-                return NextResponse.json<ApiResponse>({
-                    ok: true,
-                    data: data
-                });
+                return NextResponse.json<ApiResponse>({ ok: true, data });
             } else {
-                // Already active -> Duplicate
+                // Duplicate Error (Manual Add Mode)
                 return NextResponse.json<ApiResponse>(
                     { ok: false, error: 'NISN sudah terdaftar' },
                     { status: 409 }
@@ -125,7 +122,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Insert into 'master_siswa' table
+        // Insert New
         const { data, error } = await supabase
             .from('master_siswa')
             .insert([{
@@ -140,26 +137,19 @@ export async function POST(request: NextRequest) {
                 nomor_hp_ibu: body.nomor_hp_ibu,
                 alamat: body.alamat,
                 asal_sekolah: body.asal_sekolah,
-                aktif: body.aktif !== false // default true
+                aktif: body.aktif !== false
             }])
             .select()
             .single();
 
         if (error) {
-            console.error('Error creating master_siswa:', error);
-            return NextResponse.json<ApiResponse>(
-                { ok: false, error: error.message },
-                { status: 500 }
-            );
+            return NextResponse.json<ApiResponse>({ ok: false, error: error.message }, { status: 500 });
         }
 
-        return NextResponse.json<ApiResponse>({
-            ok: true,
-            data: data
-        });
+        return NextResponse.json<ApiResponse>({ ok: true, data });
 
     } catch (error: any) {
-        console.error('Unexpected error in POST /api/master/master_siswa:', error);
+        console.error('Unexpected error in POST /api/master/students:', error);
         return NextResponse.json<ApiResponse>(
             { ok: false, error: error.message || 'Internal server error' },
             { status: 500 }

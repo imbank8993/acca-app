@@ -44,11 +44,21 @@ export const exportToExcel = (data: any[], fileName: string, sheetName: string =
         colWidths[C] = { wch: Math.max(headerText.length + 5, 15) } // Min width 15
     }
 
-    // Apply Data Styles (Optional, can be heavy for large datasets, but good for templates)
+    // Apply Data Styles
     for (let R = range.s.r + 1; R <= range.e.r; ++R) {
         for (let C = range.s.c; C <= range.e.c; ++C) {
             const address = XLSX.utils.encode_cell({ r: R, c: C })
-            if (worksheet[address]) {
+            if (!worksheet[address]) continue;
+
+            const headerAddress = XLSX.utils.encode_col(C) + "1";
+            const header = worksheet[headerAddress] ? String(worksheet[headerAddress].v) : '';
+            const lower = header.toLowerCase();
+
+            if (lower.includes('nisn') || lower.includes('nip') || lower.includes('kode') || lower.includes('nik') || lower.includes('hp')) {
+                worksheet[address].t = 's';
+                worksheet[address].z = '@';
+                worksheet[address].s = { ...DATA_STYLE, numFmt: '@' };
+            } else {
                 worksheet[address].s = DATA_STYLE
             }
         }
@@ -86,6 +96,15 @@ export const downloadTemplate = (columns: string[], fileName: string) => {
     const range = XLSX.utils.decode_range(worksheet['!ref'] || "A1:A1")
     const colWidths: any[] = []
 
+    // Identify text columns
+    const textColIndices: number[] = [];
+    columns.forEach((col, idx) => {
+        const lower = col.toLowerCase();
+        if (lower.includes('nisn') || lower.includes('nip') || lower.includes('kode') || lower.includes('nik') || lower.includes('hp')) {
+            textColIndices.push(idx);
+        }
+    });
+
     for (let C = range.s.c; C <= range.e.c; ++C) {
         const address = XLSX.utils.encode_col(C) + "1"
         if (worksheet[address]) {
@@ -94,6 +113,26 @@ export const downloadTemplate = (columns: string[], fileName: string) => {
         }
     }
     worksheet['!cols'] = colWidths
+
+    // Pre-format 50 rows
+    for (let R = 1; R <= 50; ++R) {
+        for (let C of textColIndices) {
+            const cellAddress = XLSX.utils.encode_cell({ c: C, r: R });
+            worksheet[cellAddress] = {
+                v: '',
+                t: 's',
+                z: '@',
+                s: {
+                    alignment: { wrapText: true },
+                    numFmt: '@'
+                }
+            };
+        }
+    }
+    // Update Range
+    if (textColIndices.length > 0) {
+        worksheet['!ref'] = XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: columns.length - 1, r: 50 } });
+    }
 
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Template')
@@ -106,7 +145,7 @@ export const importFromExcel = (file: File): Promise<any[]> => {
         reader.onload = (e) => {
             try {
                 const data = e.target?.result
-                const workbook = XLSX.read(data, { type: 'binary' })
+                const workbook = XLSX.read(data, { type: 'array' })
                 const sheetName = workbook.SheetNames[0]
                 const worksheet = workbook.Sheets[sheetName]
                 const json = XLSX.utils.sheet_to_json(worksheet)
@@ -116,6 +155,6 @@ export const importFromExcel = (file: File): Promise<any[]> => {
             }
         }
         reader.onerror = (error) => reject(error)
-        reader.readAsBinaryString(file)
+        reader.readAsArrayBuffer(file)
     })
 }
