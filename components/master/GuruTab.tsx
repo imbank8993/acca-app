@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react'
+'use client'
+
+import { useState, useEffect, useMemo } from 'react'
 import { exportToExcel } from '@/lib/excel-utils'
 import Pagination from '@/components/ui/Pagination'
 import Swal from 'sweetalert2'
 import ImportModal from '@/components/ui/ImportModal'
 
 interface RiwayatPendidikan {
-  level: string; // SD, SMP, SMA, S1, S2, S3
+  level: string;
   nama_sekolah: string;
   tahun_lulus: string;
 }
@@ -29,12 +31,20 @@ const PENDIDIKAN_LEVELS = ['SD', 'SMP', 'SMA', 'S1', 'S2', 'S3'];
 
 export default function GuruTab() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [guruList, setGuruList] = useState<Guru[]>([])
+  const [allData, setAllData] = useState<Guru[]>([])
   const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(50)
-  const [totalPages, setTotalPages] = useState(0)
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
   const [totalItems, setTotalItems] = useState(0)
+
+  // Computed paginated list
+  const guruList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    const end = start + pageSize
+    return allData.slice(start, end)
+  }, [allData, currentPage, pageSize])
 
   // Modal State
   const [showModal, setShowModal] = useState(false)
@@ -55,40 +65,42 @@ export default function GuruTab() {
     riwayat_pendidikan: []
   })
 
-  // Helper specifically for form handling of riwayat pendidikan
   const [pendidikanState, setPendidikanState] = useState<{ [key: string]: { nama_sekolah: string, tahun_lulus: string } }>({})
 
   useEffect(() => {
     fetchGuru()
-  }, [page, limit])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize])
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      setCurrentPage(1)
       fetchGuru()
     }, 500)
     return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm])
 
   const fetchGuru = async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (searchTerm) params.append('q', searchTerm)
-      params.append('page', page.toString())
-      params.append('limit', limit.toString())
+      const params = new URLSearchParams({
+        q: searchTerm,
+        page: '1',
+        limit: '10000'
+      })
 
       const res = await fetch(`/api/master/guru?${params}`)
       const json = await res.json()
 
       if (json.ok) {
-        setGuruList(json.data)
-        if (json.meta) {
-          setTotalPages(json.meta.totalPages)
-          setTotalItems(json.meta.total)
-        }
+        setAllData(json.data || [])
+        setTotalItems(json.data?.length || 0)
       }
     } catch (err) {
       console.error('Error fetching guru:', err)
+      setAllData([])
+      setTotalItems(0)
     } finally {
       setLoading(false)
     }
@@ -112,10 +124,8 @@ export default function GuruTab() {
 
   const handleEdit = (guru: Guru) => {
     setFormData({ ...guru })
-    // Ensure riwayat_pendidikan is an array
     const riwayat = Array.isArray(guru.riwayat_pendidikan) ? guru.riwayat_pendidikan : []
     setPendidikanState(preparePendidikanState(riwayat))
-
     setIsEditMode(true)
     setShowModal(true)
   }
@@ -145,11 +155,10 @@ export default function GuruTab() {
     setSaving(true)
 
     try {
-      // Consolidate Pendidikan State back into JSON array
       const consolidatedPendidikan: RiwayatPendidikan[] = [];
       PENDIDIKAN_LEVELS.forEach(level => {
         const p = pendidikanState[level];
-        if (p.nama_sekolah || p.tahun_lulus) {
+        if (p && (p.nama_sekolah || p.tahun_lulus)) {
           consolidatedPendidikan.push({
             level,
             nama_sekolah: p.nama_sekolah,
@@ -199,7 +208,18 @@ export default function GuruTab() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus data guru ini?')) return
+    const result = await Swal.fire({
+      title: 'Hapus Guru?',
+      text: "Data yang dihapus tidak dapat dikembalikan!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal'
+    })
+
+    if (!result.isConfirmed) return
 
     try {
       setLoading(true)
@@ -209,7 +229,7 @@ export default function GuruTab() {
       const json = await res.json()
 
       if (json.ok) {
-        alert('Data guru berhasil dihapus')
+        Swal.fire('Terhapus!', 'Data guru berhasil dihapus.', 'success')
         fetchGuru()
       } else {
         throw new Error(json.error || 'Gagal menghapus data')
@@ -222,12 +242,10 @@ export default function GuruTab() {
     }
   }
 
-  // Excel Functions
   const handleExport = () => {
     const dataToExport = guruList.map((g, index) => {
-      // Base payload
       const base: any = {
-        'No': index + 1,
+        'No': (currentPage - 1) * pageSize + index + 1,
         'NIP': g.nip || '',
         'Nama Lengkap': g.nama_lengkap || '',
         'Tempat Lahir': g.tempat_lahir || '',
@@ -240,7 +258,6 @@ export default function GuruTab() {
         'No HP': g.no_hp || '',
       };
 
-      // Flatten Education
       const riwayat = g.riwayat_pendidikan && Array.isArray(g.riwayat_pendidikan) ? g.riwayat_pendidikan : [];
       PENDIDIKAN_LEVELS.forEach(level => {
         const edu = riwayat.find(r => r.level === level);
@@ -255,29 +272,12 @@ export default function GuruTab() {
     exportToExcel(dataToExport, 'Data_Guru_ACCA', 'Guru');
   }
 
-  const handleDownloadTemplate = () => {
-    const eduHeaders: string[] = [];
-    PENDIDIKAN_LEVELS.forEach(l => {
-      eduHeaders.push(l);
-      eduHeaders.push(`Tahun ${l}`);
-    });
-
-    generateTemplate(
-      ['No', 'NIP', 'Nama Lengkap', 'Tempat Lahir', 'Tanggal Lahir', 'Golongan', 'Pangkat', 'TMT Tugas', 'Alamat', 'Email', 'No HP', ...eduHeaders, 'Status Aktif'],
-      'Template_Guru'
-    );
-  }
-
   const mapImportRow = (row: any) => {
     const getVal = (targetKeys: string[]) => {
-      // Normalize target keys
       const normalizedTargets = targetKeys.map(k => k.toLowerCase().trim());
-
-      // Find matching key in row
       const foundKey = Object.keys(row).find(k =>
         normalizedTargets.includes(k.toLowerCase().trim())
       );
-
       if (foundKey) return row[foundKey];
       return undefined;
     };
@@ -287,27 +287,21 @@ export default function GuruTab() {
 
     if (!idRaw || !namaRaw) return null;
 
-    // Helper for date parsing
     const parseDate = (val: any) => {
       if (!val) return null;
       if (typeof val === 'number') {
-        // Excel Serial Date
         const d = new Date(Math.round((val - 25569) * 86400 * 1000));
         return d.toISOString().split('T')[0];
       }
       const s = String(val).trim();
-      // ISO YYYY-MM-DD
       if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-      // DD/MM/YYYY
       if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(s)) {
         const p = s.split(/[\/\-]/);
-        // Assuming DD-MM-YYYY
         return `${p[2]}-${p[0].padStart(2, '0')}-${p[1].padStart(2, '0')}`;
       }
-      return s; // Fallback
+      return s;
     };
 
-    // Parse Riwayat Pendidikan
     let eduList: RiwayatPendidikan[] = [];
     for (const level of PENDIDIKAN_LEVELS) {
       const sekolahRaw = getVal([level, level.toLowerCase()]);
@@ -338,85 +332,120 @@ export default function GuruTab() {
     };
   }
 
+  // Group for mobile: by status aktif
+  const groupedMobile = useMemo(() => {
+    const map = new Map<string, Guru[]>()
+    ;(guruList || []).forEach((it) => {
+      const key = it.aktif ? 'Aktif' : 'Non-Aktif'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(it)
+    })
+    const entries = Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0], 'id'))
+    entries.forEach(([k, arr]) => {
+      arr.sort((x, y) => {
+        const nx = String(x.nama_lengkap || '').toLowerCase()
+        const ny = String(y.nama_lengkap || '').toLowerCase()
+        if (nx !== ny) return nx.localeCompare(ny, 'id')
+        return String(x.nip || '').localeCompare(String(y.nip || ''), 'id')
+      })
+    })
+    return entries
+  }, [guruList])
 
   return (
-    <div className="tab-content">
-      <div className="action-bar">
-        <div className="search-box">
-          <i className="bi bi-search"></i>
-          <input
-            type="text"
-            placeholder="Cari Nama Guru / NIP..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+    <div className="sk">
+      {/* ===== Toolbar ===== */}
+      <div className="sk__bar">
+        <div className="sk__filters">
+          <div className="sk__search">
+            <i className="bi bi-search" aria-hidden="true" />
+            <input
+              type="text"
+              placeholder="Cari Nama Guru / NIP..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
 
-        <div className="action-buttons-group">
-          <button className="btn-secondary" onClick={() => setShowImportModal(true)}>
-            <i className="bi bi-upload"></i> Import
+        <div className="sk__actions">
+          <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+            <i className="bi bi-upload" /> <span>Import</span>
           </button>
-          <button className="btn-secondary" onClick={handleExport}>
-            <i className="bi bi-download"></i> Export
+
+          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
+            <i className="bi bi-download" /> <span>Export</span>
           </button>
-          <button className="btn-primary" onClick={handleAddNew}>
-            <i className="bi bi-plus-lg"></i>
-            Tambah
+
+          <button className="sk__btn sk__btnPrimary" onClick={handleAddNew}>
+            <i className="bi bi-plus-lg" /> <span>Tambah</span>
           </button>
         </div>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
+      {/* ===== Table (Desktop/Tablet) ===== */}
+      <div className="sk__tableWrap">
+        <table className="sk__table">
           <thead>
             <tr>
-              <th style={{ width: '50px' }}>No</th>
-              <th style={{ width: '120px' }}>NIP</th>
+              <th className="cNo">No</th>
+              <th className="cNip">NIP</th>
               <th>Nama Lengkap</th>
               <th>Pangkat/Gol</th>
-              <th>TMT Tugas</th>
-              <th>Pendidikan</th>
-              <th style={{ width: '100px' }}>Status</th>
-              <th style={{ width: '120px' }}>Aksi</th>
+              <th className="cTmt">TMT Tugas</th>
+              <th className="cEdu">Pendidikan</th>
+              <th className="cStatus">Status</th>
+              <th className="cAksi">Aksi</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="text-center py-8">Memuat data...</td></tr>
+              <tr>
+                <td colSpan={8} className="sk__empty">
+                  Memuat data...
+                </td>
+              </tr>
             ) : guruList.length === 0 ? (
-              <tr><td colSpan={8} className="text-center py-8 text-gray-500">Tidak ada data.</td></tr>
+              <tr>
+                <td colSpan={8} className="sk__empty sk__muted">
+                  Tidak ada data guru.
+                </td>
+              </tr>
             ) : (
               guruList.map((guru, index) => (
                 <tr key={guru.nip}>
-                  <td className="text-center">{(page - 1) * limit + index + 1}</td>
-                  <td className="font-mono font-medium">{guru.nip}</td>
-                  <td className="font-medium">{guru.nama_lengkap}</td>
+                  <td className="tCenter">{(currentPage - 1) * pageSize + index + 1}</td>
+                  <td className="tMono">{guru.nip}</td>
+                  <td className="tPlain">{guru.nama_lengkap}</td>
                   <td>
-                    <div className="text-sm font-semibold">{guru.pangkat || '-'}</div>
+                    <div className="text-sm">{guru.pangkat || '-'}</div>
                     <div className="text-xs text-gray-500">{guru.golongan}</div>
                   </td>
-                  <td>{guru.tmt_tugas || '-'}</td>
+                  <td className="text-sm">{guru.tmt_tugas || '-'}</td>
                   <td>
-                    {/* Show highest education */}
                     {Array.isArray(guru.riwayat_pendidikan) && guru.riwayat_pendidikan.length > 0 ? (
-                      <span className="badge-edu">{guru.riwayat_pendidikan[guru.riwayat_pendidikan.length - 1].level}</span>
+                      <span className="sk__eduBadge">{guru.riwayat_pendidikan[guru.riwayat_pendidikan.length - 1].level}</span>
                     ) : '-'}
                   </td>
                   <td>
-                    <span className={`status-badge ${guru.aktif ? 'active' : 'inactive'}`}>
+                    <span className={`sk__status ${guru.aktif ? 'isOn' : 'isOff'}`}>
                       {guru.aktif ? 'Aktif' : 'Non-Aktif'}
                     </span>
                   </td>
                   <td>
-                    <div className="action-buttons">
-                      <button className="btn-icon" onClick={() => handleView(guru)} title="Lihat">
-                        <i className="bi bi-eye"></i>
+                    <div className="sk__rowActions">
+                      <button className="sk__iconBtn" onClick={() => handleView(guru)} title="Lihat">
+                        <i className="bi bi-eye" />
                       </button>
-                      <button className="btn-icon edit" onClick={() => handleEdit(guru)} title="Edit">
-                        <i className="bi bi-pencil"></i>
+                      <button className="sk__iconBtn" onClick={() => handleEdit(guru)} title="Edit">
+                        <i className="bi bi-pencil" />
                       </button>
-                      <button className="btn-icon delete" onClick={() => handleDelete(guru.nip)} title="Hapus">
-                        <i className="bi bi-trash"></i>
+                      <button
+                        className="sk__iconBtn danger"
+                        onClick={() => handleDelete(guru.nip)}
+                        title="Hapus"
+                      >
+                        <i className="bi bi-trash" />
                       </button>
                     </div>
                   </td>
@@ -427,29 +456,138 @@ export default function GuruTab() {
         </table>
       </div>
 
-      <Pagination
-        currentPage={page}
-        totalPages={totalPages}
-        limit={limit}
-        totalItems={totalItems}
-        onPageChange={setPage}
-        onLimitChange={(newLimit) => {
-          setLimit(newLimit);
-          setPage(1);
-        }}
-      />
+      {/* ===== Mobile Grouped Cards (by Status) ===== */}
+      <div className="sk__cards" aria-label="Daftar Guru versi mobile">
+        {loading ? (
+          <div className="sk__card">
+            <div className="sk__cardHead">
+              <div className="sk__cardTitle">
+                <div className="sk__cardName">Memuat data...</div>
+                <div className="sk__cardSub">Mohon tunggu</div>
+              </div>
+            </div>
+            <div className="sk__cardBody">
+              <div className="sk__kv">
+                <div className="sk__k">Status</div>
+                <div className="sk__v">Loading</div>
+              </div>
+            </div>
+          </div>
+        ) : guruList.length === 0 ? (
+          <div className="sk__card">
+            <div className="sk__cardHead">
+              <div className="sk__cardTitle">
+                <div className="sk__cardName">Tidak ada data</div>
+                <div className="sk__cardSub">Coba ubah pencarian</div>
+              </div>
+            </div>
+            <div className="sk__cardBody">
+              <div className="sk__kv">
+                <div className="sk__k">Info</div>
+                <div className="sk__v">Kosong</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          groupedMobile.map(([statusName, items]) => (
+            <section key={`grp-${statusName}`} className="sk__group">
+              <div className="sk__groupHead">
+                <div className="sk__groupLeft">
+                  <div className="sk__groupTitle">Guru {statusName}</div>
+                  <div className="sk__groupMeta">{items.length} orang</div>
+                </div>
+              </div>
 
+              <div className="sk__groupList">
+                {items.map((guru, idx) => (
+                  <div className="sk__card sk__cardRow" key={`m-${guru.nip}-${idx}`}>
+                    <div className="sk__cardHead">
+                      <div className="sk__cardTitle">
+                        <div className="sk__cardName">{guru.nama_lengkap || '-'}</div>
+                        <div className="sk__cardSub">{guru.nip}</div>
+                      </div>
+                    </div>
+
+                    <div className="sk__cardBody">
+                      <div className="sk__kv">
+                        <div className="sk__k">Pangkat</div>
+                        <div className="sk__v">{guru.pangkat || '-'}</div>
+                      </div>
+                      <div className="sk__kv">
+                        <div className="sk__k">Golongan</div>
+                        <div className="sk__v">{guru.golongan || '-'}</div>
+                      </div>
+                      <div className="sk__kv">
+                        <div className="sk__k">Pendidikan</div>
+                        <div className="sk__v">
+                          {Array.isArray(guru.riwayat_pendidikan) && guru.riwayat_pendidikan.length > 0 
+                            ? guru.riwayat_pendidikan[guru.riwayat_pendidikan.length - 1].level 
+                            : '-'}
+                        </div>
+                      </div>
+
+                      <div className="sk__statusRow">
+                        <div className="sk__statusLeft">
+                          <span className={`sk__status ${guru.aktif ? 'isOn' : 'isOff'}`}>
+                            {guru.aktif ? 'Aktif' : 'Non-Aktif'}
+                          </span>
+                        </div>
+                        <div className="sk__actionsRight">
+                          <button className="sk__iconBtn" onClick={() => handleView(guru)} title="Lihat">
+                            <i className="bi bi-eye" />
+                          </button>
+                          <button className="sk__iconBtn" onClick={() => handleEdit(guru)} title="Edit">
+                            <i className="bi bi-pencil" />
+                          </button>
+                          <button
+                            className="sk__iconBtn danger"
+                            onClick={() => handleDelete(guru.nip)}
+                            title="Hapus"
+                          >
+                            <i className="bi bi-trash" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))
+        )}
+      </div>
+
+      {/* ===== Pagination ===== */}
+      {totalItems > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(totalItems / pageSize)}
+          limit={pageSize}
+          totalItems={totalItems}
+          onPageChange={setCurrentPage}
+          onLimitChange={(newLimit) => {
+            setCurrentPage(1)
+            setPageSize(newLimit)
+          }}
+        />
+      )}
+
+      {/* Form Modal (Add/Edit) */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2>{isEditMode ? 'Edit Data Guru' : 'Tambah Guru Baru'}</h2>
-              <button onClick={() => setShowModal(false)} className="close-btn">&times;</button>
+        <div className="sk__modalOverlay" role="dialog" aria-modal="true">
+          <div className="sk__modal sk__modalLarge">
+            <div className="sk__modalHead">
+              <div className="sk__modalTitle">
+                <h2>{isEditMode ? 'Edit Data Guru' : 'Tambah Guru Baru'}</h2>
+              </div>
+              <button className="sk__close" onClick={() => setShowModal(false)} aria-label="Tutup">
+                <i className="bi bi-x-lg" />
+              </button>
             </div>
             <form onSubmit={handleSubmit}>
-              <div className="modal-body">
-                <div className="form-grid">
-                  <div className="form-group full">
+              <div className="sk__modalBody">
+                <div className="sk__grid2">
+                  <div className="sk__field sk__fieldFull">
                     <label>NIP <span className="required">*</span></label>
                     <input
                       type="text"
@@ -463,7 +601,7 @@ export default function GuruTab() {
                     />
                   </div>
 
-                  <div className="form-group full">
+                  <div className="sk__field sk__fieldFull">
                     <label>Nama Lengkap <span className="required">*</span></label>
                     <input
                       type="text"
@@ -475,29 +613,29 @@ export default function GuruTab() {
                     />
                   </div>
 
-                  <div className="form-group">
+                  <div className="sk__field">
                     <label>Tempat Lahir</label>
                     <input type="text" name="tempat_lahir" value={formData.tempat_lahir || ''} onChange={handleInputChange} />
                   </div>
-                  <div className="form-group">
+                  <div className="sk__field">
                     <label>Tanggal Lahir</label>
                     <input type="date" name="tanggal_lahir" value={formData.tanggal_lahir || ''} onChange={handleInputChange} />
                   </div>
 
-                  <div className="form-group">
+                  <div className="sk__field">
                     <label>Pangkat</label>
-                    <input type="text" name="pangkat" value={formData.pangkat || ''} onChange={handleInputChange} placeholder="Cotnoh: Penata Muda Tk. I" />
+                    <input type="text" name="pangkat" value={formData.pangkat || ''} onChange={handleInputChange} placeholder="Contoh: Penata Muda Tk. I" />
                   </div>
-                  <div className="form-group">
+                  <div className="sk__field">
                     <label>Golongan</label>
                     <input type="text" name="golongan" value={formData.golongan || ''} onChange={handleInputChange} placeholder="Contoh: III/b" />
                   </div>
 
-                  <div className="form-group">
+                  <div className="sk__field">
                     <label>TMT Tugas</label>
                     <input type="date" name="tmt_tugas" value={formData.tmt_tugas || ''} onChange={handleInputChange} />
                   </div>
-                  <div className="form-group">
+                  <div className="sk__field">
                     <label>Status</label>
                     <select name="aktif" value={formData.aktif ? 'true' : 'false'} onChange={(e) => setFormData(prev => ({ ...prev, aktif: e.target.value === 'true' }))}>
                       <option value="true">Aktif</option>
@@ -505,36 +643,38 @@ export default function GuruTab() {
                     </select>
                   </div>
 
+                  <div className="sk__sectionTitle">Kontak & Alamat</div>
 
-
-                  <div className="section-title full">Kontak & Alamat</div>
-
-                  <div className="form-group">
+                  <div className="sk__field">
                     <label>Email</label>
                     <input type="email" name="email" value={formData.email || ''} onChange={handleInputChange} placeholder="contoh@sekolah.id" />
                   </div>
-                  <div className="form-group">
+                  <div className="sk__field">
                     <label>No. HP</label>
                     <input type="text" name="no_hp" value={formData.no_hp || ''} onChange={handleInputChange} placeholder="08..." />
                   </div>
 
-                  <div className="section-title full mt-2">Riwayat Pendidikan</div>
+                  <div className="sk__field sk__fieldFull">
+                    <label>Alamat Lengkap</label>
+                    <textarea name="alamat" rows={3} value={formData.alamat || ''} onChange={handleInputChange}></textarea>
+                  </div>
 
-                  <div className="pendidikan-grid full">
+                  <div className="sk__sectionTitle">Riwayat Pendidikan</div>
+
+                  <div className="sk__pendidikanGrid">
                     {PENDIDIKAN_LEVELS.map(level => (
-                      <div key={level} className="pendidikan-row">
-                        <div className="level-label">{level}</div>
+                      <div key={level} className="sk__pendidikanRow">
+                        <div className="sk__levelLabel">{level}</div>
                         <input
                           type="text"
                           placeholder="Nama Sekolah / Univ"
-                          className="input-sekolah"
                           value={pendidikanState[level]?.nama_sekolah || ''}
                           onChange={(e) => handlePendidikanChange(level, 'nama_sekolah', e.target.value)}
                         />
                         <input
                           type="text"
                           placeholder="Tahun"
-                          className="input-tahun"
+                          className="sk__inputTahun"
                           value={pendidikanState[level]?.tahun_lulus || ''}
                           onChange={(e) => handlePendidikanChange(level, 'tahun_lulus', e.target.value)}
                         />
@@ -543,10 +683,9 @@ export default function GuruTab() {
                   </div>
                 </div>
               </div>
-              <div className="modal-footer">
-                {/* Import button removed */}
-                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Batal</button>
-                <button type="submit" disabled={saving} className="btn-primary">
+              <div className="sk__modalFoot">
+                <button type="button" className="sk__btn sk__btnGhost" onClick={() => setShowModal(false)}>Batal</button>
+                <button type="submit" disabled={saving} className="sk__btn sk__btnPrimary">
                   {saving ? 'Menyimpan...' : 'Simpan'}
                 </button>
               </div>
@@ -557,57 +696,61 @@ export default function GuruTab() {
 
       {/* View Detail Modal */}
       {showViewModal && selectedGuru && (
-        <div className="modal-overlay">
-          <div className="modal-content view-mode">
-            <div className="modal-header">
-              <h2>Detail Data Guru</h2>
-              <button onClick={() => setShowViewModal(false)} className="close-btn">&times;</button>
+        <div className="sk__modalOverlay" role="dialog" aria-modal="true">
+          <div className="sk__modal sk__modalView">
+            <div className="sk__modalHead">
+              <div className="sk__modalTitle">
+                <h2>Detail Data Guru</h2>
+              </div>
+              <button className="sk__close" onClick={() => setShowViewModal(false)} aria-label="Tutup">
+                <i className="bi bi-x-lg" />
+              </button>
             </div>
-            <div className="modal-body">
-              <div className="detail-grid">
-                <div className="detail-item full">
+            <div className="sk__modalBody">
+              <div className="sk__detailGrid">
+                <div className="sk__detailItem sk__detailFull">
                   <label>Nama Lengkap</label>
-                  <div className="value text-lg font-semibold">{selectedGuru.nama_lengkap}</div>
+                  <div className="sk__detailValue sk__large">{selectedGuru.nama_lengkap}</div>
                 </div>
-                <div className="detail-item">
+                <div className="sk__detailItem">
                   <label>NIP</label>
-                  <div className="value font-mono">{selectedGuru.nip}</div>
+                  <div className="sk__detailValue sk__mono">{selectedGuru.nip}</div>
                 </div>
-                <div className="detail-item">
+                <div className="sk__detailItem">
                   <label>TTL</label>
-                  <div className="value">{selectedGuru.tempat_lahir}, {selectedGuru.tanggal_lahir}</div>
+                  <div className="sk__detailValue">{selectedGuru.tempat_lahir}, {selectedGuru.tanggal_lahir}</div>
                 </div>
-                <div className="detail-item">
+                <div className="sk__detailItem">
                   <label>Pangkat / Gol</label>
-                  <div className="value">{selectedGuru.pangkat} ({selectedGuru.golongan})</div>
+                  <div className="sk__detailValue">{selectedGuru.pangkat} ({selectedGuru.golongan})</div>
                 </div>
-                <div className="detail-item">
+                <div className="sk__detailItem">
                   <label>TMT Tugas</label>
-                  <div className="value">{selectedGuru.tmt_tugas}</div>
+                  <div className="sk__detailValue">{selectedGuru.tmt_tugas}</div>
                 </div>
 
-                <div className="detail-item full">
+                <div className="sk__detailItem sk__detailFull">
                   <label>Alamat</label>
-                  <div className="value">{selectedGuru.alamat}</div>
+                  <div className="sk__detailValue">{selectedGuru.alamat}</div>
                 </div>
 
-                <div className="detail-item">
+                <div className="sk__detailItem">
                   <label>Email</label>
-                  <div className="value">{selectedGuru.email || '-'}</div>
+                  <div className="sk__detailValue">{selectedGuru.email || '-'}</div>
                 </div>
-                <div className="detail-item">
+                <div className="sk__detailItem">
                   <label>No. HP</label>
-                  <div className="value">{selectedGuru.no_hp || '-'}</div>
+                  <div className="sk__detailValue">{selectedGuru.no_hp || '-'}</div>
                 </div>
 
-                <div className="section-title full mt-2">Riwayat Pendidikan</div>
-                <div className="detail-item full">
+                <div className="sk__sectionTitle">Riwayat Pendidikan</div>
+                <div className="sk__detailItem sk__detailFull">
                   {Array.isArray(selectedGuru.riwayat_pendidikan) && selectedGuru.riwayat_pendidikan.length > 0 ? (
-                    <div className="edu-list">
+                    <div className="sk__eduList">
                       {selectedGuru.riwayat_pendidikan.map((edu, idx) => (
-                        <div key={idx} className="edu-item">
-                          <span className="edu-level">{edu.level}</span>
-                          <span className="edu-name">{edu.nama_sekolah} ({edu.tahun_lulus})</span>
+                        <div key={idx} className="sk__eduItem">
+                          <span className="sk__eduLevel">{edu.level}</span>
+                          <span className="sk__eduName">{edu.nama_sekolah} ({edu.tahun_lulus})</span>
                         </div>
                       ))}
                     </div>
@@ -617,14 +760,14 @@ export default function GuruTab() {
                 </div>
               </div>
             </div>
-            <div className="modal-footer">
+            <div className="sk__modalFoot">
               <button
                 type="button"
                 onClick={() => {
                   handleDelete(selectedGuru.nip)
                   setShowViewModal(false)
                 }}
-                className="btn-danger"
+                className="sk__btn sk__btnDanger"
                 style={{ marginRight: 'auto' }}
               >
                 <i className="bi bi-trash"></i> Hapus Guru
@@ -632,10 +775,10 @@ export default function GuruTab() {
               <button onClick={() => {
                 setShowViewModal(false)
                 handleEdit(selectedGuru)
-              }} className="btn-primary">
+              }} className="sk__btn sk__btnPrimary">
                 <i className="bi bi-pencil" style={{ marginRight: 8 }}></i> Edit Data
               </button>
-              <button onClick={() => setShowViewModal(false)} className="btn-secondary">Tutup</button>
+              <button onClick={() => setShowViewModal(false)} className="sk__btn sk__btnGhost">Tutup</button>
             </div>
           </div>
         </div>
@@ -656,656 +799,832 @@ export default function GuruTab() {
       />
 
       <style jsx>{`
-/* =====================================================
-   TAB CONTENT — PREMIUM NAVY (FULL REPLACE)
-   Fix:
-   - Desktop: aksi icon 1 baris (no wrap)
-   - Mobile iPhone 13 (390x844): card view table tidak “terpotong”
-   - Status badge: tanpa bulatan/dot
-   - FIX penting: elemen badge (L/P, Status) tidak ikut flex:1 pada card view
-   - Tetap kompatibel dengan class util yang sudah dipakai (font-mono, dll)
-===================================================== */
+:global(:root) {
+  --sk-line: rgba(148, 163, 184, 0.22);
+  --sk-card: rgba(255, 255, 255, 0.92);
 
-:global(:root){
-  --n-bg:#f5f7fb;
-  --n-card:#ffffff;
-  --n-ink:#0b1324;
-  --n-muted:#64748b;
+  --sk-shadow: 0 14px 34px rgba(2, 6, 23, 0.08);
+  --sk-shadow2: 0 10px 22px rgba(2, 6, 23, 0.08);
 
-  --n-navy-950:#07162e;
-  --n-navy-900:#0b1f3a;
-  --n-navy-800:#0f2a56;
-  --n-navy-700:#173a72;
+  --sk-radius: 16px;
 
-  --n-border: rgba(15, 42, 86, .14);
-  --n-soft: rgba(15, 42, 86, .06);
-  --n-soft-2: rgba(15, 42, 86, .10);
+  --sk-fs: 0.88rem;
+  --sk-fs-sm: 0.82rem;
+  --sk-fs-xs: 0.78rem;
 
-  --n-shadow: 0 12px 30px rgba(15, 23, 42, .10);
-  --n-shadow-2: 0 10px 18px rgba(15, 23, 42, .08);
-
-  --n-radius: 16px;
-  --n-radius-sm: 12px;
-
-  --n-blue:#2563eb;
-  --n-green:#16a34a;
-  --n-red:#ef4444;
+  --sk-safe-b: env(safe-area-inset-bottom, 0px);
+  --sk-safe-t: env(safe-area-inset-top, 0px);
 }
 
-/* =========================
-   Page Wrap
-========================= */
-.tab-content{
-  padding: 20px;
-  background: var(--n-bg);
-  border-radius: 0 0 16px 16px;
-  box-shadow: none;
-  color: var(--n-ink);
-
+.sk {
+  width: 100%;
   min-width: 0;
-  max-width: 100%;
-  overflow-x: clip;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: var(--sk-fs);
+  padding: 16px;
+  background: #f5f7fb;
+  border-radius: 16px;
+  padding-bottom: calc(16px + var(--sk-safe-b));
 }
 
-/* =========================
-   Action Bar
-========================= */
-.action-bar{
-  display:flex;
+/* ========= TOOLBAR ========= */
+.sk__bar {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  margin-bottom: 16px;
-
-  background: linear-gradient(180deg, #ffffff, #fbfcff);
-  border: 1px solid var(--n-border);
-  border-radius: var(--n-radius);
-  box-shadow: 0 8px 18px rgba(15,23,42,.06);
-
-  min-width: 0;
-}
-.action-bar h3{
-  margin: 0;
-  color: rgba(11,31,58,.88);
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: .1px;
-}
-
-/* =========================
-   Search
-========================= */
-.search-box{
-  display:flex;
-  align-items:center;
-  background: #fff;
-  padding: 10px 14px;
-  border-radius: 999px;
-  width: 360px;
-  max-width: 100%;
-
-  border: 1px solid var(--n-border);
-  box-shadow: 0 6px 14px rgba(15,23,42,.05);
-
-  min-width: 0;
-}
-.search-box input{
-  border:none;
-  background:transparent;
-  width:100%;
-  outline:none;
-  margin-left: 8px;
-  min-width: 0;
-
-  color: var(--n-ink);
-  font-weight: 700;
-  font-size: .95rem;
-}
-.search-box input::placeholder{
-  color: rgba(100,116,139,.95);
-  font-weight: 600;
-}
-.search-box:focus-within{
-  border-color: rgba(15, 42, 86, .28);
-  box-shadow: 0 0 0 4px rgba(15,42,86,.10), 0 8px 18px rgba(15,23,42,.06);
-}
-
-/* =========================
-   Buttons
-========================= */
-.action-buttons-group{
-  display:flex;
   gap: 10px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  width: 100%;
   min-width: 0;
 }
 
-.btn-primary,
-.btn-secondary,
-.btn-danger{
-  border: none;
-  padding: 10px 16px;
-  border-radius: 999px;
-  cursor: pointer;
-  display: inline-flex;
+.sk__filters {
+  flex: 1 1 640px;
+  min-width: 0;
+  display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 800;
-  font-size: .92rem;
-  user-select: none;
-  white-space: nowrap;
-  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, filter .18s ease, border-color .18s ease;
+  flex-wrap: wrap;
+  padding: 8px;
+  border-radius: var(--sk-radius);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--sk-line);
+  box-shadow: var(--sk-shadow2);
 }
 
-.btn-primary{
-  background: linear-gradient(180deg, var(--n-navy-800), var(--n-navy-900));
-  color: #fff;
-  box-shadow: 0 12px 24px rgba(15,42,86,.18);
-}
-.btn-primary:hover{
-  filter: brightness(1.04);
-  transform: translateY(-1px);
+.sk__search {
+  position: relative;
+  flex: 1 1 280px;
+  min-width: 180px;
 }
 
-.btn-secondary{
-  background: #fff;
-  color: var(--n-navy-800);
-  border: 1px solid var(--n-border);
-}
-.btn-secondary:hover{
-  background: rgba(15,42,86,.04);
-  box-shadow: var(--n-shadow-2);
-  transform: translateY(-1px);
-}
-
-.btn-danger{
-  background: rgba(239,68,68,.10);
-  color: #991b1b;
-  border: 1px solid rgba(239,68,68,.18);
-}
-.btn-danger:hover{
-  background: rgba(239,68,68,.14);
-  box-shadow: 0 10px 18px rgba(185,28,28,.10);
-  transform: translateY(-1px);
+.sk__search i {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(100, 116, 139, 0.9);
+  pointer-events: none;
+  font-size: 0.9rem;
 }
 
-/* =========================
-   Table (Desktop)
-========================= */
-.data-table{
+.sk__search input {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: #fff;
-  border: 1px solid var(--n-border);
-  border-radius: var(--n-radius);
-  overflow: hidden;
-  box-shadow: var(--n-shadow);
-}
-
-.data-table th,
-.data-table td{
-  padding: 12px 14px;
-  text-align: left;
-  border-bottom: 1px solid rgba(15,42,86,.08);
-  color: #0f172a;
-  vertical-align: middle;
-}
-
-.data-table th{
-  background: linear-gradient(180deg, rgba(11,31,58,.98), rgba(15,42,86,.96));
-  color: rgba(255,255,255,.95);
-  font-weight: 900;
-  letter-spacing: .2px;
-  border-bottom: 1px solid rgba(255,255,255,.14);
-}
-
-.data-table tr:last-child td{ border-bottom: none; }
-
-.data-table tbody tr{
-  background: #fff;
-  transition: background .15s ease;
-}
-.data-table tbody tr:hover{
-  background: rgba(15,42,86,.03);
-}
-
-/* Desktop: kolom aksi 1 baris */
-.data-table td:last-child{ white-space: nowrap; }
-
-/* =========================
-   Badges
-========================= */
-.status-badge{
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 900;
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-  border: 1px solid var(--n-border);
-  background: var(--n-soft);
-  color: var(--n-navy-800);
-}
-/* HILANGKAN dot/pseudo apapun */
-.status-badge::before{ display:none !important; content:none !important; }
-
-.status-badge.active{
-  background: rgba(22,163,74,.10);
-  color: #14532d;
-  border-color: rgba(22,163,74,.22);
-}
-.status-badge.inactive{
-  background: rgba(239,68,68,.10);
-  color: #7f1d1d;
-  border-color: rgba(239,68,68,.22);
-}
-
-/* Edu badge */
-.badge-edu{
-  background: rgba(99,102,241,.10);
-  color: #312e81;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-weight: 800;
-  font-size: 0.82rem;
-  border: 1px solid rgba(99,102,241,.18);
-  white-space: nowrap;
-}
-
-/* =========================
-   Row Action Buttons
-========================= */
-.action-buttons{
-  display:flex;
-  gap: 8px;
-  flex-wrap: nowrap; /* 1 baris */
-  align-items: center;
-}
-.btn-icon{
-  width: 36px;
-  height: 36px;
+  padding: 8px 10px 8px 30px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 12px;
-  border: 1px solid rgba(15,42,86,.18);
-  background: #fff;
-  color: rgba(15,42,86,.70);
-  cursor: pointer;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease, color .18s ease;
+  background: rgba(255, 255, 255, 0.92);
+  font-weight: 500;
+  color: rgba(15, 23, 42, 0.92);
+  outline: none;
+  font-size: var(--sk-fs-sm);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.sk__search input:focus {
+  border-color: rgba(58, 166, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+}
+
+.sk__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: 0 0 auto;
 }
-.btn-icon:hover{
-  background: rgba(15,42,86,.05);
-  color: rgba(11,31,58,.92);
-  border-color: rgba(15,42,86,.26);
-  box-shadow: 0 10px 18px rgba(15,23,42,.10);
+
+.sk__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--sk-line);
+  background: rgba(255, 255, 255, 0.78);
+  color: rgba(7, 22, 46, 0.9);
+  font-weight: 600;
+  font-size: var(--sk-fs-sm);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+
+.sk__btn i {
+  font-size: 1rem;
+}
+
+.sk__btn:hover {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(58, 166, 255, 0.24);
+  box-shadow: var(--sk-shadow2);
   transform: translateY(-1px);
 }
-.btn-icon.delete:hover{
-  background: rgba(239,68,68,.10);
-  color: #991b1b;
-  border-color: rgba(239,68,68,.22);
+
+.sk__btn:active {
+  transform: translateY(0);
 }
 
-/* =========================
-   Modal
-========================= */
-.modal-overlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(2, 6, 23, 0.55);
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  z-index: 1000;
-  padding: 14px;
-  backdrop-filter: blur(6px);
-}
-.modal-content{
-  background: #fff;
-  border-radius: var(--n-radius);
-  width: 100%;
-  max-width: 800px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 30px 70px rgba(2,6,23,.35);
-  border: 1px solid rgba(15,42,86,.14);
-}
-.modal-content.view-mode{ max-width: 600px; }
-.modal-header{
-  padding: 16px 18px;
-  border-bottom: 1px solid rgba(15,42,86,.10);
-  display:flex;
-  justify-content: space-between;
-  align-items:center;
-  background: linear-gradient(180deg, #ffffff, #fbfcff);
-}
-.modal-header h2{
-  font-size: 1.15rem;
-  font-weight: 900;
-  color: var(--n-navy-900);
-  margin: 0;
-}
-.modal-body{ padding: 18px; }
-.modal-footer{
-  padding: 16px 18px;
-  border-top: 1px solid rgba(15,42,86,.10);
-  display:flex;
-  justify-content:flex-end;
-  gap: 10px;
-  background: #fff;
-}
-.close-btn{
-  background: none;
-  border:none;
-  font-size: 1.6rem;
-  cursor:pointer;
-  color: rgba(15,42,86,.70);
-}
-.close-btn:hover{ color: var(--n-navy-900); }
-
-/* Section title */
-.section-title{
-  font-weight: 900;
-  color: var(--n-navy-900);
-  margin-top: 12px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid rgba(15,42,86,.10);
-  padding-bottom: 10px;
-  text-transform: uppercase;
-  font-size: .78rem;
-  letter-spacing: .08em;
-}
-
-/* Pendidikan rows */
-.pendidikan-grid{ display:flex; flex-direction: column; gap: 8px; }
-.pendidikan-row{
-  display:grid;
-  grid-template-columns: 56px 1fr 110px;
-  gap: 10px;
-  align-items:center;
-  padding: 10px;
-  background: rgba(15,42,86,.04);
-  border-radius: 12px;
-  border: 1px solid rgba(15,42,86,.10);
-}
-.level-label{
-  font-weight: 900;
-  color: #1d4ed8;
-  font-size: .9rem;
-}
-.input-sekolah,
-.input-tahun{
-  background: #fff !important;
-  color: #111827 !important;
-  font-weight: 700 !important;
-}
-.input-tahun{ text-align: center; }
-
-/* Detail item */
-.detail-item label{
-  font-size: .82rem;
-  font-weight: 900;
-  color: rgba(100,116,139,.95);
-  text-transform: uppercase;
-  letter-spacing: .06em;
-}
-.detail-item .value{
-  font-size: 1rem;
-  color: #111827;
+.sk__btnPrimary {
+  background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
+  border-color: rgba(58, 166, 255, 0.32);
+  color: #fff;
   font-weight: 650;
 }
 
-/* Edu list */
-.edu-item{
-  display:flex;
-  align-items:center;
+.sk__btnExport {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #fff;
+}
+
+.sk__btnImport {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
+  border-color: rgba(245, 158, 11, 0.28);
+  color: #fff;
+}
+
+.sk__btnGhost {
+  background: #fff;
+  color: rgba(7, 22, 46, 0.9);
+  border: 1px solid var(--sk-line);
+}
+
+.sk__btnDanger {
+  background: #fff;
+  color: rgba(220, 38, 38, 1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.sk__btnDanger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* ========= TABLE ========= */
+.sk__tableWrap {
+  width: 100%;
+  min-width: 0;
+  overflow: auto;
+  border-radius: var(--sk-radius);
+  border: 1px solid var(--sk-line);
+  background: var(--sk-card);
+  box-shadow: var(--sk-shadow);
+}
+
+.sk__table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 920px;
+}
+
+.sk__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 250, 251, 0.98));
+  color: rgba(7, 22, 46, 0.86);
+  font-size: var(--sk-fs-xs);
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  text-align: left;
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--sk-line);
+  white-space: nowrap;
+}
+
+.sk__table tbody td {
+  padding: 10px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  color: rgba(15, 23, 42, 0.92);
+  font-size: var(--sk-fs-sm);
+  font-weight: 400;
+  vertical-align: middle;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.sk__table tbody tr:nth-child(even) td {
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.sk__table tbody tr:hover td {
+  background: rgba(58, 166, 255, 0.055);
+}
+
+.sk__empty {
+  text-align: center;
+  padding: 18px 10px !important;
+  font-weight: 500;
+  font-size: var(--sk-fs-sm);
+}
+
+.sk__muted {
+  color: rgba(100, 116, 139, 0.9) !important;
+  font-weight: 400 !important;
+}
+
+.cNo { width: 56px; }
+.cNip { width: 140px; }
+.cTmt { width: 120px; }
+.cEdu { width: 100px; }
+.cStatus { width: 110px; }
+.cAksi { width: 130px; text-align: right; }
+
+.tCenter { text-align: center; }
+
+.tMono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: var(--sk-fs-xs);
+  font-weight: 400;
+}
+
+.tPlain { font-weight: 400; }
+
+.text-sm { font-size: 0.875rem; }
+.text-xs { font-size: 0.75rem; }
+.text-gray-500 { color: rgba(107, 114, 128, 1); }
+.text-gray-600 { color: rgba(75, 85, 99, 1); }
+.italic { font-style: italic; }
+
+.sk__eduBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.10);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  color: #312e81;
+  font-weight: 800;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.sk__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: var(--sk-fs-xs);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.sk__status::before { display: none !important; content: none !important; }
+
+.sk__status.isOn {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.18);
+  color: rgba(22, 163, 74, 1);
+}
+
+.sk__status.isOff {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.16);
+  color: rgba(220, 38, 38, 1);
+}
+
+.sk__rowActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.sk__iconBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(7, 22, 46, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.sk__iconBtn:hover {
+  box-shadow: var(--sk-shadow2);
+  transform: translateY(-1px);
+  border-color: rgba(58, 166, 255, 0.22);
+}
+
+.sk__iconBtn.danger {
+  color: rgba(220, 38, 38, 1);
+  border-color: rgba(239, 68, 68, 0.18);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+/* ========= MOBILE CARDS ========= */
+.sk__cards {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sk__group {
+  border: 1px solid rgba(15, 42, 86, 0.10);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.06);
+}
+
+.sk__groupHead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+  border-bottom: 1px solid rgba(15, 42, 86, 0.10);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.sk__groupLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.sk__groupTitle {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: rgba(11, 31, 58, 0.95);
+}
+
+.sk__groupMeta {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: rgba(100, 116, 139, 0.92);
+  white-space: nowrap;
+}
+
+.sk__groupList {
+  padding: 12px 12px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sk__card {
+  background: #fff;
+  border: 1px solid rgba(15, 42, 86, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.10);
+  overflow: hidden;
+}
+
+.sk__cardHead {
+  padding: 14px 14px 10px;
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+  border-bottom: 1px solid rgba(15, 42, 86, 0.08);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sk__cardTitle {
+  min-width: 0;
+}
+
+.sk__cardName {
+  font-weight: 800;
+  color: rgba(11, 31, 58, 0.95);
+  font-size: 0.86rem;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+}
+
+.sk__cardSub {
+  margin-top: 4px;
+  color: rgba(100, 116, 139, 0.95);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.sk__cardBody {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sk__statusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(15, 42, 86, 0.10);
+}
+
+.sk__statusLeft {
+  flex: 0 0 auto;
+}
+
+.sk__actionsRight {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.sk__kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.sk__k {
+  color: rgba(15, 42, 86, 0.70);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  flex: 0 0 112px;
+}
+
+.sk__v {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  color: rgba(15, 23, 42, 0.92);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* ========= MODAL ========= */
+.sk__modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.sk__modal {
+  width: min(680px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  box-shadow: 0 28px 80px rgba(2, 6, 23, 0.35);
+}
+
+.sk__modalLarge {
+  max-width: 800px;
+}
+
+.sk__modalView {
+  max-width: 600px;
+}
+
+.sk__modalHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.sk__modalTitle h2 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 750;
+  color: rgba(7, 22, 46, 0.96);
+}
+
+.sk__close {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(7, 22, 46, 0.92);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sk__modalBody {
+  padding: 14px;
+}
+
+.sk__grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sk__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sk__fieldFull {
+  grid-column: span 2;
+}
+
+.sk__field label {
+  font-size: var(--sk-fs-xs);
+  font-weight: 650;
+  color: rgba(7, 22, 46, 0.88);
+}
+
+.required {
+  color: rgba(220, 38, 38, 1);
+  margin-left: 2px;
+}
+
+.sk__field input,
+.sk__field select,
+.sk__field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(248, 250, 252, 0.9);
+  color: rgba(15, 23, 42, 0.92);
+  font-weight: 500;
+  outline: none;
+  font-size: var(--sk-fs-sm);
+}
+
+.sk__field input:focus,
+.sk__field select:focus,
+.sk__field textarea:focus {
+  border-color: rgba(58, 166, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+}
+
+.sk__field input:disabled {
+  background-color: rgba(0, 0, 0, 0.03);
+  color: #888;
+  cursor: not-allowed;
+}
+
+.sk__field textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.sk__sectionTitle {
+  grid-column: span 2;
+  font-weight: 800;
+  color: rgba(11, 31, 58, 0.95);
+  margin-top: 16px;
+  margin-bottom: 8px;
+  border-bottom: 2px solid var(--sk-line);
+  padding-bottom: 8px;
+  font-size: 1rem;
+}
+
+.sk__pendidikanGrid {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sk__pendidikanRow {
+  display: grid;
+  grid-template-columns: 56px 1fr 110px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  background: rgba(15, 42, 86, 0.04);
+  border-radius: 12px;
+  border: 1px solid rgba(15, 42, 86, 0.10);
+}
+
+.sk__levelLabel {
+  font-weight: 900;
+  color: #1d4ed8;
+  font-size: 0.9rem;
+}
+
+.sk__inputTahun {
+  text-align: center;
+}
+
+.sk__detailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.sk__detailItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sk__detailFull {
+  grid-column: span 2;
+}
+
+.sk__detailItem label {
+  color: rgba(100, 116, 139, 0.9);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 650;
+}
+
+.sk__detailValue {
+  font-size: 1rem;
+  color: rgba(15, 23, 42, 0.92);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.sk__detailValue.sk__mono {
+  font-family: ui-monospace, monospace;
+  color: rgba(11, 31, 58, 0.95);
+  background: rgba(15, 42, 86, 0.08);
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.sk__detailValue.sk__large {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.sk__eduList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sk__eduItem {
+  display: flex;
+  align-items: center;
   gap: 12px;
   padding: 10px;
-  background: rgba(15,42,86,.04);
-  border: 1px solid rgba(15,42,86,.10);
+  background: rgba(15, 42, 86, 0.04);
+  border: 1px solid rgba(15, 42, 86, 0.10);
   border-radius: 12px;
 }
-.edu-level{
+
+.sk__eduLevel {
   font-weight: 900;
   color: #2563eb;
   width: 44px;
-}
-.edu-name{
-  color: #111827;
-  font-weight: 800;
+  flex: 0 0 44px;
 }
 
-/* Form controls */
-label{
-  font-size: .9rem;
-  font-weight: 800;
-  color: rgba(15,42,86,.85);
-  margin-bottom: 6px;
-  display:block;
+.sk__eduName {
+  color: rgba(15, 23, 42, 0.92);
+  font-weight: 600;
+  flex: 1;
 }
-input, select, textarea{
-  padding: 10px 12px;
-  border: 1px solid rgba(15,42,86,.18);
-  border-radius: 12px;
-  font-size: .95rem;
-  color: #111827;
-  width: 100%;
-  background: #fff;
-  transition: box-shadow .18s ease, border-color .18s ease;
+
+.sk__modalFoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.92);
 }
-input::placeholder{ color: rgba(148,163,184,.95); }
-input:focus, select:focus, textarea:focus{
-  outline:none;
-  border-color: rgba(37,99,235,.45);
-  box-shadow: 0 0 0 4px rgba(37,99,235,.12);
-}
-.required{ color: #dc2626; margin-left: 2px; }
 
-/* =========================
-   Utilities (tetap)
-========================= */
-.font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-.font-medium { font-weight: 650; }
-.font-semibold { font-weight: 800; }
+/* ========= RESPONSIVE ========= */
+.sk__tableWrap { display: block; }
+.sk__cards { display: none; }
 
-.w-full { width: 100%; }
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.gap-4 { gap: 16px; }
-.text-sm { font-size: .875rem; }
-.text-gray-600 { color: rgba(100,116,139,.95); font-weight: 650; }
-.text-gray-500 { color: rgba(100,116,139,.90); }
-.border-t { border-top: 1px solid rgba(15,42,86,.10); }
-.pt-4 { padding-top: 16px; }
-.mb-2 { margin-bottom: 8px; }
-.block { display: block; }
-.text-center { text-align: center; }
-.text-blue-600 { color: #2563eb; }
-
-/* =========================
-   Responsive: iPhone 13 (390x844) safe
-========================= */
-@media (max-width: 768px){
-  .tab-content{
-    padding: 12px;
-    border-radius: 0;
-  }
-
-  .action-bar{
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    padding: 12px;
-  }
-
-  .search-box{ width: 100%; }
-
-  .action-buttons-group{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .action-buttons-group :global(button){ width: 100%; }
-  .action-buttons-group :global(.btn-primary){ grid-column: 1 / -1; }
-
-  /* table -> card view */
-  .data-table thead{ display:none; }
-
-  .data-table,
-  .data-table tbody,
-  .data-table tr,
-  .data-table td{
-    display:block;
-    width:100%;
-  }
-
-  .data-table{
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    border-radius: 0;
-  }
-
-  .data-table tbody{
-    display:flex;
+@media (max-width: 768px) {
+  .sk__tableWrap { display: none; }
+  .sk__cards {
+    display: flex;
     flex-direction: column;
     gap: 12px;
   }
 
-  .data-table tbody tr{
-    background: #fff;
-    border: 1px solid rgba(15,42,86,.14);
+  .sk {
+    padding-bottom: calc(86px + var(--sk-safe-b));
+  }
+
+  .sk__actions {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + var(--sk-safe-b));
+    z-index: 1000;
+    padding: 10px;
     border-radius: 16px;
-    padding: 14px;
-    box-shadow: 0 12px 26px rgba(15,23,42,.10);
-    overflow: hidden;
-  }
-
-  .data-table td{
-    padding: 10px 0;
-    border-bottom: 1px dashed rgba(15,42,86,.10);
-
-    display:flex;
+    border: 1px solid rgba(15, 42, 86, 0.16);
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 18px 44px rgba(2, 6, 23, 0.14);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    gap: 10px;
     justify-content: space-between;
-    align-items:flex-start;
-    gap: 10px;
-    text-align: right;
-
-    min-width: 0;
-    max-width: 100%;
   }
 
-  .data-table td:last-child{
-    border-bottom: none;
-    padding-top: 12px;
-    justify-content: flex-end;
-    background: rgba(15,42,86,.04);
-    margin: 0 -14px -14px;
-    padding-left: 14px;
-    padding-right: 14px;
+  .sk__actions .sk__btn {
+    flex: 1 1 0;
+    justify-content: center;
+    height: 44px;
+    padding: 10px 12px;
+    border-radius: 14px;
   }
 
-  /* label kiri */
-  .data-table td::before{
-    content: attr(data-label);
-    font-weight: 900;
-    color: rgba(15,42,86,.70);
-    text-align: left;
-    font-size: .74rem;
-    letter-spacing: .5px;
-    text-transform: uppercase;
-
-    flex: 0 0 92px;
-    max-width: 92px;
+  .sk__actions .sk__btn span {
+    display: none;
   }
 
-  /* isi kanan (default text) */
-  .data-table td > *{
-    flex: 1 1 auto;
-    min-width: 0;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    white-space: normal;
-  }
-
-  /* ✅ FIX: L/P & Status badge jangan ikut flex:1 */
-  .data-table td[data-label="L/P"]{
-    align-items: center;
-  }
-  .data-table td[data-label="L/P"] > *{
-    flex: 0 0 auto !important;
-    min-width: auto !important;
-    max-width: none !important;
-    margin-left: auto;
-    white-space: nowrap;
-  }
-
-  .data-table td[data-label="Status"]{
-    align-items: center;
-  }
-  .data-table td[data-label="Status"] > *{
-    flex: 0 0 auto !important;
-    min-width: auto !important;
-    max-width: none !important;
-    margin-left: auto;
-    white-space: nowrap;
-  }
-
-  .action-buttons{
-    justify-content:flex-end;
-    gap: 10px;
-  }
-
-  /* modal full screen on mobile */
-  .modal-content{
+  .sk__modal {
     width: 100%;
     height: 100%;
-    max-height: none;
-    border-radius: 0;
+    max-height: 100%;
     margin: 0;
-    display:flex;
-    flex-direction: column;
+    border-radius: 0;
+    max-width: none;
   }
-  .modal-body{
-    overflow-y: auto;
-    flex: 1;
+
+  .sk__modalHead {
+    border-radius: 0;
+    padding: 16px;
   }
-  .modal-footer{
+
+  .sk__modalFoot {
+    border-radius: 0;
+    padding: 16px;
     flex-direction: column-reverse;
     gap: 10px;
   }
-  .modal-footer :global(button){
+
+  .sk__modalFoot button {
     width: 100%;
-    justify-content:center;
-    margin: 0 !important;
+    justify-content: center;
   }
 
-  /* pendidikan row rapikan */
-  .pendidikan-row{
+  .sk__grid2,
+  .sk__detailGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .sk__fieldFull,
+  .sk__detailFull {
+    grid-column: span 1;
+  }
+
+  .sk__pendidikanRow {
     grid-template-columns: 56px 1fr 92px;
   }
 }
 
-@media (max-width: 390px){
-  .data-table td::before{
-    flex-basis: 86px;
-    max-width: 86px;
+@media (max-width: 420px) {
+  .sk__filters {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
   }
-  .btn-icon{
-    width: 34px;
-    height: 34px;
-    border-radius: 12px;
+
+  .sk__search {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk__btn,
+  .sk__iconBtn {
+    transition: none;
+  }
+  .sk__btn:hover,
+  .sk__iconBtn:hover {
+    transform: none;
   }
 }
 `}</style>
-
     </div>
   )
 }

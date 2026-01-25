@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react'
+'use client'
+
+import { useState, useEffect, useMemo } from 'react'
 import { exportToExcel } from '@/lib/excel-utils'
 import Pagination from '@/components/ui/Pagination'
 import Swal from 'sweetalert2'
 import ImportModal from '@/components/ui/ImportModal'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 interface Kelas {
   id: number;
@@ -14,12 +17,20 @@ interface Kelas {
 }
 
 export default function KelasTab() {
-  const [kelasList, setKelasList] = useState<Kelas[]>([])
+  const [allData, setAllData] = useState<Kelas[]>([])
   const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(50)
-  const [totalPages, setTotalPages] = useState(0)
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
   const [totalItems, setTotalItems] = useState(0)
+
+  // Computed paginated list
+  const kelasList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    const end = start + pageSize
+    return allData.slice(start, end)
+  }, [allData, currentPage, pageSize])
 
   // Modal State
   const [showModal, setShowModal] = useState(false)
@@ -28,6 +39,25 @@ export default function KelasTab() {
 
   // Import State
   const [showImportModal, setShowImportModal] = useState(false)
+
+  // Filter State
+  const [programFilter, setProgramFilter] = useState('')
+  const [tingkatFilter, setTingkatFilter] = useState('')
+
+  // Filter Options
+  const programOptions = [
+    { value: '', label: 'Semua Program' },
+    { value: 'Reguler', label: 'Reguler' },
+    { value: 'Unggulan', label: 'Unggulan' },
+    { value: 'IBS', label: 'IBS' }
+  ]
+
+  const tingkatOptions = [
+    { value: '', label: 'Semua Tingkat' },
+    { value: '10', label: '10' },
+    { value: '11', label: '11' },
+    { value: '12', label: '12' }
+  ]
 
   const [formData, setFormData] = useState<Partial<Kelas>>({
     nama: '',
@@ -39,27 +69,31 @@ export default function KelasTab() {
 
   useEffect(() => {
     fetchKelas()
-  }, [page, limit])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize, programFilter, tingkatFilter])
 
   const fetchKelas = async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      params.append('page', page.toString())
-      params.append('limit', limit.toString())
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '10000'
+      })
+
+      if (programFilter) params.append('program', programFilter)
+      if (tingkatFilter) params.append('tingkat', tingkatFilter)
 
       const res = await fetch(`/api/master/kelas?${params}`)
       const json = await res.json()
 
       if (json.ok) {
-        setKelasList(json.data)
-        if (json.meta) {
-          setTotalPages(json.meta.totalPages)
-          setTotalItems(json.meta.total)
-        }
+        setAllData(json.data || [])
+        setTotalItems(json.data?.length || 0)
       }
     } catch (err) {
       console.error('Error fetching kelas:', err)
+      setAllData([])
+      setTotalItems(0)
     } finally {
       setLoading(false)
     }
@@ -97,6 +131,7 @@ export default function KelasTab() {
       })
       const json = await res.json()
       if (json.ok) {
+        Swal.fire('Terhapus!', 'Data kelas berhasil dihapus.', 'success')
         fetchKelas()
       } else {
         alert('Gagal menghapus: ' + json.error)
@@ -114,6 +149,7 @@ export default function KelasTab() {
       await saveKelas(formData as Kelas, isEditMode);
       setShowModal(false)
       fetchKelas()
+      alert(`Data kelas berhasil ${isEditMode ? 'diperbarui' : 'disimpan'}`)
     } catch (err: any) {
       console.error('Error saving kelas:', err)
       alert(err.message || 'Terjadi kesalahan saat menyimpan data')
@@ -152,7 +188,7 @@ export default function KelasTab() {
   // Excel Functions
   const handleExport = () => {
     const dataToExport = kelasList.map((k, index) => ({
-      'No': index + 1,
+      'No': (currentPage - 1) * pageSize + index + 1,
       'Nama Kelas': k.nama || '',
       'Tingkat': k.tingkat || '',
       'Program': k.program || '',
@@ -163,14 +199,10 @@ export default function KelasTab() {
 
   const mapImportRow = (row: any) => {
     const getVal = (targetKeys: string[]) => {
-      // Normalize target keys
       const normalizedTargets = targetKeys.map(k => k.toLowerCase().trim());
-
-      // Find matching key in row
       const foundKey = Object.keys(row).find(k =>
         normalizedTargets.includes(k.toLowerCase().trim())
       );
-
       if (foundKey) return row[foundKey];
       return undefined;
     };
@@ -187,62 +219,114 @@ export default function KelasTab() {
     };
   }
 
+  // Group for mobile: by tingkat
+  const groupedMobile = useMemo(() => {
+    const map = new Map<number, Kelas[]>()
+      ; (kelasList || []).forEach((it) => {
+        const key = it.tingkat || 10
+        if (!map.has(key)) map.set(key, [])
+        map.get(key)!.push(it)
+      })
+    const entries = Array.from(map.entries()).sort((a, b) => a[0] - b[0])
+    entries.forEach(([k, arr]) => {
+      arr.sort((x, y) => {
+        const nx = String(x.nama || '').toLowerCase()
+        const ny = String(y.nama || '').toLowerCase()
+        return nx.localeCompare(ny, 'id')
+      })
+    })
+    return entries
+  }, [kelasList])
+
   return (
-    <div className="tab-content">
-      <div className="action-bar">
-        <h3>Daftar Kelas</h3>
-        <div className="action-buttons-group">
-          <button className="btn-secondary" onClick={() => setShowImportModal(true)}>
-            <i className="bi bi-upload"></i> Import
+    <div className="sk">
+      {/* ===== Filter Bar ===== */}
+      <div className="sk__filterBar">
+        <div className="sk__filterGroup">
+          <label>Program:</label>
+          <select value={programFilter} onChange={(e) => setProgramFilter(e.target.value)}>
+            <option value="">Semua Program</option>
+            <option value="Reguler">Reguler</option>
+            <option value="Unggulan">Unggulan</option>
+            <option value="IBS">IBS</option>
+          </select>
+        </div>
+        <div className="sk__filterGroup">
+          <label>Tingkat:</label>
+          <select value={tingkatFilter} onChange={(e) => setTingkatFilter(e.target.value)}>
+            <option value="">Semua Tingkat</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+          </select>
+        </div>
+
+        <div className="sk__actions">
+          <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+            <i className="bi bi-upload" /> <span>Import</span>
           </button>
-          <button className="btn-secondary" onClick={handleExport}>
-            <i className="bi bi-download"></i> Export
+
+          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
+            <i className="bi bi-download" /> <span>Export</span>
           </button>
-          <button className="btn-primary" onClick={handleAddNew}>
-            <i className="bi bi-plus-lg"></i>
-            Tambah
+
+          <button className="sk__btn sk__btnPrimary" onClick={handleAddNew}>
+            <i className="bi bi-plus-lg" /> <span>Tambah</span>
           </button>
         </div>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
+      {/* ===== Table (Desktop/Tablet) ===== */}
+      <div className="sk__tableWrap">
+        <table className="sk__table">
           <thead>
             <tr>
-              <th style={{ width: '50px' }}>No</th>
+              <th className="cNo">No</th>
               <th>Nama Kelas</th>
-              <th>Tingkat</th>
-              <th>Program</th>
-              <th style={{ width: '100px' }}>Status</th>
-              <th style={{ width: '120px' }}>Aksi</th>
+              <th className="cTingkat">Tingkat</th>
+              <th className="cProgram">Program</th>
+              <th className="cStatus">Status</th>
+              <th className="cAksi">Aksi</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="text-center py-8">Memuat data...</td></tr>
+              <tr>
+                <td colSpan={6} className="sk__empty">
+                  Memuat data...
+                </td>
+              </tr>
             ) : kelasList.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-8 text-gray-500">Tidak ada data.</td></tr>
+              <tr>
+                <td colSpan={6} className="sk__empty sk__muted">
+                  Tidak ada data kelas.
+                </td>
+              </tr>
             ) : (
               kelasList.map((kelas, index) => (
                 <tr key={kelas.id}>
-                  <td className="text-center">{(page - 1) * limit + index + 1}</td>
-                  <td className="font-semibold">{kelas.nama}</td>
-                  <td>{kelas.tingkat}</td>
+                  <td className="tCenter">{(currentPage - 1) * pageSize + index + 1}</td>
+                  <td className="tPlain">{kelas.nama}</td>
+                  <td className="tCenter">{kelas.tingkat}</td>
                   <td>
-                    <span className="program-badge">{kelas.program || '-'}</span>
+                    <span className="sk__programBadge">{kelas.program || '-'}</span>
                   </td>
                   <td>
-                    <span className={`status-badge ${kelas.aktif ? 'active' : 'inactive'}`}>
+                    <span className={`sk__status ${kelas.aktif ? 'isOn' : 'isOff'}`}>
                       {kelas.aktif ? 'Aktif' : 'Non-Aktif'}
                     </span>
                   </td>
                   <td>
-                    <div className="action-buttons">
-                      <button className="btn-icon edit" onClick={() => handleEdit(kelas)} title="Edit">
-                        <i className="bi bi-pencil"></i>
+                    <div className="sk__rowActions">
+                      <button className="sk__iconBtn" onClick={() => handleEdit(kelas)} title="Edit">
+                        <i className="bi bi-pencil" />
                       </button>
-                      <button className="btn-icon delete" onClick={() => handleDelete(kelas.id)} title="Hapus">
-                        <i className="bi bi-trash"></i>
+                      <button
+                        className="sk__iconBtn danger"
+                        onClick={() => handleDelete(kelas.id)}
+                        title="Hapus"
+                      >
+                        <i className="bi bi-trash" />
                       </button>
                     </div>
                   </td>
@@ -251,44 +335,132 @@ export default function KelasTab() {
             )}
           </tbody>
         </table>
+      </div>
 
-      </div >
-
-      <Pagination
-        currentPage={page}
-        totalPages={totalPages}
-        limit={limit}
-        totalItems={totalItems}
-        onPageChange={setPage}
-        onLimitChange={(newLimit) => {
-          setLimit(newLimit);
-          setPage(1);
-        }}
-      />
-
-      {
-        showModal && (
-          <div className="modal-overlay">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h2>{isEditMode ? 'Edit Kelas' : 'Tambah Kelas Baru'}</h2>
-                <button onClick={() => setShowModal(false)} className="close-btn">&times;</button>
+      {/* ===== Mobile Grouped Cards (by Tingkat) ===== */}
+      <div className="sk__cards" aria-label="Daftar Kelas versi mobile">
+        {loading ? (
+          <div className="sk__card">
+            <div className="sk__cardHead">
+              <div className="sk__cardTitle">
+                <div className="sk__cardName">Memuat data...</div>
+                <div className="sk__cardSub">Mohon tunggu</div>
               </div>
-              <form onSubmit={handleSubmit}>
-                <div className="modal-body">
-                  <div className="form-group">
-                    <label>Nama Kelas <span className="required">*</span></label>
-                    <input
-                      type="text"
-                      name="nama"
-                      required
-                      value={formData.nama || ''}
-                      onChange={handleInputChange}
-                      placeholder="Contoh: X MIPA 1"
-                    />
-                  </div>
+            </div>
+            <div className="sk__cardBody">
+              <div className="sk__kv">
+                <div className="sk__k">Status</div>
+                <div className="sk__v">Loading</div>
+              </div>
+            </div>
+          </div>
+        ) : kelasList.length === 0 ? (
+          <div className="sk__card">
+            <div className="sk__cardHead">
+              <div className="sk__cardTitle">
+                <div className="sk__cardName">Tidak ada data</div>
+                <div className="sk__cardSub">Belum ada kelas</div>
+              </div>
+            </div>
+            <div className="sk__cardBody">
+              <div className="sk__kv">
+                <div className="sk__k">Info</div>
+                <div className="sk__v">Kosong</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          groupedMobile.map(([tingkat, items]) => (
+            <section key={`grp-${tingkat}`} className="sk__group">
+              <div className="sk__groupHead">
+                <div className="sk__groupLeft">
+                  <div className="sk__groupTitle">Tingkat {tingkat}</div>
+                  <div className="sk__groupMeta">{items.length} kelas</div>
+                </div>
+              </div>
 
-                  <div className="form-group">
+              <div className="sk__groupList">
+                {items.map((kelas, idx) => (
+                  <div className="sk__card sk__cardRow" key={`m-${kelas.id}-${idx}`}>
+                    <div className="sk__cardHead">
+                      <div className="sk__cardTitle">
+                        <div className="sk__cardName">{kelas.nama || '-'}</div>
+                        <div className="sk__cardSub">{kelas.program || 'Reguler'}</div>
+                      </div>
+                    </div>
+
+                    <div className="sk__cardBody">
+                      <div className="sk__statusRow">
+                        <div className="sk__statusLeft">
+                          <span className={`sk__status ${kelas.aktif ? 'isOn' : 'isOff'}`}>
+                            {kelas.aktif ? 'Aktif' : 'Non-Aktif'}
+                          </span>
+                        </div>
+                        <div className="sk__actionsRight">
+                          <button className="sk__iconBtn" onClick={() => handleEdit(kelas)} title="Edit">
+                            <i className="bi bi-pencil" />
+                          </button>
+                          <button
+                            className="sk__iconBtn danger"
+                            onClick={() => handleDelete(kelas.id)}
+                            title="Hapus"
+                          >
+                            <i className="bi bi-trash" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))
+        )}
+      </div>
+
+      {/* ===== Pagination ===== */}
+      {totalItems > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(totalItems / pageSize)}
+          limit={pageSize}
+          totalItems={totalItems}
+          onPageChange={setCurrentPage}
+          onLimitChange={(newLimit) => {
+            setCurrentPage(1)
+            setPageSize(newLimit)
+          }}
+        />
+      )}
+
+      {/* Form Modal (Add/Edit) */}
+      {showModal && (
+        <div className="sk__modalOverlay" role="dialog" aria-modal="true">
+          <div className="sk__modal">
+            <div className="sk__modalHead">
+              <div className="sk__modalTitle">
+                <h2>{isEditMode ? 'Edit Kelas' : 'Tambah Kelas Baru'}</h2>
+              </div>
+              <button className="sk__close" onClick={() => setShowModal(false)} aria-label="Tutup">
+                <i className="bi bi-x-lg" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <div className="sk__modalBody">
+                <div className="sk__field">
+                  <label>Nama Kelas <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    name="nama"
+                    required
+                    value={formData.nama || ''}
+                    onChange={handleInputChange}
+                    placeholder="Contoh: X MIPA 1"
+                  />
+                </div>
+
+                <div className="sk__grid2">
+                  <div className="sk__field">
                     <label>Tingkat</label>
                     <select name="tingkat" value={formData.tingkat} onChange={handleInputChange}>
                       <option value="10">10</option>
@@ -297,18 +469,20 @@ export default function KelasTab() {
                     </select>
                   </div>
 
-                  <div className="form-group">
+                  <div className="sk__field">
                     <label>Program</label>
                     <input
                       type="text"
                       name="program"
                       value={formData.program || ''}
                       onChange={handleInputChange}
-                      placeholder="Contoh: Reguler, Unggulan, IBS"
+                      placeholder="Reguler, Unggulan, IBS"
                     />
                   </div>
+                </div>
 
-                  <div className="form-group">
+                {isEditMode && (
+                  <div className="sk__field">
                     <label>Status</label>
                     <select
                       name="aktif"
@@ -319,18 +493,18 @@ export default function KelasTab() {
                       <option value="false">Non-Aktif</option>
                     </select>
                   </div>
-                </div>
-                <div className="modal-footer">
-                  <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Batal</button>
-                  <button type="submit" disabled={saving} className="btn-primary">
-                    {saving ? 'Menyimpan...' : 'Simpan'}
-                  </button>
-                </div>
-              </form>
-            </div>
+                )}
+              </div>
+              <div className="sk__modalFoot">
+                <button type="button" className="sk__btn sk__btnGhost" onClick={() => setShowModal(false)}>Batal</button>
+                <button type="submit" disabled={saving} className="sk__btn sk__btnPrimary">
+                  {saving ? 'Menyimpan...' : 'Simpan'}
+                </button>
+              </div>
+            </form>
           </div>
-        )
-      }
+        </div>
+      )}
 
       {/* Standardized Import Modal */}
       <ImportModal
@@ -346,613 +520,653 @@ export default function KelasTab() {
         mapRowData={mapImportRow}
       />
 
-
-
-      {
-        showModal && (
-          <div className="modal-overlay">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h2>{isEditMode ? 'Edit Kelas' : 'Tambah Kelas Baru'}</h2>
-                <button onClick={() => setShowModal(false)} className="close-btn">&times;</button>
-              </div>
-              <form onSubmit={handleSubmit}>
-                <div className="modal-body">
-                  <div className="form-group">
-                    <label>Nama Kelas <span className="required">*</span></label>
-                    <input
-                      type="text"
-                      name="nama"
-                      required
-                      value={formData.nama || ''}
-                      onChange={handleInputChange}
-                      placeholder="Contoh: X MIPA 1"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Tingkat</label>
-                    <select name="tingkat" value={formData.tingkat} onChange={handleInputChange}>
-                      <option value="10">10</option>
-                      <option value="11">11</option>
-                      <option value="12">12</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Program</label>
-                    <input
-                      type="text"
-                      name="program"
-                      value={formData.program || ''}
-                      onChange={handleInputChange}
-                      placeholder="Contoh: Reguler, Unggulan, IBS"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Status</label>
-                    <select
-                      name="aktif"
-                      value={formData.aktif ? 'true' : 'false'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, aktif: e.target.value === 'true' }))}
-                    >
-                      <option value="true">Aktif</option>
-                      <option value="false">Non-Aktif</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  {/* Import button removed */}
-                  <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Batal</button>
-                  <button type="submit" disabled={saving} className="btn-primary">
-                    {saving ? 'Menyimpan...' : 'Simpan'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )
-      }
-
       <style jsx>{`
-/* =====================================================
-   TAB (GENERIC) — PREMIUM NAVY (FULL REPLACE)
-   Cocok untuk tab lain (Guru/Mapel/Libur/dll)
-   Fix utama:
-   - Mobile iPhone 13 (390x844): tabel jadi "card view" biar tidak terpotong
-   - Aksi icon tetap 1 baris di desktop
-   - Status badge tanpa dot/bulatan
-   - Modal responsif (mobile full)
-===================================================== */
+:global(:root) {
+  --sk-line: rgba(148, 163, 184, 0.22);
+  --sk-card: rgba(255, 255, 255, 0.92);
 
-:global(:root){
-  --n-bg:#f5f7fb;
-  --n-card:#ffffff;
-  --n-ink:#0b1324;
-  --n-muted:#64748b;
+  --sk-shadow: 0 14px 34px rgba(2, 6, 23, 0.08);
+  --sk-shadow2: 0 10px 22px rgba(2, 6, 23, 0.08);
 
-  --n-navy-950:#07162e;
-  --n-navy-900:#0b1f3a;
-  --n-navy-800:#0f2a56;
+  --sk-radius: 16px;
 
-  --n-border: rgba(15, 42, 86, .14);
-  --n-soft: rgba(15, 42, 86, .06);
+  --sk-fs: 0.88rem;
+  --sk-fs-sm: 0.82rem;
+  --sk-fs-xs: 0.78rem;
 
-  --n-shadow: 0 12px 30px rgba(15, 23, 42, .10);
-  --n-shadow-2: 0 10px 18px rgba(15, 23, 42, .08);
-
-  --n-radius: 16px;
-  --n-radius-sm: 12px;
-
-  --n-blue:#2563eb;
-  --n-green:#16a34a;
-  --n-red:#ef4444;
+  --sk-safe-b: env(safe-area-inset-bottom, 0px);
+  --sk-safe-t: env(safe-area-inset-top, 0px);
 }
 
-/* =========================
-   Wrap
-========================= */
-.tab-content{
-  padding: 16px;
-  background: var(--n-bg);
-  border-radius: 0 0 16px 16px;
-  box-shadow: none;
-  min-width: 0;
-  max-width: 100%;
-  overflow-x: clip;
-}
-
-/* =========================
-   Action Bar
-========================= */
-.action-bar{
-  display:flex;
-  justify-content: space-between;
-  align-items:center;
-  gap: 12px;
-  margin-bottom: 16px;
-
-  background: linear-gradient(180deg, #ffffff, #fbfcff);
-  border: 1px solid var(--n-border);
-  border-radius: var(--n-radius);
-  padding: 14px;
-  box-shadow: 0 8px 18px rgba(15,23,42,.06);
-  min-width: 0;
-}
-
-.action-bar h3{
-  margin: 0;
-  color: rgba(11,31,58,.90);
-  font-size: 1.05rem;
-  font-weight: 900;
-  letter-spacing: .1px;
-}
-
-/* =========================
-   Buttons
-========================= */
-.action-buttons-group{
-  display:flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.btn-primary,
-.btn-secondary{
-  border: none;
-  padding: 10px 16px;
-  border-radius: 999px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 900;
-  font-size: .92rem;
-  white-space: nowrap;
-  user-select: none;
-  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, filter .18s ease, border-color .18s ease;
-}
-
-.btn-primary{
-  background: linear-gradient(180deg, var(--n-navy-800), var(--n-navy-900));
-  color: #fff;
-  box-shadow: 0 12px 24px rgba(15,42,86,.18);
-}
-.btn-primary:hover{
-  transform: translateY(-1px);
-  filter: brightness(1.04);
-}
-
-.btn-secondary{
-  background: #fff;
-  color: var(--n-navy-800);
-  border: 1px solid var(--n-border);
-}
-.btn-secondary:hover{
-  background: rgba(15,42,86,.04);
-  box-shadow: var(--n-shadow-2);
-  transform: translateY(-1px);
-}
-
-/* =========================
-   Table (Desktop)
-========================= */
-.data-table{
+.sk {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: var(--sk-fs);
+  padding: 16px;
+  background: #f5f7fb;
+  border-radius: 16px;
+  padding-bottom: calc(16px + var(--sk-safe-b));
+}
+
+/* ========= FILTER BAR ========= */
+.sk__filterBar {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  padding: 14px;
   background: #fff;
-  border: 1px solid var(--n-border);
-  border-radius: var(--n-radius);
-  overflow: hidden;
-  box-shadow: var(--n-shadow);
+  border: 1px solid var(--sk-line);
+  border-radius: var(--sk-radius);
+  box-shadow: var(--sk-shadow2);
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
-.data-table th,
-.data-table td{
-  padding: 12px 14px;
-  text-align: left;
-  border-bottom: 1px solid rgba(15,42,86,.08);
-  color: #0f172a;
-  vertical-align: middle;
-}
-
-.data-table th{
-  background: linear-gradient(180deg, rgba(11,31,58,.98), rgba(15,42,86,.96));
-  color: rgba(255,255,255,.95);
-  font-weight: 900;
-  letter-spacing: .2px;
-  border-bottom: 1px solid rgba(255,255,255,.14);
-}
-
-.data-table tr:last-child td{ border-bottom: none; }
-
-.data-table tbody tr{
-  background: #fff;
-  transition: background .15s ease;
-}
-.data-table tbody tr:hover{
-  background: rgba(15,42,86,.03);
-}
-
-/* Desktop: kolom aksi 1 baris */
-.data-table td:last-child{ white-space: nowrap; }
-
-/* =========================
-   Status & Program Badge
-========================= */
-.status-badge{
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 900;
-  border: 1px solid var(--n-border);
-  background: var(--n-soft);
-  color: var(--n-navy-800);
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-}
-/* hilangkan dot jika ada pseudo */
-.status-badge::before{ display:none !important; content:none !important; }
-
-.status-badge.active{
-  background: rgba(22,163,74,.10);
-  color: #14532d;
-  border-color: rgba(22,163,74,.22);
-}
-.status-badge.inactive{
-  background: rgba(239,68,68,.10);
-  color: #7f1d1d;
-  border-color: rgba(239,68,68,.22);
-}
-
-.program-badge{
-  background: rgba(15,42,86,.06);
-  color: rgba(15,42,86,.90);
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  border: 1px solid rgba(15,42,86,.14);
-  font-weight: 800;
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-}
-
-/* =========================
-   Row Action Buttons
-========================= */
-.action-buttons{
-  display:flex;
+.sk__filterGroup {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  flex-wrap: nowrap; /* 1 baris */
-  align-items: center;
+  min-width: 0;
 }
 
-.btn-icon{
-  width: 36px;
-  height: 36px;
+.sk__filterGroup label {
+  font-size: 0.82rem;
+  color: rgba(100, 116, 139, 0.95);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.sk__filterGroup select {
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 12px;
-  border: 1px solid rgba(15,42,86,.18);
-  background: #fff;
-  color: rgba(15,42,86,.70);
-  cursor: pointer;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease, color .18s ease;
+  min-width: 150px;
+  background: rgba(248, 250, 252, 0.9);
+  color: rgba(15, 23, 42, 0.92);
+  font-size: 0.95rem;
+  font-weight: 500; /* Reduced from 650 */
+  outline: none;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.sk__filterGroup select:focus {
+  border-color: rgba(58, 166, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+}
+
+.sk__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
   flex: 0 0 auto;
 }
 
-.btn-icon:hover{
-  background: rgba(15,42,86,.05);
-  color: rgba(11,31,58,.92);
-  border-color: rgba(15,42,86,.26);
-  box-shadow: 0 10px 18px rgba(15,23,42,.10);
+.sk__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--sk-line);
+  background: rgba(255, 255, 255, 0.78);
+  color: rgba(7, 22, 46, 0.9);
+  font-weight: 600;
+  font-size: var(--sk-fs-sm);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+
+.sk__btn i {
+  font-size: 1rem;
+}
+
+.sk__btn:hover {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(58, 166, 255, 0.24);
+  box-shadow: var(--sk-shadow2);
   transform: translateY(-1px);
 }
 
-.btn-icon.edit:hover{
-  background: rgba(37,99,235,.10);
-  color: #2563eb;
-  border-color: rgba(37,99,235,.22);
+.sk__btn:active {
+  transform: translateY(0);
 }
 
-.btn-icon.delete:hover{
-  background: rgba(239,68,68,.10);
-  color: #dc2626;
-  border-color: rgba(239,68,68,.22);
+.sk__btnPrimary {
+  background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
+  border-color: rgba(58, 166, 255, 0.32);
+  color: #fff;
+  font-weight: 650;
 }
 
-/* =========================
-   Modal
-========================= */
-.modal-overlay{
+.sk__btnExport {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #fff;
+}
+
+.sk__btnImport {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
+  border-color: rgba(245, 158, 11, 0.28);
+  color: #fff;
+}
+
+.sk__btnGhost {
+  background: #fff;
+  color: rgba(7, 22, 46, 0.9);
+  border: 1px solid var(--sk-line);
+}
+
+/* ========= TABLE ========= */
+.sk__tableWrap {
+  width: 100%;
+  min-width: 0;
+  overflow: auto;
+  border-radius: var(--sk-radius);
+  border: 1px solid var(--sk-line);
+  background: var(--sk-card);
+  box-shadow: var(--sk-shadow);
+}
+
+.sk__table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 720px;
+}
+
+.sk__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 250, 251, 0.98));
+  color: rgba(7, 22, 46, 0.86);
+  font-size: var(--sk-fs-xs);
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  text-align: left;
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--sk-line);
+  white-space: nowrap;
+}
+
+.sk__table tbody td {
+  padding: 10px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  color: rgba(15, 23, 42, 0.92);
+  font-size: var(--sk-fs-sm);
+  font-weight: 400;
+  vertical-align: middle;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.sk__table tbody tr:nth-child(even) td {
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.sk__table tbody tr:hover td {
+  background: rgba(58, 166, 255, 0.055);
+}
+
+.sk__empty {
+  text-align: center;
+  padding: 18px 10px !important;
+  font-weight: 500;
+  font-size: var(--sk-fs-sm);
+}
+
+.sk__muted {
+  color: rgba(100, 116, 139, 0.9) !important;
+  font-weight: 400 !important;
+}
+
+.cNo { width: 56px; }
+.cTingkat { width: 90px; }
+.cProgram { width: 140px; }
+.cStatus { width: 110px; }
+.cAksi { width: 110px; text-align: right; }
+
+.tCenter { text-align: center; }
+.tPlain { font-weight: 400; }
+
+.sk__programBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(15, 42, 86, 0.08);
+  border: 1px solid rgba(15, 42, 86, 0.12);
+  color: rgba(7, 22, 46, 0.92);
+  font-weight: 500;
+  font-size: var(--sk-fs-xs);
+  white-space: nowrap;
+}
+
+.sk__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: var(--sk-fs-xs);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.sk__status::before { display: none !important; content: none !important; }
+
+.sk__status.isOn {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.18);
+  color: rgba(22, 163, 74, 1);
+}
+
+.sk__status.isOff {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.16);
+  color: rgba(220, 38, 38, 1);
+}
+
+.sk__rowActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.sk__iconBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(7, 22, 46, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.sk__iconBtn:hover {
+  box-shadow: var(--sk-shadow2);
+  transform: translateY(-1px);
+  border-color: rgba(58, 166, 255, 0.22);
+}
+
+.sk__iconBtn.danger {
+  color: rgba(220, 38, 38, 1);
+  border-color: rgba(239, 68, 68, 0.18);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+/* ========= MOBILE CARDS ========= */
+.sk__cards {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sk__group {
+  border: 1px solid rgba(15, 42, 86, 0.10);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.06);
+}
+
+.sk__groupHead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+  border-bottom: 1px solid rgba(15, 42, 86, 0.10);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.sk__groupLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.sk__groupTitle {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: rgba(11, 31, 58, 0.95);
+}
+
+.sk__groupMeta {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: rgba(100, 116, 139, 0.92);
+  white-space: nowrap;
+}
+
+.sk__groupList {
+  padding: 12px 12px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sk__card {
+  background: #fff;
+  border: 1px solid rgba(15, 42, 86, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.10);
+  overflow: hidden;
+}
+
+.sk__cardHead {
+  padding: 14px 14px 10px;
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+  border-bottom: 1px solid rgba(15, 42, 86, 0.08);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sk__cardTitle {
+  min-width: 0;
+}
+
+.sk__cardName {
+  font-weight: 800;
+  color: rgba(11, 31, 58, 0.95);
+  font-size: 0.86rem;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+}
+
+.sk__cardSub {
+  margin-top: 4px;
+  color: rgba(100, 116, 139, 0.95);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.sk__cardBody {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sk__statusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.sk__statusLeft {
+  flex: 0 0 auto;
+}
+
+.sk__actionsRight {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.sk__kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.sk__k {
+  color: rgba(15, 42, 86, 0.70);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  flex: 0 0 112px;
+}
+
+.sk__v {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  color: rgba(15, 23, 42, 0.92);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* ========= MODAL ========= */
+.sk__modalOverlay {
   position: fixed;
   inset: 0;
   background: rgba(2, 6, 23, 0.55);
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  z-index: 1000;
-  padding: 14px;
-  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
 }
 
-.modal-content{
-  background: #fff;
-  border-radius: var(--n-radius);
-  width: 100%;
-  max-width: 520px;
-  box-shadow: 0 30px 70px rgba(2,6,23,.35);
-  border: 1px solid rgba(15,42,86,.14);
-  overflow: hidden;
+.sk__modal {
+  width: min(520px, 100%);
   max-height: 90vh;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  box-shadow: 0 28px 80px rgba(2, 6, 23, 0.35);
+}
+
+.sk__modalHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.sk__modalTitle h2 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 750;
+  color: rgba(7, 22, 46, 0.96);
+}
+
+.sk__close {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(7, 22, 46, 0.92);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sk__modalBody {
+  padding: 14px;
   display: flex;
   flex-direction: column;
-}
-
-.modal-header{
-  padding: 16px 18px;
-  border-bottom: 1px solid rgba(15,42,86,.10);
-  display:flex;
-  justify-content: space-between;
-  align-items:center;
-  background: linear-gradient(180deg, #ffffff, #fbfcff);
-}
-
-.modal-header h2{
-  font-size: 1.12rem;
-  font-weight: 900;
-  color: rgba(11,31,58,.95);
-  margin: 0;
-}
-
-.modal-body{
-  padding: 18px;
-  display:flex;
-  flex-direction: column;
-  gap: 14px;
-  overflow: auto;
-}
-
-.modal-footer{
-  padding: 16px 18px;
-  border-top: 1px solid rgba(15,42,86,.10);
-  display:flex;
-  justify-content:flex-end;
   gap: 10px;
-  background: #fff;
 }
 
-.close-btn{
-  background: none;
-  border:none;
-  font-size: 1.6rem;
-  cursor:pointer;
-  color: rgba(15,42,86,.70);
-}
-.close-btn:hover{ color: rgba(11,31,58,.95); }
-
-/* =========================
-   Form
-========================= */
-.form-row{ display:flex; gap: 14px; min-width: 0; }
-.form-group{ display:flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
-
-label{
-  font-size: 0.9rem;
-  font-weight: 800;
-  color: rgba(15,42,86,.85);
-  margin-bottom: 2px;
-  display:block;
+.sk__grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
-input, select{
-  padding: 10px 12px;
-  border: 1px solid rgba(15,42,86,.18);
-  border-radius: 12px;
-  font-size: 0.95rem;
-  color: #111827;
+.sk__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sk__field label {
+  font-size: var(--sk-fs-xs);
+  font-weight: 650;
+  color: rgba(7, 22, 46, 0.88);
+}
+
+.required {
+  color: rgba(220, 38, 38, 1);
+  margin-left: 2px;
+}
+
+.sk__field input,
+.sk__field select {
   width: 100%;
-  background: #fff;
-  transition: box-shadow .18s ease, border-color .18s ease;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(248, 250, 252, 0.9);
+  color: rgba(15, 23, 42, 0.92);
+  font-weight: 500;
+  outline: none;
+  font-size: var(--sk-fs-sm);
 }
 
-input::placeholder{ color: rgba(148,163,184,.95); }
-
-input:focus, select:focus{
-  outline:none;
-  border-color: rgba(37,99,235,.45);
-  box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+.sk__field input:focus,
+.sk__field select:focus {
+  border-color: rgba(58, 166, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
 }
 
-.required{ color: #dc2626; margin-left: 2px; }
-.text-center{ text-align: center; }
-.font-semibold{ font-weight: 800; }
+.sk__modalFoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+}
 
-/* =========================
-   Utility (yang sudah dipakai di JSX)
-========================= */
-.w-full { width: 100%; }
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.gap-4 { gap: 16px; }
-.text-sm { font-size: 0.875rem; }
-.text-gray-600 { color: rgba(100,116,139,.95); font-weight: 650; }
-.text-gray-500 { color: rgba(100,116,139,.90); }
-.border-t { border-top: 1px solid rgba(15,42,86,.10); }
-.pt-4 { padding-top: 16px; }
-.mb-2 { margin-bottom: 8px; }
-.font-medium { font-weight: 650; }
-.block { display: block; }
-.text-blue-600 { color: #2563eb; }
+/* ========= RESPONSIVE ========= */
+.sk__tableWrap { display: block; }
+.sk__cards { display: none; }
 
-/* =====================================================
-   RESPONSIVE: iPhone 13 (390x844) — Card View
-===================================================== */
-@media (max-width: 768px){
-  .tab-content{
-    padding: 12px;
-    border-radius: 0;
-  }
-
-  .action-bar{
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    padding: 12px;
-  }
-
-  .action-buttons-group{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .action-buttons-group :global(button){
-    width: 100%;
-    justify-content: center;
-  }
-  .action-buttons-group :global(.btn-primary){
-    grid-column: 1 / -1;
-  }
-
-  /* table -> card */
-  .data-table thead{ display:none; }
-
-  .data-table,
-  .data-table tbody,
-  .data-table tr,
-  .data-table td{
-    display:block;
-    width:100%;
-  }
-
-  .data-table{
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    border-radius: 0;
-  }
-
-  .data-table tbody{
-    display:flex;
+@media (max-width: 768px) {
+  .sk__tableWrap { display: none; }
+  .sk__cards {
+    display: flex;
     flex-direction: column;
     gap: 12px;
   }
 
-  .data-table tbody tr{
-    background: #fff;
-    border: 1px solid rgba(15,42,86,.14);
+  .sk {
+    padding-bottom: calc(86px + var(--sk-safe-b));
+  }
+
+  .sk__filterBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .sk__filterGroup select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .sk__actions {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + var(--sk-safe-b));
+    z-index: 1000;
+    padding: 10px;
     border-radius: 16px;
-    padding: 14px;
-    box-shadow: 0 12px 26px rgba(15,23,42,.10);
-    overflow: hidden;
-  }
-
-  .data-table td{
-    padding: 10px 0;
-    border-bottom: 1px dashed rgba(15,42,86,.10);
-
-    display:flex;
+    border: 1px solid rgba(15, 42, 86, 0.16);
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 18px 44px rgba(2, 6, 23, 0.14);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    gap: 10px;
     justify-content: space-between;
-    align-items:flex-start;
-    gap: 10px;
-    text-align: right;
-
-    min-width: 0;
-    max-width: 100%;
+    margin-left: 0;
   }
 
-  .data-table td:last-child{
-    border-bottom: none;
-    padding-top: 12px;
-    justify-content: flex-end;
-    background: rgba(15,42,86,.04);
-    margin: 0 -14px -14px;
-    padding-left: 14px;
-    padding-right: 14px;
+  .sk__actions .sk__btn {
+    flex: 1 1 0;
+    justify-content: center;
+    height: 44px;
+    padding: 10px 12px;
+    border-radius: 14px;
   }
 
-  .data-table td::before{
-    content: attr(data-label);
-    font-weight: 900;
-    color: rgba(15,42,86,.70);
-    text-align: left;
-    font-size: .74rem;
-    letter-spacing: .5px;
-    text-transform: uppercase;
-
-    flex: 0 0 92px;
-    max-width: 92px;
+  .sk__actions .sk__btn span {
+    display: none;
   }
 
-  /* isi kanan default */
-  .data-table td > *{
-    flex: 1 1 auto;
-    min-width: 0;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    white-space: normal;
-  }
-
-  /* badge jangan dipaksa memanjang (biar tidak “aneh/terpotong”) */
-  .data-table td[data-label="Status"]{
-    align-items: center;
-  }
-  .data-table td[data-label="Status"] > *{
-    flex: 0 0 auto !important;
-    min-width: auto !important;
-    max-width: none !important;
-    margin-left: auto;
-    white-space: nowrap;
-  }
-
-  .action-buttons{
-    justify-content:flex-end;
-    gap: 10px;
-  }
-
-  /* modal full-screen */
-  .modal-content{
+  .sk__modal {
     width: 100%;
     height: 100%;
-    max-height: none;
+    max-height: 100%;
+    margin: 0;
     border-radius: 0;
+    max-width: none;
   }
-  .modal-footer{
+
+  .sk__modalHead {
+    border-radius: 0;
+    padding: 16px;
+  }
+
+  .sk__modalFoot {
+    border-radius: 0;
+    padding: 16px;
     flex-direction: column-reverse;
     gap: 10px;
   }
-  .modal-footer :global(button){
+
+  .sk__modalFoot button {
     width: 100%;
     justify-content: center;
-    margin: 0 !important;
   }
 
-  .form-row{
-    flex-direction: column;
-    gap: 12px;
+  .sk__grid2 {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 }
 
-@media (max-width: 390px){
-  .data-table td::before{
-    flex-basis: 86px;
-    max-width: 86px;
+@media (max-width: 420px) {
+  .sk__filterBar {
+    width: 100%;
   }
-  .btn-icon{
-    width: 34px;
-    height: 34px;
-    border-radius: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk__btn,
+  .sk__iconBtn {
+    transition: none;
+  }
+  .sk__btn:hover,
+  .sk__iconBtn:hover {
+    transform: none;
   }
 }
 `}</style>
-
-    </div >
+    </div>
   )
 }
