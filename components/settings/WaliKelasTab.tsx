@@ -350,20 +350,6 @@ export default function WaliKelasTab() {
 
               <div className="wk__cardBody">
                 <div className="wk__kv">
-                  <div className="wk__k">Tahun Ajaran</div>
-                  <div className="wk__v">{item.tahun_ajaran}</div>
-                </div>
-
-                <div className="wk__kv">
-                  <div className="wk__k">Semester</div>
-                  <div className="wk__v">
-                    <span className={`wk__pill ${item.semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>
-                      {item.semester}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="wk__kv">
                   <div className="wk__k">Status</div>
                   <div className="wk__v">
                     <span className={`wk__status ${item.aktif ? 'isOn' : 'isOff'}`}>

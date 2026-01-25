@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '../ui/ImportModal'
 import SearchableSelect from '../ui/SearchableSelect'
+import Pagination from '../ui/Pagination'
 
 interface GuruMapel {
     id?: number;
@@ -25,6 +26,11 @@ export default function GuruMapelTab() {
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize, setPageSize] = useState(20)
+    const [totalItems, setTotalItems] = useState(0)
+
     // UI State
     const [showModal, setShowModal] = useState(false)
     const [showImportModal, setShowImportModal] = useState(false)
@@ -41,32 +47,18 @@ export default function GuruMapelTab() {
     const [masterGuru, setMasterGuru] = useState<any[]>([])
     const [masterMapel, setMasterMapel] = useState<any[]>([])
 
-    // Mobile Action State
-    const [mobileAction, setMobileAction] = useState<{
-        open: boolean
-        item: GuruMapel | null
-        index: number
-    }>({ open: false, item: null, index: 0 })
-
     useEffect(() => {
         fetchMasterData()
     }, [])
 
     useEffect(() => {
         const timeoutId = setTimeout(() => {
+            setCurrentPage(1)
             fetchData()
         }, 500)
         return () => clearTimeout(timeoutId)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tahunAjaran, semester, searchTerm])
-
-    // Close mobile action on escape
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setMobileAction({ open: false, item: null, index: 0 })
-        }
-        window.addEventListener('keydown', onKey)
-        return () => window.removeEventListener('keydown', onKey)
-    }, [])
 
     const fetchMasterData = async () => {
         try {
@@ -90,13 +82,27 @@ export default function GuruMapelTab() {
         const params = new URLSearchParams({
             q: searchTerm,
             tahun_ajaran: tahunAjaran === 'Semua' ? '' : tahunAjaran,
-            semester: semester === 'Semua' ? '' : semester
+            semester: semester === 'Semua' ? '' : semester,
+            page: currentPage.toString(),
+            limit: pageSize.toString(),
         })
         try {
             const res = await fetch(`/api/settings/guru-mapel?${params}`)
             const json = await res.json()
-            if (json.ok) setList(json.data)
-        } finally { setLoading(false) }
+            if (json.ok) {
+                setList(json.data || [])
+                setTotalItems(json.total || 0)
+            } else {
+                setList([])
+                setTotalItems(0)
+            }
+        } catch (err) {
+            console.error(err)
+            setList([])
+            setTotalItems(0)
+        } finally {
+            setLoading(false)
+        }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -161,6 +167,7 @@ export default function GuruMapelTab() {
 
             closeModal()
             fetchData()
+            alert('Data berhasil disimpan!')
         } catch (err: any) {
             console.error(err)
             alert(err.message || 'Gagal menyimpan data')
@@ -249,117 +256,117 @@ export default function GuruMapelTab() {
         setShowModal(true)
     }
 
-    const openMobileAction = (item: GuruMapel, index: number) => {
-        setMobileAction({ open: true, item, index })
-    }
-    const closeMobileAction = () => setMobileAction({ open: false, item: null, index: 0 })
-    const doMobileEdit = () => {
-        if (mobileAction.item) {
-            closeMobileAction()
-            handleEdit(mobileAction.item)
-        }
-    }
-    const doMobileDelete = async () => {
-        if (mobileAction.item?.id) {
-            const id = mobileAction.item.id
-            closeMobileAction()
-            await handleDelete(id)
-        }
-    }
-
     // Grouping for Mobile View (By Guru)
     const groupedMobile = useMemo(() => {
         const map = new Map<string, GuruMapel[]>()
-            ; (list || []).forEach(it => {
-                const key = it.nama_guru || 'Tanpa Nama'
-                if (!map.has(key)) map.set(key, [])
-                map.get(key)!.push(it)
-            })
-        const entries = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
-        return entries
+        for (const item of list) {
+            const key = (item.nama_guru || '-').trim() || '-'
+            if (!map.has(key)) map.set(key, [])
+            map.get(key)!.push(item)
+        }
+        const keys = Array.from(map.keys()).sort((a, b) => a.localeCompare(b, 'id'))
+        return keys.map((k) => ({ guru: k, items: map.get(k)! }))
     }, [list])
 
     return (
-        <div className="sk">
-            {/* Toolbar */}
-            <div className="sk__bar">
-                <div className="sk__filters">
-                    <div className="sk__search">
+        <div className="gm">
+            {/* ===== Toolbar ===== */}
+            <div className="gm__bar">
+                <div className="gm__filters">
+                    <div className="gm__search">
                         <i className="bi bi-search" aria-hidden="true" />
                         <input
                             type="text"
-                            placeholder="Cari guru / mapel..."
+                            placeholder="Cari Guru / Mapel / NIP..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
+
                     <select value={tahunAjaran} onChange={(e) => setTahunAjaran(e.target.value)}>
                         <option value="Semua">Semua Tahun</option>
                         <option value="2024/2025">2024/2025</option>
                         <option value="2025/2026">2025/2026</option>
+                        <option value="2026/2027">2026/2027</option>
                     </select>
+
                     <select value={semester} onChange={(e) => setSemester(e.target.value)}>
-                        <option value="Semua">Semua Sem.</option>
+                        <option value="Semua">Semua Semester</option>
                         <option value="Ganjil">Ganjil</option>
                         <option value="Genap">Genap</option>
                     </select>
                 </div>
 
-                <div className="sk__actions">
-                    <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Excel">
+                <div className="gm__actions" aria-label="Aksi">
+                    <button className="gm__btn gm__btnExport" onClick={handleExport} title="Export Excel">
                         <i className="bi bi-file-earmark-excel" /> <span>Export</span>
                     </button>
-                    <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+                    <button className="gm__btn gm__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
                         <i className="bi bi-upload" /> <span>Import</span>
                     </button>
-                    <button className="sk__btn sk__btnPrimary" onClick={openAdd}>
+                    <button className="gm__btn gm__btnPrimary" onClick={openAdd}>
                         <i className="bi bi-plus-lg" /> <span>Tambah</span>
                     </button>
                 </div>
             </div>
 
-            {/* Table (Desktop) */}
-            <div className="sk__tableWrap">
-                <table className="sk__table">
+            {/* ===== Table (Desktop/Tablet) ===== */}
+            <div className="gm__tableWrap">
+                <table className="gm__table">
                     <thead>
                         <tr>
                             <th className="cNo">No</th>
-                            <th>NIP</th>
                             <th>Nama Guru</th>
+                            <th className="cNip">NIP/ID</th>
                             <th>Mata Pelajaran</th>
-                            <th>Tahun</th>
-                            <th>Semester</th>
-                            <th>Status</th>
-                            <th>Aksi</th>
+                            <th className="cSemester">Semester</th>
+                            <th className="cStatus">Status</th>
+                            <th className="cAksi">Aksi</th>
                         </tr>
                     </thead>
+
                     <tbody>
                         {loading ? (
-                            <tr><td colSpan={8} className="sk__empty">Memuat data...</td></tr>
+                            <tr>
+                                <td colSpan={7} className="gm__empty">
+                                    Memuat data...
+                                </td>
+                            </tr>
                         ) : list.length === 0 ? (
-                            <tr><td colSpan={8} className="sk__empty sk__muted">Tidak ada data.</td></tr>
+                            <tr>
+                                <td colSpan={7} className="gm__empty gm__muted">
+                                    Tidak ada data.
+                                </td>
+                            </tr>
                         ) : (
                             list.map((item, index) => (
-                                <tr key={item.id}>
-                                    <td className="tCenter">{index + 1}</td>
+                                <tr key={item.id ?? `${item.nip}-${item.nama_mapel}-${index}`}>
+                                    <td className="tCenter">{(currentPage - 1) * pageSize + index + 1}</td>
+                                    <td className="tPlain">{item.nama_guru}</td>
                                     <td className="tMono">{item.nip}</td>
-                                    <td className="tPlain font-medium">{item.nama_guru}</td>
-                                    <td><span className="sk__badge">{item.nama_mapel}</span></td>
-                                    <td className="tMuted">{item.tahun_ajaran}</td>
+                                    <td className="tPlain">{item.nama_mapel}</td>
                                     <td>
-                                        <span className={`sk__pill ${item.semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>
+                                        <span className={`gm__pill ${item.semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>
                                             {item.semester}
                                         </span>
                                     </td>
                                     <td>
-                                        <span className={`sk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
+                                        <span className={`gm__status ${item.aktif ? 'isOn' : 'isOff'}`}>
                                             {item.aktif ? 'Aktif' : 'Non-Aktif'}
                                         </span>
                                     </td>
                                     <td>
-                                        <div className="sk__rowActions">
-                                            <button className="sk__iconBtn" onClick={() => handleEdit(item)}><i className="bi bi-pencil" /></button>
-                                            <button className="sk__iconBtn danger" onClick={() => item.id && handleDelete(item.id)}><i className="bi bi-trash" /></button>
+                                        <div className="gm__rowActions">
+                                            <button className="gm__iconBtn" onClick={() => handleEdit(item)} title="Edit">
+                                                <i className="bi bi-pencil" />
+                                            </button>
+                                            <button
+                                                className="gm__iconBtn danger"
+                                                onClick={() => item.id && handleDelete(item.id)}
+                                                title="Hapus"
+                                            >
+                                                <i className="bi bi-trash" />
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -369,250 +376,930 @@ export default function GuruMapelTab() {
                 </table>
             </div>
 
-            {/* Mobile Cards (Grouped by Guru) */}
-            <div className="sk__cards">
-                {loading ? <div className="p-4 text-center">Loading...</div> : (!list.length ? <div className="p-4 text-center">Kosong</div> :
-                    groupedMobile.map(([guruName, items]) => (
-                        <section key={guruName} className="sk__group">
-                            <div className="sk__groupHead">
-                                <div className="sk__groupLeft">
-                                    <div className="sk__groupTitle">{guruName}</div>
-                                    <div className="sk__groupMeta">{items.length} Mapel • {items[0].nip}</div>
+            {/* ===== Mobile Cards (Grouped by Guru) ===== */}
+            <div className="gm__cards" aria-label="Daftar Guru Mapel versi mobile">
+                {loading ? (
+                    <div className="gm__loading">
+                        <div className="gm__loadingText">Memuat data...</div>
+                        <div className="gm__loadingSub">Mohon tunggu</div>
+                    </div>
+                ) : list.length === 0 ? (
+                    <div className="gm__emptyState">
+                        <div className="gm__emptyText">Tidak ada data</div>
+                        <div className="gm__emptySub">Coba ubah filter</div>
+                    </div>
+                ) : (
+                    groupedMobile.map((group) => (
+                        <div className="gm__group" key={`g-${group.guru}`}>
+                            <div className="gm__groupHead">
+                                <div className="gm__groupTitleRow">
+                                    <div>
+                                        <h3 className="gm__groupTitle">{group.guru}</h3>
+                                        <div className="gm__groupNip">NIP: {group.items[0]?.nip}</div>
+                                    </div>
+                                    <div className="gm__groupMeta">{group.items.length} mapel</div>
                                 </div>
                             </div>
-                            <div className="sk__groupList">
-                                {items.map((item, idx) => (
-                                    <div className="sk__card sk__cardRow" key={item.id}>
-                                        <div className="sk__cardHead">
-                                            <div className="sk__cardTitle">
-                                                <div className="sk__cardName">{item.nama_mapel}</div>
-                                                <div className="sk__cardSub">{item.tahun_ajaran} - {item.semester}</div>
+
+                            <div className="gm__groupBody">
+                                {group.items.map((item, idx) => (
+                                    <div className="gm__card" key={`m-${item.id ?? `${item.nip}-${item.nama_mapel}-${idx}`}`}>
+                                        <div className="gm__cardHead">
+                                            <div className="gm__cardTitle">
+                                                <div className="gm__cardName" title={item.nama_mapel}>
+                                                    {item.nama_mapel || '-'}
+                                                </div>
+                                                <div className="gm__cardSub">
+                                                    <span className={`gm__pill ${item.semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>
+                                                        {item.semester}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <button className="sk__moreBtn" onClick={() => openMobileAction(item, idx)}>
-                                                <i className="bi bi-three-dots-vertical" />
-                                            </button>
+                                        </div>
+
+                                        <div className="gm__cardFoot">
+                                            <div className="gm__cardActions">
+                                                <div className="gm__cardStatus">
+                                                    <span className={`gm__status ${item.aktif ? 'isOn' : 'isOff'}`}>
+                                                        {item.aktif ? 'Aktif' : 'Non-Aktif'}
+                                                    </span>
+                                                </div>
+                                                <div className="gm__cardActionsLeft">
+                                                    <button className="gm__iconBtn" onClick={() => handleEdit(item)} title="Edit" aria-label="Edit">
+                                                        <i className="bi bi-pencil" />
+                                                    </button>
+                                                    <button
+                                                        className="gm__iconBtn danger"
+                                                        onClick={() => item.id && handleDelete(item.id)}
+                                                        title="Hapus"
+                                                        aria-label="Hapus"
+                                                    >
+                                                        <i className="bi bi-trash" />
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </section>
+                        </div>
                     ))
                 )}
             </div>
 
-            {/* Mobile Sheet */}
-            {mobileAction.open && mobileAction.item && (
-                <div className="sk__sheetOverlay" onClick={(e) => e.target === e.currentTarget && closeMobileAction()}>
-                    <div className="sk__sheet">
-                        <div className="sk__sheetHandle"></div>
-                        <div className="sk__sheetTitle">
-                            <div className="sk__sheetName">{mobileAction.item.nama_mapel}</div>
-                            <div className="sk__sheetSub">{mobileAction.item.nama_guru}</div>
-                        </div>
-                        <div className="sk__sheetActions">
-                            <button className="sk__sheetBtn" onClick={doMobileEdit}><i className="bi bi-pencil" /> <span>Edit</span></button>
-                            <button className="sk__sheetBtn danger" onClick={doMobileDelete}><i className="bi bi-trash" /> <span>Hapus</span></button>
-                        </div>
-                        <button className="sk__sheetCancel" onClick={closeMobileAction}>Batal</button>
-                    </div>
-                </div>
+            {/* ===== Pagination ===== */}
+            {totalItems > pageSize && (
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={Math.ceil(totalItems / pageSize)}
+                    limit={pageSize}
+                    totalItems={totalItems}
+                    onPageChange={setCurrentPage}
+                    onLimitChange={(newLimit) => {
+                        setCurrentPage(1)
+                        setPageSize(newLimit)
+                    }}
+                />
             )}
 
-            {/* Modal */}
+            {/* ===== Modal Add/Edit ===== */}
             {showModal && (
-                <div className="sk__modalOverlay">
-                    <div className="sk__modal">
-                        <div className="sk__modalHead">
-                            <div className="sk__modalTitle">
-                                <h2>{editId ? 'Edit Pengampuan' : 'Tambah Pengampuan'}</h2>
-                                <p>{formTahunAjaran} • {formSemester}</p>
+                <div className="gm__modalOverlay" role="dialog" aria-modal="true">
+                    <div className="gm__modal gm__modalLarge">
+                        <div className="gm__modalHead">
+                            <div className="gm__modalTitle">
+                                <h2>{editId ? 'Edit Guru Mapel' : 'Tambah Guru Mapel'}</h2>
+                                <p>Periode: {formTahunAjaran} - {formSemester}</p>
                             </div>
-                            <button className="sk__close" onClick={closeModal}><i className="bi bi-x-lg" /></button>
+                            <button className="gm__close" onClick={closeModal} aria-label="Tutup">
+                                <i className="bi bi-x-lg" />
+                            </button>
                         </div>
-                        <form onSubmit={handleSubmit}>
-                            <div className="sk__modalBody">
-                                <div className="sk__grid2">
-                                    <div className="sk__field">
-                                        <label>Tahun Ajaran</label>
-                                        <select value={formTahunAjaran} onChange={e => setFormTahunAjaran(e.target.value)} className="w-full">
-                                            <option value="2024/2025">2024/2025</option>
-                                            <option value="2025/2026">2025/2026</option>
-                                        </select>
-                                    </div>
-                                    <div className="sk__field">
-                                        <label>Semester</label>
-                                        <select value={formSemester} onChange={e => setFormSemester(e.target.value)} className="w-full">
-                                            <option value="Ganjil">Ganjil</option>
-                                            <option value="Genap">Genap</option>
-                                            <option value="Semua">Semua</option>
-                                        </select>
-                                    </div>
-                                </div>
 
-                                <div className="sk__field">
-                                    <label>Pilih Guru</label>
+                        <form onSubmit={handleSubmit}>
+                            <div className="gm__modalBody">
+                                <div className="gm__field gm__z">
                                     <SearchableSelect
-                                        options={masterGuru.map(g => ({ value: g.nip, label: g.nama_lengkap, subLabel: g.nip }))}
+                                        label="Pilih Guru"
+                                        options={masterGuru.map((g) => ({
+                                            value: g.nip,
+                                            label: g.nama_lengkap,
+                                            subLabel: g.nip,
+                                        }))}
                                         value={selectedNip}
-                                        onChange={setSelectedNip}
+                                        onChange={(val) => setSelectedNip(val)}
                                         placeholder="Cari Guru..."
                                     />
                                 </div>
 
-                                <div className="sk__field">
-                                    <label>Pilih Mata Pelajaran (Multi-select)</label>
-                                    <div className="sk__multiSelect">
-                                        {masterMapel.map(m => (
-                                            <div key={m.id} className={`sk__msItem ${selectedMapels.includes(m.nama) ? 'selected' : ''}`} onClick={() => toggleMapel(m.nama)}>
-                                                <div className="sk__checkbox">
-                                                    {selectedMapels.includes(m.nama) && <i className="bi bi-check" />}
-                                                </div>
-                                                <span>{m.nama} ({m.kode})</span>
-                                            </div>
-                                        ))}
+                                <div className="gm__grid2">
+                                    <div className="gm__field">
+                                        <label>Tahun Ajaran</label>
+                                        <select value={formTahunAjaran} onChange={(e) => setFormTahunAjaran(e.target.value)}>
+                                            <option value="2024/2025">2024/2025</option>
+                                            <option value="2025/2026">2025/2026</option>
+                                            <option value="2026/2027">2026/2027</option>
+                                        </select>
                                     </div>
-                                    <div className="sk__hint">{selectedMapels.length} mapel dipilih</div>
+
+                                    <div className="gm__field">
+                                        <label>Semester</label>
+                                        <select value={formSemester} onChange={(e) => setFormSemester(e.target.value)}>
+                                            {!editId && <option value="Semua">Semua (Ganjil & Genap)</option>}
+                                            <option value="Ganjil">Ganjil</option>
+                                            <option value="Genap">Genap</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="gm__field">
+                                    <label>Pilih Mata Pelajaran {editId ? '(Ganti Mapel)' : '(Bisa lebih dari satu)'}</label>
+
+                                    <div className="gm__multi">
+                                        {masterMapel.length === 0 ? (
+                                            <div className="gm__hint gm__muted">Tidak ada mata pelajaran tersedia.</div>
+                                        ) : (
+                                            masterMapel.map((m) => (
+                                                <button
+                                                    type="button"
+                                                    key={m.nama ?? m.id}
+                                                    className={`gm__pick ${selectedMapels.includes(m.nama) ? 'isOn' : ''}`}
+                                                    onClick={() => toggleMapel(m.nama)}
+                                                >
+                                                    <span className="gm__check" aria-hidden="true">
+                                                        {selectedMapels.includes(m.nama) ? <i className="bi bi-check-lg" /> : null}
+                                                    </span>
+
+                                                    <span className="gm__pickInfo">
+                                                        <span className="gm__pickName" title={m.nama}>
+                                                            {m.nama}
+                                                        </span>
+                                                    </span>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    <div className="gm__selectedCount">{selectedMapels.length} mapel dipilih</div>
                                 </div>
                             </div>
-                            <div className="sk__modalFoot">
-                                <button type="button" className="sk__btn sk__btnGhost" onClick={closeModal}>Batal</button>
-                                <button type="submit" className="sk__btn sk__btnPrimary" disabled={saving}>{saving ? '...' : 'Simpan'}</button>
+
+                            <div className="gm__modalFoot">
+                                <button type="button" className="gm__btn gm__btnGhost" onClick={closeModal}>
+                                    Batal
+                                </button>
+                                <button type="submit" className="gm__btn gm__btnPrimary" disabled={saving}>
+                                    {saving ? 'Menyimpan...' : 'Simpan'}
+                                </button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
 
+            {/* Import Modal */}
             <ImportModal
                 isOpen={showImportModal}
                 onClose={() => setShowImportModal(false)}
                 onImportSuccess={fetchData}
-                templateColumns={['No', 'NIP', 'Nama_Guru', 'Nama_Mapel', 'Tahun_Ajaran', 'Semester']}
+                templateColumns={['No', 'NIP', 'Nama_Guru', 'Nama_Mapel', 'Tahun_Ajaran', 'Semester', 'Status']}
                 templateName="Template_GuruMapel"
                 apiEndpoint="/api/settings/guru-mapel"
                 mapRowData={mapImportRow}
             />
 
             <style jsx>{`
-             :global(:root) {
-                --sk-line: rgba(148, 163, 184, 0.22);
-                --sk-card: rgba(255, 255, 255, 0.92);
-                --sk-shadow: 0 14px 34px rgba(2, 6, 23, 0.08);
-                --sk-shadow2: 0 10px 22px rgba(2, 6, 23, 0.08);
-                --sk-radius: 16px;
-                --sk-fs: 0.88rem;
-                --sk-safe-b: env(safe-area-inset-bottom, 0px);
-             }
+                :global(:root) {
+                    --gm-line: rgba(148, 163, 184, 0.22);
+                    --gm-card: rgba(255, 255, 255, 0.92);
+                    --gm-shadow: 0 14px 34px rgba(2, 6, 23, 0.08);
+                    --gm-shadow2: 0 10px 22px rgba(2, 6, 23, 0.08);
+                    --gm-radius: 16px;
+                    --gm-fs: 0.88rem;
+                    --gm-fs-sm: 0.82rem;
+                    --gm-fs-xs: 0.78rem;
+                    --gm-safe-b: env(safe-area-inset-bottom, 0px);
+                    --gm-safe-t: env(safe-area-inset-top, 0px);
+                }
 
-             .sk {
-                 width: 100%; display: flex; flex-direction: column; gap: 10px; font-size: var(--sk-fs);
-                 padding: 16px; background: #f5f7fb; border-radius: 16px; padding-bottom: calc(16px + var(--sk-safe-b));
-             }
+                .gm {
+                    width: 100%;
+                    min-width: 0;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    font-size: var(--gm-fs);
+                    padding: 16px;
+                    background: #f5f7fb;
+                    border-radius: 16px;
+                    padding-bottom: calc(16px + var(--gm-safe-b));
+                }
 
-             .sk__bar { display: flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
-             .sk__filters { 
-                flex: 1 1 500px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-                padding: 8px; border-radius: 16px; background: rgba(255,255,255,0.72); border: 1px solid var(--sk-line); box-shadow: var(--sk-shadow2);
-             }
-             .sk__search { position: relative; flex: 1 1 200px; }
-             .sk__search i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #64748b; pointer-events: none; }
-             .sk__search input, select { 
-                width: 100%; padding: 8px 10px 8px 30px; border: 1px solid rgba(148,163,184,.35); 
-                border-radius: 12px; background: rgba(255,255,255,.92); font-weight: 500; font-size: 0.9rem;
-             }
-             select { padding-left: 10px; padding-right: 24px; cursor: pointer; }
+                .gm__bar {
+                    display: flex;
+                    align-items: flex-start;
+                    justify-content: space-between;
+                    gap: 10px;
+                    flex-wrap: wrap;
+                    width: 100%;
+                    min-width: 0;
+                }
 
-             .sk__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-             @media (max-width: 640px) {
-                 .sk__actions { width: 100%; }
-                 .sk__btn { flex: 1; justify-content: center; }
-             }
-             .sk__btn { 
-                border: none; padding: 8px 14px; border-radius: 12px; cursor: pointer; font-weight: 700; 
-                display: flex; align-items: center; gap: 6px; font-size: 0.9rem; transition: transform 0.1s;
-                white-space: nowrap;
-             }
-             .sk__btn:hover { transform: translateY(-1px); }
-             .sk__btnPrimary { background: linear-gradient(135deg, #3aa6ff 0%, #0f2a56 100%); color: white; box-shadow: 0 8px 16px rgba(15,42,86,.15); }
-             .sk__btn.sk__btnExport, .sk__btn.sk__btnImport { background: white; border: 1px solid var(--sk-line); color: #0f172a; }
+                .gm__filters {
+                    flex: 1 1 640px;
+                    min-width: 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                    padding: 8px;
+                    border-radius: var(--gm-radius);
+                    background: rgba(255, 255, 255, 0.72);
+                    border: 1px solid var(--gm-line);
+                    box-shadow: var(--gm-shadow2);
+                }
 
-             /* Table */
-             .sk__tableWrap { border-radius: 16px; overflow: hidden; border: 1px solid var(--sk-line); box-shadow: var(--sk-shadow2); background: white; }
-             .sk__table { width: 100%; border-collapse: separate; border-spacing: 0; }
-             .sk__table th { 
-                background: #f8fafc; padding: 12px 14px; text-align: left; font-weight: 700; color: #0f2a56; 
-                border-bottom: 1px solid var(--sk-line); position: sticky; top: 0;
-             }
-             .sk__table td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; color: #334155; }
-             .sk__rowActions { display: flex; gap: 6px; }
-             .sk__iconBtn { 
-                width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: white; 
-                display: flex; align-items: center; justify-content: center; cursor: pointer; color: #64748b;
-             }
-             .sk__iconBtn:hover { background: #f1f5f9; color: #0f172a; }
-             .sk__iconBtn.danger:hover { background: #fee2e2; color: #ef4444; border-color: #fca5a5; }
-             
-             .sk__badge { background: #eff6ff; color: #1e40af; padding: 4px 8px; border-radius: 6px; font-weight: 600; font-size: 0.8rem; }
-             .sk__pill { padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; border: 1px solid transparent; }
-             .sk__pill.isGanjil { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
-             .sk__pill.isGenap { background: #f0fdf4; color: #15803d; border-color: #86efac; }
-             .sk__status.isOn { color: #16a34a; font-weight: 700; background: #dcfce7; padding: 4px 8px; border-radius: 6px; }
-             .sk__status.isOff { color: #94a3b8; font-weight: 700; background: #f1f5f9; padding: 4px 8px; border-radius: 6px; }
+                .gm__search {
+                    position: relative;
+                    flex: 1 1 280px;
+                    min-width: 180px;
+                }
 
-             /* Cards (Mobile) */
-             .sk__cards { display: none; flex-direction: column; gap: 12px; }
-             .sk__group { background: white; border-radius: 16px; border: 1px solid var(--sk-line); overflow: hidden; }
-             .sk__groupHead { padding: 12px; background: #f8fafc; border-bottom: 1px solid var(--sk-line); }
-             .sk__groupTitle { font-weight: 800; font-size: 1rem; color: #0f172a; }
-             .sk__groupMeta { font-size: 0.8rem; color: #64748b; }
-             .sk__cardRow { padding: 12px; border-bottom: 1px solid #f1f5f9; }
-             .sk__cardRow:last-child { border-bottom: none; }
-             .sk__cardHead { display: flex; justify-content: space-between; align-items: flex-start; }
-             .sk__cardName { font-weight: 700; color: #0f172a; }
-             .sk__cardSub { font-size: 0.8rem; color: #64748b; }
-             .sk__moreBtn { background: none; border: none; font-size: 1.2rem; color: #94a3b8; cursor: pointer; }
+                .gm__search i {
+                    position: absolute;
+                    left: 10px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    color: rgba(100, 116, 139, 0.9);
+                    pointer-events: none;
+                    font-size: 0.9rem;
+                }
 
-             @media (max-width: 768px) {
-                 .sk__tableWrap { display: none; }
-                 .sk__cards { display: flex; }
-             }
+                .gm__search input {
+                    width: 100%;
+                    padding: 8px 10px 8px 30px;
+                    border: 1px solid rgba(148, 163, 184, 0.35);
+                    border-radius: 12px;
+                    background: rgba(255, 255, 255, 0.92);
+                    font-weight: 500;
+                    color: rgba(15, 23, 42, 0.92);
+                    outline: none;
+                    font-size: var(--gm-fs-sm);
+                    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+                }
 
-             /* Modal */
-             .sk__modalOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); padding: 20px; }
-             .sk__modal { background: white; width: 100%; max-width: 600px; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
-             .sk__modalHead { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; }
-             .sk__modalTitle h2 { margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a; }
-             .sk__modalTitle p { margin: 0; font-size: 0.85rem; color: #64748b; }
-             .sk__close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #94a3b8; }
-             .sk__modalBody { padding: 20px; overflow-y: auto; }
-             .sk__modalFoot { padding: 16px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; background: #f8fafc; }
-             .sk__btnGhost { background: transparent; color: #64748b; border: 1px solid #cbd5e1; }
-             
-             .sk__grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-             .sk__field { margin-bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
-             .sk__field label { font-size: 0.85rem; font-weight: 700; color: #334155; }
-             
-             .sk__multiSelect { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; max-height: 240px; overflow-y: auto; padding: 8px; border: 1px solid #cbd5e1; border-radius: 12px; }
-             .sk__msItem { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; }
-             .sk__msItem:hover { background: #f0f9ff; border-color: #3aa6ff; }
-             .sk__msItem.selected { background: #eff6ff; border-color: #3aa6ff; color: #1e40af; }
-             .sk__checkbox { width: 18px; height: 18px; border: 2px solid #cbd5e1; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
-             .sk__msItem.selected .sk__checkbox { background: #3aa6ff; border-color: #3aa6ff; color: white; }
-             .sk__hint { font-size: 0.8rem; color: #64748b; margin-top: 4px; font-style: italic; }
+                .gm__filters select {
+                    padding: 8px 10px;
+                    border: 1px solid rgba(148, 163, 184, 0.35);
+                    border-radius: 12px;
+                    background: rgba(255, 255, 255, 0.92);
+                    font-weight: 550;
+                    color: rgba(15, 23, 42, 0.86);
+                    outline: none;
+                    min-width: 138px;
+                    font-size: var(--gm-fs-sm);
+                }
 
-             /* Sheet */
-             .sk__sheetOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; align-items: flex-end; }
-             .sk__sheet { background: white; width: 100%; border-radius: 20px 20px 0 0; padding: 20px; animation: slideUp 0.2s; }
-             .sk__sheetHandle { width: 40px; height: 5px; background: #e2e8f0; border-radius: 99px; margin: 0 auto 20px auto; }
-             .sk__sheetTitle { text-align: center; margin-bottom: 24px; }
-             .sk__sheetName { font-weight: 800; font-size: 1.2rem; color: #0f172a; }
-             .sk__sheetSub { color: #64748b; }
-             .sk__sheetActions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
-             .sk__sheetBtn { background: #f8fafc; border: none; padding: 14px; border-radius: 12px; font-weight: 600; color: #334155; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
-             .sk__sheetBtn.danger { color: #ef4444; background: #fef2f2; }
-             .sk__sheetCancel { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #e2e8f0; background: white; font-weight: 700; color: #0f172a; }
+                .gm__search input:focus,
+                .gm__filters select:focus {
+                    border-color: rgba(58, 166, 255, 0.55);
+                    box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+                }
 
-             @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+                .gm__actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    flex: 0 0 auto;
+                }
+
+                .gm__btn {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    height: 38px;
+                    padding: 8px 12px;
+                    border-radius: 12px;
+                    border: 1px solid var(--gm-line);
+                    background: rgba(255, 255, 255, 0.78);
+                    color: rgba(7, 22, 46, 0.9);
+                    font-weight: 650;
+                    cursor: pointer;
+                    font-size: var(--gm-fs-sm);
+                    transition: transform 0.15s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+                    user-select: none;
+                    -webkit-tap-highlight-color: transparent;
+                    touch-action: manipulation;
+                    white-space: nowrap;
+                }
+
+                .gm__btn i {
+                    font-size: 1rem;
+                }
+
+                .gm__btn:hover {
+                    background: rgba(255, 255, 255, 0.92);
+                    border-color: rgba(58, 166, 255, 0.24);
+                    box-shadow: var(--gm-shadow2);
+                    transform: translateY(-1px);
+                }
+
+                .gm__btn:active {
+                    transform: translateY(0);
+                }
+
+                .gm__btnGhost {
+                    background: rgba(255, 255, 255, 0.78);
+                }
+
+                .gm__btnPrimary {
+                    background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
+                    border-color: rgba(58, 166, 255, 0.32);
+                    color: #fff;
+                    font-weight: 700;
+                }
+
+                .gm__btnExport {
+                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
+                    border-color: rgba(16, 185, 129, 0.28);
+                    color: #fff;
+                }
+
+                .gm__btnImport {
+                    background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
+                    border-color: rgba(245, 158, 11, 0.28);
+                    color: #fff;
+                }
+
+                .gm__tableWrap {
+                    width: 100%;
+                    min-width: 0;
+                    overflow: auto;
+                    border-radius: var(--gm-radius);
+                    border: 1px solid var(--gm-line);
+                    background: var(--gm-card);
+                    box-shadow: var(--gm-shadow);
+                }
+
+                .gm__table {
+                    width: 100%;
+                    border-collapse: separate;
+                    border-spacing: 0;
+                    min-width: 980px;
+                }
+
+                .gm__table thead th {
+                    position: sticky;
+                    top: 0;
+                    z-index: 1;
+                    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 250, 251, 0.98));
+                    color: rgba(7, 22, 46, 0.86);
+                    font-size: var(--gm-fs-xs);
+                    font-weight: 800;
+                    letter-spacing: 0.01em;
+                    text-align: left;
+                    padding: 10px 10px;
+                    border-bottom: 1px solid var(--gm-line);
+                    white-space: nowrap;
+                }
+
+                .gm__table tbody td {
+                    padding: 10px 10px;
+                    border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+                    color: rgba(15, 23, 42, 0.92);
+                    font-size: var(--gm-fs-sm);
+                    font-weight: 400;
+                    vertical-align: middle;
+                    background: rgba(255, 255, 255, 0.82);
+                }
+
+                .gm__table tbody tr:nth-child(even) td {
+                    background: rgba(248, 250, 252, 0.85);
+                }
+
+                .gm__table tbody tr:hover td {
+                    background: rgba(58, 166, 255, 0.05);
+                }
+
+                .gm__empty {
+                    text-align: center;
+                    padding: 18px 10px !important;
+                    font-weight: 600;
+                    font-size: var(--gm-fs-sm);
+                }
+
+                .gm__muted {
+                    color: rgba(100, 116, 139, 0.9) !important;
+                    font-weight: 400 !important;
+                }
+
+                .gm__loading {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 32px 16px;
+                    background: rgba(255, 255, 255, 0.85);
+                    border-radius: 16px;
+                    border: 1px solid rgba(15, 42, 86, 0.1);
+                }
+
+                .gm__loadingText {
+                    font-size: var(--gm-fs);
+                    font-weight: 600;
+                    color: rgba(15, 23, 42, 0.92);
+                    margin-bottom: 8px;
+                }
+
+                .gm__loadingSub {
+                    font-size: var(--gm-fs-sm);
+                    color: rgba(100, 116, 139, 0.9);
+                }
+
+                .gm__emptyState {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 32px 16px;
+                    background: rgba(255, 255, 255, 0.85);
+                    border-radius: 16px;
+                    border: 1px solid rgba(15, 42, 86, 0.1);
+                }
+
+                .gm__emptyText {
+                    font-size: var(--gm-fs);
+                    font-weight: 600;
+                    color: rgba(15, 23, 42, 0.92);
+                    margin-bottom: 8px;
+                }
+
+                .gm__emptySub {
+                    font-size: var(--gm-fs-sm);
+                    color: rgba(100, 116, 139, 0.9);
+                }
+
+                .cNo { width: 56px; }
+                .cNip { width: 170px; }
+                .cSemester { width: 120px; }
+                .cStatus { width: 120px; }
+                .cAksi { width: 120px; text-align: right; }
+
+                .tCenter { text-align: center; }
+                .tMono {
+                    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+                    font-size: var(--gm-fs-xs);
+                    font-weight: 400;
+                }
+                .tPlain { font-weight: 400; }
+
+                .gm__pill {
+                    display: inline-flex;
+                    align-items: center;
+                    padding: 5px 8px;
+                    border-radius: 999px;
+                    font-weight: 500;
+                    font-size: var(--gm-fs-xs);
+                    border: 1px solid transparent;
+                    white-space: nowrap;
+                }
+
+                .gm__pill.isGanjil {
+                    background: rgba(14, 165, 233, 0.12);
+                    border-color: rgba(14, 165, 233, 0.18);
+                    color: rgba(3, 105, 161, 1);
+                }
+
+                .gm__pill.isGenap {
+                    background: rgba(34, 197, 94, 0.12);
+                    border-color: rgba(34, 197, 94, 0.18);
+                    color: rgba(22, 163, 74, 1);
+                }
+
+                .gm__status {
+                    display: inline-flex;
+                    align-items: center;
+                    padding: 5px 8px;
+                    border-radius: 999px;
+                    font-weight: 500;
+                    font-size: var(--gm-fs-xs);
+                    border: 1px solid transparent;
+                    white-space: nowrap;
+                }
+
+                .gm__status.isOn {
+                    background: rgba(34, 197, 94, 0.12);
+                    border-color: rgba(34, 197, 94, 0.18);
+                    color: rgba(22, 163, 74, 1);
+                }
+                .gm__status.isOff {
+                    background: rgba(239, 68, 68, 0.1);
+                    border-color: rgba(239, 68, 68, 0.16);
+                    color: rgba(220, 38, 38, 1);
+                }
+
+                .gm__rowActions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 7px;
+                }
+
+                .gm__iconBtn {
+                    width: 34px;
+                    height: 34px;
+                    border-radius: 11px;
+                    border: 1px solid rgba(148, 163, 184, 0.22);
+                    background: rgba(255, 255, 255, 0.9);
+                    color: rgba(7, 22, 46, 0.9);
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: transform 0.15s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+                }
+
+                .gm__iconBtn:hover {
+                    box-shadow: var(--gm-shadow2);
+                    transform: translateY(-1px);
+                    border-color: rgba(58, 166, 255, 0.22);
+                }
+
+                .gm__iconBtn.danger {
+                    color: rgba(220, 38, 38, 1);
+                    border-color: rgba(239, 68, 68, 0.18);
+                    background: rgba(239, 68, 68, 0.06);
+                }
+
+                .gm__cards {
+                    display: none;
+                    flex-direction: column;
+                    gap: 12px;
+                }
+
+                .gm__group {
+                    border: 1px solid rgba(15, 42, 86, 0.1);
+                    border-radius: 16px;
+                    overflow: hidden;
+                    background: rgba(255, 255, 255, 0.85);
+                    box-shadow: 0 10px 22px rgba(2, 6, 23, 0.06);
+                }
+
+                .gm__groupHead {
+                    padding: 12px 14px;
+                    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+                    border-bottom: 1px solid rgba(15, 42, 86, 0.1);
+                    backdrop-filter: blur(8px);
+                    -webkit-backdrop-filter: blur(8px);
+                }
+
+                .gm__groupTitleRow {
+                    display: flex;
+                    align-items: baseline;
+                    justify-content: space-between;
+                    gap: 10px;
+                }
+
+                .gm__groupTitle {
+                    margin: 0;
+                    font-size: 0.92rem;
+                    font-weight: 850;
+                    color: rgba(11, 31, 58, 0.95);
+                }
+
+                .gm__groupMeta {
+                    font-size: 0.78rem;
+                    font-weight: 650;
+                    color: rgba(100, 116, 139, 0.92);
+                    white-space: nowrap;
+                }
+
+                .gm__groupNip {
+                    font-size: 0.76rem;
+                    font-weight: 600;
+                    color: rgba(100, 116, 139, 0.85);
+                    margin-top: 2px;
+                }
+
+                .gm__groupBody {
+                    padding: 12px 12px 2px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                }
+
+                .gm__card {
+                    background: #fff;
+                    border: 1px solid rgba(15, 42, 86, 0.14);
+                    border-radius: 16px;
+                    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+                    overflow: hidden;
+                }
+
+                .gm__cardHead {
+                    padding: 14px 14px 10px;
+                    background: linear-gradient(180deg, #ffffff, #fbfcff);
+                    border-bottom: 1px solid rgba(15, 42, 86, 0.08);
+                    display: flex;
+                    align-items: flex-start;
+                    justify-content: space-between;
+                    gap: 10px;
+                }
+
+                .gm__cardTitle {
+                    min-width: 0;
+                }
+
+                .gm__cardName {
+                    font-weight: 800;
+                    color: rgba(11, 31, 58, 0.95);
+                    font-size: 0.88rem;
+                    line-height: 1.25;
+                    white-space: normal;
+                    overflow: visible;
+                    text-overflow: unset;
+                    word-break: break-word;
+                }
+
+                .gm__cardSub {
+                    margin-top: 6px;
+                    color: rgba(100, 116, 139, 0.95);
+                    font-weight: 600;
+                    font-size: 0.82rem;
+                }
+
+                .gm__cardActions {
+                    display: flex;
+                    justify-content: space-between;
+                    flex: 0 0 auto;
+                }
+
+                .gm__cardActionsLeft {
+                    display: flex;
+                    gap: 12px;
+                }
+
+                .gm__cardFoot {
+                    padding: 12px 14px;
+                    background: rgba(15, 42, 86, 0.04);
+                    border-top: 1px solid rgba(15, 42, 86, 0.08);
+                }
+
+                .gm__cardStatus {
+                    display: flex;
+                    justify-content: flex-end;
+                }
+
+                .gm__modalOverlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(2, 6, 23, 0.55);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 9999;
+                    padding: 16px;
+                    padding-bottom: calc(16px + var(--gm-safe-b));
+                }
+
+                .gm__modal {
+                    width: min(680px, 100%);
+                    background: rgba(255, 255, 255, 0.96);
+                    border: 1px solid rgba(148, 163, 184, 0.22);
+                    border-radius: 16px;
+                    box-shadow: 0 28px 80px rgba(2, 6, 23, 0.35);
+                    overflow: hidden;
+                }
+
+                .gm__modalLarge {
+                    width: min(920px, 100%);
+                }
+
+                .gm__modalHead {
+                    display: flex;
+                    align-items: flex-start;
+                    justify-content: space-between;
+                    gap: 10px;
+                    padding: 14px 14px;
+                    background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+                    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+                }
+
+                .gm__modalTitle h2 {
+                    margin: 0 0 3px;
+                    font-size: 0.98rem;
+                    font-weight: 750;
+                    color: rgba(7, 22, 46, 0.96);
+                }
+
+                .gm__modalTitle p {
+                    margin: 0;
+                    font-size: var(--gm-fs-sm);
+                    font-weight: 500;
+                    color: rgba(100, 116, 139, 0.95);
+                }
+
+                .gm__close {
+                    width: 38px;
+                    height: 38px;
+                    border-radius: 12px;
+                    border: 1px solid rgba(148, 163, 184, 0.22);
+                    background: rgba(255, 255, 255, 0.9);
+                    color: rgba(7, 22, 46, 0.92);
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .gm__modalBody {
+                    padding: 14px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    max-height: min(72vh, 700px);
+                    overflow: auto;
+                }
+
+                .gm__modalFoot {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 8px;
+                    padding: 12px 14px;
+                    border-top: 1px solid rgba(148, 163, 184, 0.18);
+                    background: rgba(255, 255, 255, 0.92);
+                }
+
+                .gm__field label {
+                    display: block;
+                    font-size: var(--gm-fs-xs);
+                    font-weight: 650;
+                    color: rgba(7, 22, 46, 0.88);
+                    margin-bottom: 7px;
+                }
+
+                .gm__field input,
+                .gm__field select {
+                    width: 100%;
+                    padding: 8px 10px;
+                    border-radius: 12px;
+                    border: 1px solid rgba(148, 163, 184, 0.35);
+                    background: rgba(248, 250, 252, 0.9);
+                    color: rgba(15, 23, 42, 0.92);
+                    font-weight: 500;
+                    outline: none;
+                    font-size: var(--gm-fs-sm);
+                }
+
+                .gm__field input:focus,
+                .gm__field select:focus {
+                    border-color: rgba(58, 166, 255, 0.55);
+                    box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+                }
+
+                .gm__grid2 {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 10px;
+                }
+
+                .gm__z {
+                    position: relative;
+                    z-index: 50;
+                }
+
+                .gm__multi {
+                    border: 1px solid rgba(148, 163, 184, 0.22);
+                    background: rgba(15, 42, 86, 0.02);
+                    border-radius: 16px;
+                    padding: 10px;
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+                    gap: 10px;
+                    max-height: 340px;
+                    overflow: auto;
+                }
+
+                .gm__pick {
+                    width: 100%;
+                    border: 1px solid rgba(148, 163, 184, 0.22);
+                    background: rgba(255, 255, 255, 0.92);
+                    border-radius: 14px;
+                    padding: 10px 10px;
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 10px;
+                    cursor: pointer;
+                    text-align: left;
+                    transition: transform 0.12s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+                }
+
+                .gm__pick:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.1);
+                    border-color: rgba(58, 166, 255, 0.24);
+                    background: rgba(255, 255, 255, 0.98);
+                }
+
+                .gm__pick.isOn {
+                    border-color: rgba(58, 166, 255, 0.42);
+                    background: linear-gradient(135deg, rgba(58, 166, 255, 0.11), rgba(255, 255, 255, 0.98));
+                    box-shadow: 0 14px 22px rgba(58, 166, 255, 0.12);
+                }
+
+                .gm__check {
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 6px;
+                    border: 2px solid rgba(148, 163, 184, 0.55);
+                    background: #fff;
+                    color: #fff;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex: 0 0 auto;
+                    margin-top: 2px;
+                }
+
+                .gm__pick.isOn .gm__check {
+                    border-color: rgba(58, 166, 255, 0.72);
+                    background: rgba(58, 166, 255, 1);
+                }
+
+                .gm__pickInfo {
+                    min-width: 0;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                    flex: 1 1 auto;
+                }
+
+                .gm__pickName {
+                    font-weight: 800;
+                    color: rgba(11, 31, 58, 0.96);
+                    font-size: 0.92rem;
+                    line-height: 1.2;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+
+                .gm__hint {
+                    padding: 12px;
+                    border-radius: 12px;
+                    border: 1px solid rgba(148, 163, 184, 0.18);
+                    background: rgba(248, 250, 252, 0.92);
+                    text-align: center;
+                    font-size: var(--gm-fs-sm);
+                }
+
+                .gm__selectedCount {
+                    margin-top: 10px;
+                    font-size: var(--gm-fs-xs);
+                    color: rgba(100, 116, 139, 0.95);
+                    font-weight: 600;
+                }
+
+                .gm__cards { display: none; }
+                .gm__tableWrap { display: block; }
+
+                @media (max-width: 768px) {
+                    .gm__tableWrap { display: none; }
+                    .gm__cards { display: flex; flex-direction: column; gap: 12px; }
+                    .gm { padding-bottom: calc(92px + var(--gm-safe-b)); }
+                    .gm__actions {
+                        position: fixed;
+                        left: 12px;
+                        right: 12px;
+                        bottom: calc(10px + var(--gm-safe-b));
+                        z-index: 1000;
+                        padding: 10px;
+                        border-radius: 16px;
+                        border: 1px solid rgba(15, 42, 86, 0.16);
+                        background: rgba(255, 255, 255, 0.78);
+                        box-shadow: 0 18px 44px rgba(2, 6, 23, 0.14);
+                        backdrop-filter: blur(10px);
+                        -webkit-backdrop-filter: blur(10px);
+                        display: flex;
+                        gap: 10px;
+                        justify-content: space-between;
+                    }
+                    .gm__actions .gm__btn { flex: 1 1 0; justify-content: center; height: 44px; padding: 10px 12px; border-radius: 14px; }
+                    .gm__actions .gm__btn span { display: none; }
+                    .gm__filters { width: 100%; display: grid; grid-template-columns: 1fr; gap: 9px; }
+                    .gm__search { min-width: 0; }
+                    .gm__filters select { min-width: 0; width: 100%; }
+                }
+
+                @media (max-width: 420px) {
+                    .gm { padding: 12px; padding-bottom: calc(92px + var(--gm-safe-b)); }
+                    .gm__grid2 { grid-template-columns: 1fr; }
+                    .gm__multi { grid-template-columns: 1fr; max-height: 360px; }
+                }
+
+                @media (prefers-reduced-motion: reduce) {
+                    .gm__btn, .gm__iconBtn, .gm__pick { transition: none; }
+                    .gm__btn:hover, .gm__iconBtn:hover, .gm__pick:hover { transform: none; }
+                }
             `}</style>
         </div>
     )

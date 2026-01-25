@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '../ui/ImportModal'
 import SearchableSelect from '../ui/SearchableSelect'
+import Pagination from '../ui/Pagination'
 
 interface GuruAsuh {
   id?: number
@@ -28,6 +29,11 @@ export default function GuruAsuhTab() {
   const [saving, setSaving] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [totalItems, setTotalItems] = useState(0)
+
   // Selection States for new entry
   const [selectedNip, setSelectedNip] = useState('')
   const [selectedClass, setSelectedClass] = useState('')
@@ -49,6 +55,7 @@ export default function GuruAsuhTab() {
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
+      setCurrentPage(1)
       fetchData()
     }, 500)
     return () => clearTimeout(timeoutId)
@@ -108,15 +115,23 @@ export default function GuruAsuhTab() {
     const params = new URLSearchParams({
       q: searchTerm,
       tahun_ajaran: tahunAjaran === 'Semua' ? '' : tahunAjaran,
+      page: currentPage.toString(),
+      limit: pageSize.toString(),
     })
     try {
       const res = await fetch(`/api/settings/guru-asuh?${params}`)
       const json = await res.json()
-      if (json.ok) setList(json.data)
-      else setList([])
+      if (json.ok) {
+        setList(json.data)
+        setTotalItems(json.total || 0)
+      } else {
+        setList([])
+        setTotalItems(0)
+      }
     } catch (e) {
       console.error(e)
       setList([])
+      setTotalItems(0)
     } finally {
       setLoading(false)
     }
@@ -319,16 +334,16 @@ export default function GuruAsuhTab() {
     setShowModal(true)
   }
 
-  // ===== Mobile grouping per KELAS =====
+  // ===== Mobile grouping per GURU =====
   const groupedMobile = useMemo(() => {
     const map = new Map<string, GuruAsuh[]>()
     for (const item of list) {
-      const key = (item.kelas || '-').trim() || '-'
+      const key = (item.nama_guru || '-').trim() || '-'
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(item)
     }
     const keys = Array.from(map.keys()).sort((a, b) => a.localeCompare(b, 'id'))
-    return keys.map((k) => ({ kelas: k, items: map.get(k)! }))
+    return keys.map((k) => ({ guru: k, items: map.get(k)! }))
   }, [list])
 
   return (
@@ -436,36 +451,25 @@ export default function GuruAsuhTab() {
       {/* ===== Mobile Cards (Grouped by Kelas) ===== */}
       <div className="ga__cards" aria-label="Daftar Guru Asuh versi mobile">
         {loading ? (
-          <div className="ga__card">
-            <div className="ga__cardHead">
-              <div className="ga__cardTitle">
-                <div className="ga__cardName">Memuat data...</div>
-                <div className="ga__cardSub">Mohon tunggu</div>
-              </div>
-            </div>
-            <div className="ga__cardBody">
-              <div className="ga__kv">
-                <div className="ga__k">Status</div>
-                <div className="ga__v">Loading</div>
-              </div>
-            </div>
+          <div className="ga__loading">
+            <div className="ga__loadingText">Memuat data...</div>
+            <div className="ga__loadingSub">Mohon tunggu</div>
           </div>
         ) : list.length === 0 ? (
-          <div className="ga__card">
-            <div className="ga__cardHead">
-              <div className="ga__cardTitle">
-                <div className="ga__cardName">Tidak ada data</div>
-                <div className="ga__cardSub">Coba ubah filter</div>
-              </div>
-            </div>
+          <div className="ga__emptyState">
+            <div className="ga__emptyText">Tidak ada data</div>
+            <div className="ga__emptySub">Coba ubah filter</div>
           </div>
         ) : (
           groupedMobile.map((group) => (
-            <div className="ga__group" key={`g-${group.kelas}`}>
+            <div className="ga__group" key={`g-${group.guru}`}>
               <div className="ga__groupHead">
                 <div className="ga__groupTitleRow">
-                  <h3 className="ga__groupTitle">{group.kelas}</h3>
-                  <div className="ga__groupMeta">{group.items.length} data</div>
+                  <div>
+                    <h3 className="ga__groupTitle">{group.guru}</h3>
+                    <div className="ga__groupNip">NIP: {group.items[0]?.nip}</div>
+                  </div>
+                  <div className="ga__groupMeta">{group.items.length} siswa</div>
                 </div>
               </div>
 
@@ -481,51 +485,30 @@ export default function GuruAsuhTab() {
                           <span className="ga__mono">{item.nisn_siswa}</span>
                         </div>
                       </div>
-
-                      <div className="ga__cardActions">
-                        <button className="ga__iconBtn" onClick={() => handleEdit(item)} title="Edit" aria-label="Edit">
-                          <i className="bi bi-pencil" />
-                        </button>
-                        <button
-                          className="ga__iconBtn danger"
-                          onClick={() => item.id && handleDelete(item.id)}
-                          title="Hapus"
-                          aria-label="Hapus"
-                        >
-                          <i className="bi bi-trash" />
-                        </button>
-                      </div>
                     </div>
 
-                    <div className="ga__cardBody">
-                      <div className="ga__kv">
-                        <div className="ga__k">Guru</div>
-                        <div className="ga__v">{item.nama_guru}</div>
-                      </div>
-                      <div className="ga__kv">
-                        <div className="ga__k">NIP</div>
-                        <div className="ga__v ga__mono">{item.nip}</div>
-                      </div>
-                      <div className="ga__kv">
-                        <div className="ga__k">Tahun</div>
-                        <div className="ga__v">{item.tahun_ajaran}</div>
-                      </div>
-                      <div className="ga__kv">
-                        <div className="ga__k">Status</div>
-                        <div className="ga__v">
+
+
+                    <div className="ga__cardFoot">
+                      <div className="ga__cardActions">
+                        <div className="ga__cardStatus">
                           <span className={`ga__status ${item.aktif ? 'isOn' : 'isOff'}`}>
                             {item.aktif ? 'Aktif' : 'Non-Aktif'}
                           </span>
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="ga__cardFoot">
-                      <div className="ga__cardTags">
-                        <span className="ga__badge">{item.kelas || '-'}</span>
-                        <span className={`ga__status ${item.aktif ? 'isOn' : 'isOff'}`}>
-                          {item.aktif ? 'Aktif' : 'Non-Aktif'}
-                        </span>
+                        <div className="ga__cardActionsLeft">
+                          <button className="ga__iconBtn" onClick={() => handleEdit(item)} title="Edit" aria-label="Edit">
+                            <i className="bi bi-pencil" />
+                          </button>
+                          <button
+                            className="ga__iconBtn danger"
+                            onClick={() => item.id && handleDelete(item.id)}
+                            title="Hapus"
+                            aria-label="Hapus"
+                          >
+                            <i className="bi bi-trash" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -535,6 +518,21 @@ export default function GuruAsuhTab() {
           ))
         )}
       </div>
+
+      {/* ===== Pagination ===== */}
+      {totalItems > pageSize && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(totalItems / pageSize)}
+          limit={pageSize}
+          totalItems={totalItems}
+          onPageChange={setCurrentPage}
+          onLimitChange={(newLimit) => {
+            setCurrentPage(1)
+            setPageSize(newLimit)
+          }}
+        />
+      )}
 
       {/* ===== Modal Add/Edit ===== */}
       {showModal && (
@@ -895,6 +893,52 @@ export default function GuruAsuhTab() {
           font-weight: 400 !important;
         }
 
+        .ga__loading {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 32px 16px;
+          background: rgba(255, 255, 255, 0.85);
+          border-radius: 16px;
+          border: 1px solid rgba(15, 42, 86, 0.1);
+        }
+
+        .ga__loadingText {
+          font-size: var(--ga-fs);
+          font-weight: 600;
+          color: rgba(15, 23, 42, 0.92);
+          margin-bottom: 8px;
+        }
+
+        .ga__loadingSub {
+          font-size: var(--ga-fs-sm);
+          color: rgba(100, 116, 139, 0.9);
+        }
+
+        .ga__emptyState {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 32px 16px;
+          background: rgba(255, 255, 255, 0.85);
+          border-radius: 16px;
+          border: 1px solid rgba(15, 42, 86, 0.1);
+        }
+
+        .ga__emptyText {
+          font-size: var(--ga-fs);
+          font-weight: 600;
+          color: rgba(15, 23, 42, 0.92);
+          margin-bottom: 8px;
+        }
+
+        .ga__emptySub {
+          font-size: var(--ga-fs-sm);
+          color: rgba(100, 116, 139, 0.9);
+        }
+
         .cNo {
           width: 56px;
         }
@@ -1043,6 +1087,13 @@ export default function GuruAsuhTab() {
           white-space: nowrap;
         }
 
+        .ga__groupNip {
+          font-size: 0.76rem;
+          font-weight: 600;
+          color: rgba(100, 116, 139, 0.85);
+          margin-top: 2px;
+        }
+
         .ga__groupBody {
           padding: 12px 12px 2px;
           display: flex;
@@ -1076,7 +1127,7 @@ export default function GuruAsuhTab() {
         .ga__cardName {
           font-weight: 800;
           color: rgba(11, 31, 58, 0.95);
-          font-size: 0.98rem;
+          font-size: 0.88rem;
           line-height: 1.25;
           white-space: normal;
           overflow: visible;
@@ -1093,8 +1144,13 @@ export default function GuruAsuhTab() {
 
         .ga__cardActions {
           display: flex;
-          gap: 8px;
+          justify-content: space-between;
           flex: 0 0 auto;
+        }
+
+        .ga__cardActionsLeft {
+          display: flex;
+          gap: 12px;
         }
 
         .ga__cardBody {
@@ -1140,6 +1196,11 @@ export default function GuruAsuhTab() {
           flex-wrap: wrap;
           gap: 8px;
           align-items: center;
+        }
+
+        .ga__cardStatus {
+          display: flex;
+          justify-content: flex-end;
         }
 
         .ga__mono {

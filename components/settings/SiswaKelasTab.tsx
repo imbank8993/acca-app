@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '../ui/ImportModal'
 import SearchableSelect from '../ui/SearchableSelect'
+import Pagination from '../ui/Pagination'
 
 interface SiswaKelas {
   id?: number
@@ -21,11 +22,23 @@ export default function SiswaKelasTab() {
   const [semester, setSemester] = useState('Ganjil')
   const [filterKelas, setFilterKelas] = useState('Semua')
 
-  const [list, setList] = useState<SiswaKelas[]>([])
+  const [allData, setAllData] = useState<SiswaKelas[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+  const [totalItems, setTotalItems] = useState(0)
+
+  // Computed paginated list
+  const list = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    const end = start + pageSize
+    return allData.slice(start, end)
+  }, [allData, currentPage, pageSize])
 
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedStudent, setSelectedStudent] = useState('')
@@ -39,13 +52,6 @@ export default function SiswaKelasTab() {
   // Global Enrollments for Filtering
   const [allEnrollments, setAllEnrollments] = useState<SiswaKelas[]>([])
 
-  // Mobile sticky action state
-  const [mobileAction, setMobileAction] = useState<{
-    open: boolean
-    item: SiswaKelas | null
-    index: number
-  }>({ open: false, item: null, index: 0 })
-
   useEffect(() => {
     fetchMasterData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,6 +59,7 @@ export default function SiswaKelasTab() {
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
+      setCurrentPage(1)
       fetchData()
     }, 450)
     return () => clearTimeout(timeoutId)
@@ -60,18 +67,14 @@ export default function SiswaKelasTab() {
   }, [tahunAjaran, semester, filterKelas, searchTerm])
 
   useEffect(() => {
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize])
+
+  useEffect(() => {
     if (showModal) fetchAllEnrollmentsForContext()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showModal, tahunAjaran, semester])
-
-  // Close mobile action on escape
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMobileAction({ open: false, item: null, index: 0 })
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
 
   const fetchMasterData = async () => {
     try {
@@ -98,11 +101,17 @@ export default function SiswaKelasTab() {
     try {
       const res = await fetch(`/api/settings/siswa-kelas?${params}`)
       const json = await res.json()
-      if (json.ok) setList(json.data)
-      else setList([])
+      if (json.ok) {
+        setAllData(json.data || [])
+        setTotalItems(json.data?.length || 0)
+      } else {
+        setAllData([])
+        setTotalItems(0)
+      }
     } catch (err) {
       console.error(err)
-      setList([])
+      setAllData([])
+      setTotalItems(0)
     } finally {
       setLoading(false)
     }
@@ -332,24 +341,7 @@ export default function SiswaKelasTab() {
     return entries
   }, [list])
 
-  const openMobileAction = (item: SiswaKelas, index: number) => {
-    setMobileAction({ open: true, item, index })
-  }
 
-  const closeMobileAction = () => setMobileAction({ open: false, item: null, index: 0 })
-
-  const doMobileEdit = () => {
-    if (!mobileAction.item) return
-    closeMobileAction()
-    handleEdit(mobileAction.item)
-  }
-
-  const doMobileDelete = async () => {
-    if (!mobileAction.item?.id) return
-    const id = mobileAction.item.id
-    closeMobileAction()
-    await handleDelete(id)
-  }
 
   return (
     <div className="sk">
@@ -390,7 +382,7 @@ export default function SiswaKelasTab() {
         </div>
 
         <div className="sk__actions">
-          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Excel">
+          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
             <i className="bi bi-file-earmark-excel" /> <span>Export</span>
           </button>
 
@@ -544,30 +536,21 @@ export default function SiswaKelasTab() {
                         <div className="sk__cardName">{item.nama_siswa || '-'}</div>
                         <div className="sk__cardSub">{item.nisn}</div>
                       </div>
-
-                      <button
-                        className="sk__moreBtn"
-                        onClick={() => openMobileAction(item, idx)}
-                        aria-label="Aksi"
-                        title="Aksi"
-                      >
-                        <i className="bi bi-three-dots-vertical" />
-                      </button>
+                      <div className="sk__cardActions">
+                        <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
+                          <i className="bi bi-pencil" />
+                        </button>
+                        <button
+                          className="sk__iconBtn danger"
+                          onClick={() => item.id && handleDelete(item.id)}
+                          title="Hapus"
+                        >
+                          <i className="bi bi-trash" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="sk__cardBody">
-                      <div className="sk__kv">
-                        <div className="sk__k">Tahun</div>
-                        <div className="sk__v">{item.tahun_ajaran}</div>
-                      </div>
-                      <div className="sk__kv">
-                        <div className="sk__k">Semester</div>
-                        <div className="sk__v">
-                          <span className={`sk__pill ${item.semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>
-                            {item.semester}
-                          </span>
-                        </div>
-                      </div>
                       <div className="sk__kv">
                         <div className="sk__k">Status</div>
                         <div className="sk__v">
@@ -585,42 +568,19 @@ export default function SiswaKelasTab() {
         )}
       </div>
 
-      {/* ===== iOS-like Sticky Action Sheet (Mobile) ===== */}
-      {mobileAction.open && mobileAction.item && (
-        <div
-          className="sk__sheetOverlay"
-          role="dialog"
-          aria-modal="true"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeMobileAction()
+      {/* ===== Pagination ===== */}
+      {totalItems > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(totalItems / pageSize)}
+          limit={pageSize}
+          totalItems={totalItems}
+          onPageChange={setCurrentPage}
+          onLimitChange={(newLimit) => {
+            setCurrentPage(1)
+            setPageSize(newLimit)
           }}
-        >
-          <div className="sk__sheet">
-            <div className="sk__sheetHandle" aria-hidden="true" />
-            <div className="sk__sheetTitle">
-              <div className="sk__sheetName">{mobileAction.item.nama_siswa || '-'}</div>
-              <div className="sk__sheetSub">
-                {mobileAction.item.nisn} • {mobileAction.item.kelas}
-              </div>
-            </div>
-
-            <div className="sk__sheetActions">
-              <button className="sk__sheetBtn" onClick={doMobileEdit}>
-                <i className="bi bi-pencil" />
-                <span>Edit</span>
-              </button>
-
-              <button className="sk__sheetBtn danger" onClick={doMobileDelete}>
-                <i className="bi bi-trash" />
-                <span>Hapus</span>
-              </button>
-            </div>
-
-            <button className="sk__sheetCancel" onClick={closeMobileAction}>
-              Batal
-            </button>
-          </div>
-        </div>
+        />
       )}
 
       {/* ===== Modal Add/Edit ===== */}

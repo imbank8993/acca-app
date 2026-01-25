@@ -1,16 +1,16 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '../ui/ImportModal'
 
 interface Libur {
-  id?: number;
-  tanggal: string;
-  jam_ke: string;
-  keterangan: string;
-  tahun_ajaran: string;
-  tahun?: string;
+  id?: number
+  tanggal: string
+  jam_ke: string
+  keterangan: string
+  tahun_ajaran: string
+  tahun?: string
 }
 
 export default function LiburTab() {
@@ -33,6 +33,12 @@ export default function LiburTab() {
 
   // Master Waktu for Jam Ke options
   const [masterWaktu, setMasterWaktu] = useState<any[]>([])
+
+  // Mobile Action State
+  const [mobileAction, setMobileAction] = useState<{
+    open: boolean
+    item: Libur | null
+  }>({ open: false, item: null })
 
   useEffect(() => {
     fetchMasterWaktu()
@@ -83,7 +89,7 @@ export default function LiburTab() {
             tanggal: startDate,
             jam_ke: jamKe,
             keterangan,
-            tahun_ajaran: getTahunAjaranFromDate(startDate) // Still save tahun_ajaran for data integrity if needed elsewhere, or backend handles it. But let's calculate it.
+            tahun_ajaran: getTahunAjaranFromDate(startDate)
           })
         })
         const json = await res.json()
@@ -156,6 +162,7 @@ export default function LiburTab() {
       await fetch(`/api/settings/libur?id=${id}`, { method: 'DELETE' })
       fetchData()
     }
+    setMobileAction({ open: false, item: null })
   }
 
   const handleExport = () => {
@@ -180,30 +187,23 @@ export default function LiburTab() {
 
     if (!dateRaw || !ketRaw) return null;
 
-    // Parse Date
+    // Parse Date logic same as before...
     let dateResult = '';
     if (typeof dateRaw === 'number') {
-      // Excel Serial Date (e.g. 45000)
       const d = new Date(Math.round((dateRaw - 25569) * 86400 * 1000));
       dateResult = d.toISOString().split('T')[0];
     } else {
       const dateStr = String(dateRaw).trim();
-      // Try ISO (YYYY-MM-DD)
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         dateResult = dateStr;
       }
-      // Try DD/MM/YYYY or DD-MM-YYYY
       else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(dateStr)) {
         const parts = dateStr.split(/[\/\-]/);
-        // Ensure padding
         const day = parts[0].padStart(2, '0');
         const month = parts[1].padStart(2, '0');
         const year = parts[2];
-        // Convert to YYYY-MM-DD
         dateResult = `${year}-${month}-${day}`;
       }
-      // Try MM/DD/YYYY? Ambiguous, but assuming ID locale DD/MM usually.
-      // If parse fails, fallback to simple new Date()
       else {
         const d = new Date(dateStr);
         if (!isNaN(d.getTime())) {
@@ -212,45 +212,38 @@ export default function LiburTab() {
       }
     }
 
-    if (!dateResult || dateResult === 'Invalid Date') {
-      // Try one last hardcoded swap for M/D/Y if needed? 
-      // Ideally we log error, but for now skip or stick with basic
-      return null;
-    }
+    if (!dateResult || dateResult === 'Invalid Date') return null;
 
     return {
       tanggal: dateResult,
-      jam_ke: 'Semua', // Default for import
+      jam_ke: 'Semua',
       keterangan: String(ketRaw),
-      tahun_ajaran: getTahunAjaranFromDate(dateResult), // Helper
-      tahun: dateResult.substring(0, 4) // Derived from date
+      tahun_ajaran: getTahunAjaranFromDate(dateResult),
+      tahun: dateResult.substring(0, 4)
     }
   }
 
-
+  const openAdd = () => {
+    resetForm()
+    setShowModal(true)
+  }
 
   return (
-    <div className="tab-content pd-24">
-      <div className="action-bar mb-24 flex justify-between items-center gap-4 flex-wrap">
-        <div className="flex gap-2 bg-gray-50 p-2 rounded-lg items-center border border-gray-200">
-          <div className="search-container relative">
-            <i className="bi bi-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10"></i>
+    <div className="lb">
+      {/* ===== Toolbar ===== */}
+      <div className="lb__bar">
+        <div className="lb__filters">
+          <div className="lb__search">
+            <i className="bi bi-search" aria-hidden="true" />
             <input
               type="text"
               placeholder="Cari Keterangan..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-[250px]"
             />
           </div>
 
-          <div className="h-8 w-px bg-gray-300 mx-2"></div>
-
-          <select
-            value={tahun}
-            onChange={(e) => setTahun(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
-          >
+          <select value={tahun} onChange={(e) => setTahun(e.target.value)}>
             <option value="Semua">Semua Tahun</option>
             <option value="2024">2024</option>
             <option value="2025">2025</option>
@@ -259,24 +252,25 @@ export default function LiburTab() {
           </select>
         </div>
 
-        <div className="flex gap-2">
-          <button className="btn-secondary" onClick={handleExport}>
-            <i className="bi bi-file-earmark-excel"></i> Export
+        <div className="lb__actions">
+          <button className="lb__btn lb__btnExport" onClick={handleExport} title="Export Data">
+            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
           </button>
-          <button className="btn-secondary" onClick={() => setShowImportModal(true)}>
-            <i className="bi bi-upload"></i> Import
+          <button className="lb__btn lb__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+            <i className="bi bi-upload" /> <span>Import</span>
           </button>
-          <button className="btn-primary" onClick={() => { resetForm(); setShowModal(true); }}>
-            <i className="bi bi-plus-lg"></i> Tambah
+          <button className="lb__btn lb__btnPrimary" onClick={openAdd}>
+            <i className="bi bi-plus-lg" /> <span>Tambah</span>
           </button>
         </div>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
+      {/* ===== Table (Desktop) ===== */}
+      <div className="lb__tableWrap">
+        <table className="lb__table">
           <thead>
             <tr>
-              <th>No</th>
+              <th className="cNo">No</th>
               <th>Tanggal</th>
               <th>Jam Ke</th>
               <th>Keterangan</th>
@@ -286,66 +280,126 @@ export default function LiburTab() {
           <tbody>
             {!loading && list.map((item, index) => (
               <tr key={item.id}>
-                <td className="text-center">{index + 1}</td>
-                <td className="font-medium">{item.tanggal}</td>
-                <td className="font-mono">{item.jam_ke}</td>
-                <td>{item.keterangan}</td>
+                <td className="tCenter">{index + 1}</td>
+                <td className="tPlain font-medium">{item.tanggal}</td>
+                <td className="tMono">{item.jam_ke}</td>
+                <td className="tPlain">{item.keterangan}</td>
                 <td>
-                  <div className="flex gap-2">
-                    <button className="btn-icon" onClick={() => handleEdit(item)}><i className="bi bi-pencil"></i></button>
-                    <button className="btn-icon delete" onClick={() => item.id && handleDelete(item.id)}><i className="bi bi-trash"></i></button>
+                  <div className="lb__rowActions">
+                    <button className="lb__iconBtn" onClick={() => handleEdit(item)}><i className="bi bi-pencil" /></button>
+                    <button className="lb__iconBtn danger" onClick={() => item.id && handleDelete(item.id)}><i className="bi bi-trash" /></button>
                   </div>
                 </td>
               </tr>
             ))}
+            {loading && <tr><td colSpan={5} className="lb__empty">Memuat...</td></tr>}
+            {!loading && list.length === 0 && <tr><td colSpan={5} className="lb__empty lb__muted">Tidak ada data.</td></tr>}
           </tbody>
         </table>
       </div>
 
-      {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2>{editId ? 'Edit Data Libur' : 'Tambah Hari Libur'}</h2>
-              <button onClick={() => setShowModal(false)} className="close-btn">&times;</button>
-            </div>
-            <form onSubmit={handleSubmit}>
-              <div className="modal-body">
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Tanggal Mulai</label>
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required />
+      {/* ===== Mobile Cards ===== */}
+      <div className="lb__cards">
+        {loading ? <div className="lb__card p-4 text-center">Loading...</div> :
+          list.length === 0 ? <div className="lb__card p-4 text-center text-gray-500">Kosong</div> :
+            list.map((item, idx) => (
+              <div className="lb__card" key={idx}>
+                <div className="lb__cardHead">
+                  <div className="lb__cardTitle">
+                    <div className="lb__cardName">{item.keterangan}</div>
+                    <div className="lb__cardSub">{item.tanggal}</div>
                   </div>
-                  {!editId && (
-                    <div className="form-group">
-                      <label>Tanggal Selesai (Opsional)</label>
-                      <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} placeholder="Opsional untuk rentang" />
-                    </div>
-                  )}
-                  <div className="form-group">
-                    <label>Jam Ke</label>
-                    <select value={jamKe} onChange={e => setJamKe(e.target.value)} required className="w-full">
-                      <option value="Semua">Semua Jam</option>
-                      {masterWaktu.map(w => (
-                        <option key={w.id} value={w.jam_ke}>Jam Ke-{w.jam_ke} ({w.waktu_mulai}-{w.waktu_selesai})</option>
-                      ))}
-                    </select>
+                  <button className="lb__moreBtn" onClick={() => setMobileAction({ open: true, item: item })}>
+                    <i className="bi bi-three-dots-vertical" />
+                  </button>
+                </div>
+                <div className="lb__cardBody">
+                  <div className="lb__kv">
+                    <div className="lb__k">Jam</div>
+                    <div className="lb__v">{item.jam_ke}</div>
                   </div>
-                  <div className="form-group full">
-                    <label>Keterangan</label>
-                    <textarea value={keterangan} onChange={e => setKeterangan(e.target.value)} required placeholder="Alasan libur..." />
+                  <div className="lb__kv">
+                    <div className="lb__k">Tahun Ajaran</div>
+                    <div className="lb__v">{item.tahun_ajaran}</div>
                   </div>
                 </div>
               </div>
-              <div className="modal-footer">
-                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Batal</button>
-                <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
+            ))
+        }
+      </div>
+
+      {/* Mobile Action Sheet */}
+      {mobileAction.open && mobileAction.item && (
+        <div className="lb__sheetOverlay" onClick={(e) => e.target === e.currentTarget && setMobileAction({ open: false, item: null })}>
+          <div className="lb__sheet">
+            <div className="lb__sheetHandle"></div>
+            <div className="lb__sheetTitle">
+              <div className="lb__sheetName">{mobileAction.item.keterangan}</div>
+              <div className="lb__sheetSub">{mobileAction.item.tanggal}</div>
+            </div>
+            <div className="lb__sheetActions">
+              <button className="lb__sheetBtn" onClick={() => { setMobileAction({ open: false, item: null }); handleEdit(mobileAction.item!); }}>
+                <i className="bi bi-pencil" /> Edit
+              </button>
+              <button className="lb__sheetBtn danger" onClick={() => mobileAction.item?.id && handleDelete(mobileAction.item.id)}>
+                <i className="bi bi-trash" /> Hapus
+              </button>
+            </div>
+            <button className="lb__sheetCancel" onClick={() => setMobileAction({ open: false, item: null })}>Batal</button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Modal ===== */}
+      {showModal && (
+        <div className="lb__modalOverlay">
+          <div className="lb__modal">
+            <div className="lb__modalHead">
+              <div className="lb__modalTitle">
+                <h2>{editId ? 'Edit Data Libur' : 'Tambah Hari Libur'}</h2>
+                <p>{startDate || 'Input data libur baru'}</p>
+              </div>
+              <button onClick={() => setShowModal(false)} className="lb__close"><i className="bi bi-x-lg" /></button>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <div className="lb__modalBody">
+                <div className="lb__grid2">
+                  <div className="lb__field">
+                    <label>Mulai Tanggal</label>
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required />
+                  </div>
+                  {!editId && (
+                    <div className="lb__field">
+                      <label>Sampai Tanggal (Opsional)</label>
+                      <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="lb__field">
+                  <label>Keterangan</label>
+                  <textarea value={keterangan} onChange={e => setKeterangan(e.target.value)} required placeholder="Contoh: Libur Nasional..." />
+                </div>
+
+                <div className="lb__field">
+                  <label>Berlaku untuk Jam</label>
+                  <select value={jamKe} onChange={e => setJamKe(e.target.value)}>
+                    <option value="Semua">Semua Jam</option>
+                    {masterWaktu.map(w => (
+                      <option key={w.id} value={w.jam_ke}>Jam Ke-{w.jam_ke} ({w.waktu_mulai}-{w.waktu_selesai})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="lb__modalFoot">
+                <button type="button" className="lb__btn lb__btnGhost" onClick={() => setShowModal(false)}>Batal</button>
+                <button type="submit" className="lb__btn lb__btnPrimary" disabled={saving}>{saving ? '...' : 'Simpan'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
-      {/* Import Modal */}
+
       <ImportModal
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
@@ -357,323 +411,93 @@ export default function LiburTab() {
       />
 
       <style jsx>{`
-  :global(:root){
-    /* Smooth Navy System */
-    --bg: #f6f8fc;
-    --card: rgba(255,255,255,.92);
-    --card-solid: #ffffff;
+        :global(:root) {
+           --lb-line: rgba(148, 163, 184, 0.22);
+           --lb-card: rgba(255, 255, 255, 0.92);
+           --lb-shadow: 0 14px 34px rgba(2, 6, 23, 0.08);
+           --lb-shadow2: 0 10px 22px rgba(2, 6, 23, 0.08);
+           --lb-radius: 16px;
+           --lb-fs: 0.88rem;
+           --lb-safe-b: env(safe-area-inset-bottom, 0px);
+        }
 
-    --text: #0f172a;
-    --muted: #64748b;
+        .lb {
+            width: 100%; display: flex; flex-direction: column; gap: 10px; font-size: var(--lb-fs);
+            padding: 16px; background: #f5f7fb; border-radius: 16px; padding-bottom: calc(16px + var(--lb-safe-b));
+        }
 
-    --navy: #0b1f3b;
-    --navy-2: #0f2a56;
-    --accent: #3aa6ff;
+        .lb__bar { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+        .lb__filters { flex: 1 1 400px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px; background: rgba(255,255,255,0.72); border-radius: 16px; border: 1px solid var(--lb-line); box-shadow: var(--lb-shadow2); }
+        .lb__search { position: relative; flex: 1 1 200px; }
+        .lb__search i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #64748b; pointer-events: none; }
+        .lb__search input, select { width: 100%; padding: 8px 10px 8px 30px; border: 1px solid #cbd5e1; border-radius: 12px; background: white; font-weight: 500; font-size: 0.9rem; }
+        select { padding-left: 10px; cursor: pointer; }
 
-    --line: rgba(148,163,184,.35);
-    --line-2: rgba(148,163,184,.22);
+        .lb__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        @media (max-width: 640px) { .lb__actions { width: 100%; } .lb__btn { flex: 1; justify-content: center; } }
 
-    --shadow-soft: 0 12px 32px rgba(2,6,23,.10);
-    --shadow-mini: 0 6px 18px rgba(2,6,23,.08);
+        .lb__btn { border: none; padding: 8px 14px; border-radius: 12px; cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 6px; font-size: 0.9rem; transition: transform 0.1s; white-space: nowrap; }
+        .lb__btn:hover { transform: translateY(-1px); }
+        .lb__btnPrimary { background: linear-gradient(135deg, #3aa6ff 0%, #0f2a56 100%); color: white; box-shadow: 0 8px 16px rgba(15,42,86,.15); }
+        .lb__btnGhost { background: transparent; color: #64748b; border: 1px solid #cbd5e1; }
+        .lb__btn.lb__btnExport, .lb__btn.lb__btnImport { background: white; border: 1px solid var(--lb-line); color: #0f172a; }
 
-    --radius: 16px;
-    --radius-sm: 12px;
+        /* Table */
+        .lb__tableWrap { border-radius: 16px; overflow: hidden; border: 1px solid var(--lb-line); box-shadow: var(--lb-shadow2); background: white; }
+        .lb__table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .lb__table th { background: #f8fafc; padding: 12px 14px; text-align: left; font-weight: 700; color: #0f2a56; border-bottom: 1px solid var(--lb-line); position: sticky; top: 0; }
+        .lb__table td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; color: #334155; }
+        .lb__rowActions { display: flex; gap: 6px; }
+        .lb__iconBtn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: white; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #64748b; }
+        .lb__iconBtn:hover { background: #f1f5f9; color: #0f172a; }
+        .lb__iconBtn.danger:hover { background: #fee2e2; color: #ef4444; border-color: #fca5a5; }
 
-    --safe-b: env(safe-area-inset-bottom, 0px);
-    --safe-t: env(safe-area-inset-top, 0px);
-  }
+        .tCenter { text-align: center; }
+        .tMono { font-family: monospace; }
+        
+        /* Mobile Cards */
+        .lb__cards { display: none; flex-direction: column; gap: 12px; }
+        .lb__card { background: white; border-radius: 16px; border: 1px solid var(--lb-line); padding: 12px; }
+        .lb__cardHead { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .lb__cardTitle .lb__cardName { font-weight: 700; color: #0f172a; }
+        .lb__cardTitle .lb__cardSub { font-size: 0.8rem; color: #64748b; }
+        .lb__moreBtn { background: none; border: none; font-size: 1.2rem; color: #94a3b8; }
+        .lb__cardBody { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85rem; }
+        .lb__kv .lb__k { color: #64748b; font-size: 0.75rem; }
+        .lb__kv .lb__v { font-weight: 600; color: #0f172a; }
 
-  /* ===== Layout ===== */
-  .pd-24{
-    padding: 20px;
-  }
-  @media (max-width: 420px){
-    .pd-24{ padding: 14px; }
-  }
+        @media (max-width: 768px) {
+            .lb__tableWrap { display: none; }
+            .lb__cards { display: flex; }
+        }
 
-  .action-bar{
-    display:flex;
-    align-items:center;
-    justify-content: space-between;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
+        /* Modal */
+        .lb__modalOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); padding: 20px; }
+        .lb__modal { background: white; width: 100%; max-width: 500px; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
+        .lb__modalHead { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; }
+        .lb__modalTitle h2 { margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a; }
+        .lb__close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #94a3b8; }
+        .lb__modalBody { padding: 20px; overflow-y: auto; }
+        .lb__modalFoot { padding: 16px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; background: #f8fafc; }
+        
+        .lb__grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .lb__field { margin-bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+        .lb__field label { font-size: 0.85rem; font-weight: 700; color: #334155; }
+        .lb__field textarea { min-height: 80px; resize: vertical; }
 
-  /* ===== Table ===== */
-  .data-table{
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    background: rgba(255,255,255,.88);
-    border: 1px solid var(--line-2);
-    border-radius: var(--radius);
-    overflow: hidden;
-    box-shadow: var(--shadow-mini);
-  }
+        /* Sheet */
+        .lb__sheetOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; align-items: flex-end; }
+        .lb__sheet { background: white; width: 100%; border-radius: 20px 20px 0 0; padding: 20px; animation: slideUp 0.2s; }
+        .lb__sheetHandle { width: 40px; height: 5px; background: #e2e8f0; border-radius: 99px; margin: 0 auto 20px auto; }
+        .lb__sheetTitle { text-align: center; margin-bottom: 24px; }
+        .lb__sheetName { font-weight: 800; font-size: 1.2rem; color: #0f172a; }
+        .lb__sheetActions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+        .lb__sheetBtn { background: #f8fafc; border: none; padding: 14px; border-radius: 12px; font-weight: 600; color: #334155; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .lb__sheetBtn.danger { color: #ef4444; background: #fef2f2; }
+        .lb__sheetCancel { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #e2e8f0; background: white; font-weight: 700; color: #0f172a; }
 
-  .data-table th,
-  .data-table td{
-    padding: 12px 16px;
-    text-align: left;
-    border-bottom: 1px solid rgba(148,163,184,.22);
-    vertical-align: middle;
-  }
-
-  .data-table th{
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: linear-gradient(180deg, #f8fafc, #ffffff);
-    font-weight: 800;
-    color: var(--navy-2);
-    font-size: .92rem;
-    letter-spacing: .01em;
-  }
-
-  .data-table td{
-    color: rgba(15,23,42,.88);
-    font-size: .95rem;
-    font-weight: 550;
-  }
-
-  .data-table tbody tr:nth-child(odd) td{
-    background: rgba(15,42,86,.015);
-  }
-  .data-table tbody tr:hover td{
-    background: rgba(58,166,255,.06);
-  }
-
-  @media (max-width: 420px){
-    .data-table{
-      display:block;
-      overflow-x:auto;
-      -webkit-overflow-scrolling: touch;
-      border-radius: 14px;
-    }
-    .data-table th,
-    .data-table td{
-      padding: 10px 12px;
-      font-size: .9rem;
-      white-space: nowrap;
-    }
-  }
-
-  /* ===== Buttons ===== */
-  .btn-primary,
-  .btn-secondary{
-    border: 1px solid transparent;
-    padding: 10px 14px;
-    border-radius: 12px;
-    cursor: pointer;
-    font-weight: 750;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 40px;
-    transition: transform .15s ease, box-shadow .15s ease, background .15s ease, filter .15s ease;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-
-  .btn-primary{
-    color: #fff;
-    background: linear-gradient(135deg, #3aa6ff, #0f2a56);
-    box-shadow: 0 10px 22px rgba(15,42,86,.18);
-  }
-  .btn-primary:hover{
-    filter: brightness(1.03);
-    transform: translateY(-1px);
-  }
-  .btn-primary:active{
-    transform: translateY(0) scale(.99);
-  }
-
-  .btn-secondary{
-    background: rgba(15,23,42,.04);
-    color: rgba(15,23,42,.82);
-    border-color: var(--line);
-    box-shadow: var(--shadow-mini);
-  }
-  .btn-secondary:hover{
-    background: rgba(15,23,42,.06);
-    transform: translateY(-1px);
-  }
-  .btn-secondary:active{
-    transform: translateY(0) scale(.99);
-  }
-
-  .btn-icon{
-    width: 36px;
-    height: 36px;
-    border-radius: 12px;
-    border: 1px solid var(--line);
-    background: rgba(255,255,255,.9);
-    color: rgba(15,23,42,.7);
-    cursor: pointer;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    box-shadow: var(--shadow-mini);
-    transition: background .15s ease, transform .15s ease, color .15s ease;
-  }
-  .btn-icon:hover{
-    background: rgba(15,23,42,.03);
-    transform: translateY(-1px);
-  }
-  .btn-icon.delete:hover{
-    background: rgba(239,68,68,.10);
-    color: #991b1b;
-    border-color: rgba(239,68,68,.22);
-  }
-
-  /* ===== Modal ===== */
-  .modal-overlay{
-    position: fixed;
-    inset: 0;
-    background:
-      radial-gradient(900px 450px at 10% 0%, rgba(58,166,255,.10), transparent 55%),
-      rgba(2,6,23,.52);
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    z-index: 1000;
-    padding: 18px 14px;
-    padding-bottom: calc(18px + var(--safe-b));
-  }
-
-  .modal-content{
-    background: var(--card);
-    border-radius: 18px;
-    width: 100%;
-    max-width: 600px;
-    box-shadow: var(--shadow-soft);
-    border: 1px solid var(--line-2);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
-
-  .modal-header{
-    padding: 18px 20px;
-    border-bottom: 1px solid var(--line-2);
-    display:flex;
-    justify-content: space-between;
-    align-items: center;
-    background: linear-gradient(180deg, #f8fafc, #ffffff);
-  }
-  .modal-header h2{
-    font-size: 1.12rem;
-    font-weight: 800;
-    color: var(--navy-2);
-    margin: 0;
-  }
-
-  .modal-body{
-    padding: 18px 20px;
-  }
-
-  .modal-footer{
-    padding: 16px 20px;
-    border-top: 1px solid var(--line-2);
-    display:flex;
-    justify-content: flex-end;
-    gap: 10px;
-    background: linear-gradient(180deg, #ffffff, #f8fafc);
-  }
-
-  .close-btn{
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
-    background: rgba(15,23,42,.04);
-    border: 1px solid var(--line);
-    font-size: 1.25rem;
-    cursor: pointer;
-    color: rgba(15,23,42,.62);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    transition: background .15s ease, transform .15s ease;
-  }
-  .close-btn:hover{
-    background: rgba(15,23,42,.06);
-    transform: translateY(-1px);
-  }
-
-  /* ===== Forms ===== */
-  .form-grid{
-    display:grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-  @media (max-width: 640px){
-    .form-grid{
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .form-group{
-    display:flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .form-group.full{
-    grid-column: span 2;
-  }
-  @media (max-width: 640px){
-    .form-group.full{
-      grid-column: span 1;
-    }
-  }
-
-  label{
-    font-size: .9rem;
-    font-weight: 700;
-    color: rgba(15,23,42,.90);
-  }
-
-  input, select, textarea{
-    padding: 10px 12px;
-    border: 1px solid rgba(148,163,184,.35);
-    border-radius: 12px;
-    font-size: .95rem;
-    color: rgba(15,23,42,.92);
-    font-weight: 600;
-    background: rgba(255,255,255,.92);
-    transition: border-color .15s ease, box-shadow .15s ease;
-  }
-
-  textarea{
-    min-height: 90px;
-    resize: vertical;
-  }
-
-  input:focus,
-  select:focus,
-  textarea:focus{
-    outline: none;
-    border-color: rgba(58,166,255,.55);
-    box-shadow: 0 0 0 4px rgba(58,166,255,.16);
-    background: #fff;
-  }
-
-  /* ===== Utilities ===== */
-  .font-mono{
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  }
-  .font-medium{ font-weight: 600; }
-  .mb-24{ margin-bottom: 24px; }
-
-  @media (prefers-reduced-motion: reduce){
-    .btn-primary, .btn-secondary, .btn-icon, .close-btn{
-      transition: none;
-    }
-    .btn-primary:hover, .btn-secondary:hover, .btn-icon:hover, .close-btn:hover{
-      transform: none;
-    }
-  }
-`}</style>
-
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+      `}</style>
     </div>
   )
 }
