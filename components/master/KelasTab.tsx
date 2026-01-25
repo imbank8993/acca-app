@@ -370,50 +370,37 @@ export default function KelasTab() {
             </div>
           </div>
         ) : (
-          groupedMobile.map(([tingkat, items]) => (
-            <section key={`grp-${tingkat}`} className="sk__group">
-              <div className="sk__groupHead">
-                <div className="sk__groupLeft">
-                  <div className="sk__groupTitle">Tingkat {tingkat}</div>
-                  <div className="sk__groupMeta">{items.length} kelas</div>
+          kelasList.map((kelas, idx) => (
+            <div className="sk__card sk__cardRow" key={`m-${kelas.id}-${idx}`}>
+              <div className="sk__cardHead">
+                <div className="sk__cardTitle">
+                  <div className="sk__cardName">{kelas.nama || '-'}</div>
+                  <div className="sk__cardSub">{kelas.program || 'Reguler'}</div>
                 </div>
               </div>
 
-              <div className="sk__groupList">
-                {items.map((kelas, idx) => (
-                  <div className="sk__card sk__cardRow" key={`m-${kelas.id}-${idx}`}>
-                    <div className="sk__cardHead">
-                      <div className="sk__cardTitle">
-                        <div className="sk__cardName">{kelas.nama || '-'}</div>
-                        <div className="sk__cardSub">{kelas.program || 'Reguler'}</div>
-                      </div>
-                    </div>
-
-                    <div className="sk__cardBody">
-                      <div className="sk__statusRow">
-                        <div className="sk__statusLeft">
-                          <span className={`sk__status ${kelas.aktif ? 'isOn' : 'isOff'}`}>
-                            {kelas.aktif ? 'Aktif' : 'Non-Aktif'}
-                          </span>
-                        </div>
-                        <div className="sk__actionsRight">
-                          <button className="sk__iconBtn" onClick={() => handleEdit(kelas)} title="Edit">
-                            <i className="bi bi-pencil" />
-                          </button>
-                          <button
-                            className="sk__iconBtn danger"
-                            onClick={() => handleDelete(kelas.id)}
-                            title="Hapus"
-                          >
-                            <i className="bi bi-trash" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+              <div className="sk__cardBody">
+                <div className="sk__statusRow">
+                  <div className="sk__statusLeft">
+                    <span className={`sk__status ${kelas.aktif ? 'isOn' : 'isOff'}`}>
+                      {kelas.aktif ? 'Aktif' : 'Non-Aktif'}
+                    </span>
                   </div>
-                ))}
+                  <div className="sk__actionsRight">
+                    <button className="sk__iconBtn" onClick={() => handleEdit(kelas)} title="Edit">
+                      <i className="bi bi-pencil" />
+                    </button>
+                    <button
+                      className="sk__iconBtn danger"
+                      onClick={() => handleDelete(kelas.id)}
+                      title="Hapus"
+                    >
+                      <i className="bi bi-trash" />
+                    </button>
+                  </div>
+                </div>
               </div>
-            </section>
+            </div>
           ))
         )}
       </div>
@@ -545,9 +532,9 @@ export default function KelasTab() {
   flex-direction: column;
   gap: 10px;
   font-size: var(--sk-fs);
-  padding: 16px;
-  background: #f5f7fb;
-  border-radius: 16px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
   padding-bottom: calc(16px + var(--sk-safe-b));
 }
 
@@ -1073,7 +1060,7 @@ export default function KelasTab() {
   }
 
   .sk {
-    padding-bottom: calc(86px + var(--sk-safe-b));
+    padding-bottom: calc(0px + var(--sk-safe-b));
   }
 
   .sk__filterBar {
@@ -1088,34 +1075,22 @@ export default function KelasTab() {
   }
 
   .sk__actions {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: calc(10px + var(--sk-safe-b));
-    z-index: 1000;
-    padding: 10px;
-    border-radius: 16px;
-    border: 1px solid rgba(15, 42, 86, 0.16);
-    background: rgba(255, 255, 255, 0.78);
-    box-shadow: 0 18px 44px rgba(2, 6, 23, 0.14);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    width: 100%;
     display: flex;
-    gap: 10px;
-    justify-content: space-between;
-    margin-left: 0;
+    gap: 6px;
+    margin-bottom: 12px;
   }
 
   .sk__actions .sk__btn {
-    flex: 1 1 0;
+    flex: 1;
+    height: 40px;
+    padding: 9px 8px;
     justify-content: center;
-    height: 44px;
-    padding: 10px 12px;
-    border-radius: 14px;
+    min-width: 0;
   }
 
   .sk__actions .sk__btn span {
-    display: none;
+    font-size: 0.75rem;
   }
 
   .sk__modal {
@@ -1170,3 +1145,5 @@ export default function KelasTab() {
     </div>
   )
 }
+
+

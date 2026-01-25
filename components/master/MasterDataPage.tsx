@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import SiswaTab from './SiswaTab'
 import GuruTab from './GuruTab'
 import KelasTab from './KelasTab'
@@ -9,8 +9,21 @@ import WaktuTab from './WaktuTab'
 
 type TabType = 'siswa' | 'guru' | 'mapel' | 'kelas' | 'waktu'
 
+const tabs = [
+  { key: 'siswa', label: 'Siswa', icon: 'bi-people' },
+  { key: 'guru', label: 'Guru', icon: 'bi-person-badge' },
+  { key: 'mapel', label: 'Mapel', icon: 'bi-book' },
+  { key: 'kelas', label: 'Kelas', icon: 'bi-door-open' },
+  { key: 'waktu', label: 'Waktu', icon: 'bi-clock' },
+]
+
 export default function MasterDataPage() {
   const [activeTab, setActiveTab] = useState<TabType>('siswa')
+  const tabsHeaderRef = useRef<HTMLDivElement>(null)
+
+  const activeIndex = tabs.findIndex(tab => tab.key === activeTab)
+
+  // Removed auto-centering on mobile to allow free scrolling
 
   return (
     <div className="md-page">
@@ -33,74 +46,24 @@ export default function MasterDataPage() {
 
       {/* Tabs */}
       <div className="md-card">
-        <div className="md-tabsHeader" role="tablist" aria-label="Master Data Tabs">
-          <button
-            role="tab"
-            aria-selected={activeTab === 'siswa'}
-            className={`md-tab ${activeTab === 'siswa' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('siswa')}
-            type="button"
-          >
-            <span className="md-tabIcon" aria-hidden="true">
-              <i className="bi bi-people"></i>
-            </span>
-            <span className="md-tabText">Siswa</span>
-          </button>
+        <div className="md-tabsHeader" ref={tabsHeaderRef} role="tablist" aria-label="Master Data Tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              className={`md-tab ${activeTab === tab.key ? 'is-active' : ''}`}
+              onClick={() => setActiveTab(tab.key as TabType)}
+              type="button"
+            >
+              <span className="md-tabIcon" aria-hidden="true">
+                <i className={`bi ${tab.icon}`}></i>
+              </span>
+              <span className="md-tabText">{tab.label}</span>
+            </button>
+          ))}
 
-          <button
-            role="tab"
-            aria-selected={activeTab === 'guru'}
-            className={`md-tab ${activeTab === 'guru' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('guru')}
-            type="button"
-          >
-            <span className="md-tabIcon" aria-hidden="true">
-              <i className="bi bi-person-badge"></i>
-            </span>
-            <span className="md-tabText">Guru</span>
-          </button>
 
-          <button
-            role="tab"
-            aria-selected={activeTab === 'mapel'}
-            className={`md-tab ${activeTab === 'mapel' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('mapel')}
-            type="button"
-          >
-            <span className="md-tabIcon" aria-hidden="true">
-              <i className="bi bi-book"></i>
-            </span>
-            <span className="md-tabText">Mapel</span>
-          </button>
-
-          <button
-            role="tab"
-            aria-selected={activeTab === 'kelas'}
-            className={`md-tab ${activeTab === 'kelas' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('kelas')}
-            type="button"
-          >
-            <span className="md-tabIcon" aria-hidden="true">
-              <i className="bi bi-door-open"></i>
-            </span>
-            <span className="md-tabText">Kelas</span>
-          </button>
-
-          <button
-            role="tab"
-            aria-selected={activeTab === 'waktu'}
-            className={`md-tab ${activeTab === 'waktu' ? 'is-active' : ''}`}
-            onClick={() => setActiveTab('waktu')}
-            type="button"
-          >
-            <span className="md-tabIcon" aria-hidden="true">
-              <i className="bi bi-clock"></i>
-            </span>
-            <span className="md-tabText">Waktu</span>
-          </button>
-
-          {/* soft underline indicator */}
-          <span className={`md-ink md-ink--${activeTab}`} aria-hidden="true" />
         </div>
 
         <div className="md-body" role="tabpanel">
@@ -162,7 +125,7 @@ export default function MasterDataPage() {
         }
 
         .md-header__inner {
-          padding: 14px 0 6px;
+          padding: 16px 0 8px;
         }
 
         .md-titleWrap {
@@ -202,19 +165,19 @@ export default function MasterDataPage() {
 
         .md-title {
           margin: 0;
-          font-size: 1.22rem;
-          line-height: 1.2;
+          font-size: 1.3rem;
+          line-height: 1.25;
           color: var(--md-text);
           letter-spacing: -0.01em;
-          font-weight: 650;
+          font-weight: 600;
         }
 
         .md-sub {
-          margin: 6px 0 0;
+          margin: 8px 0 0;
           color: var(--md-muted);
-          font-size: 0.92rem;
-          line-height: 1.35;
-          font-weight: 420;
+          font-size: 1rem;
+          line-height: 1.4;
+          font-weight: 400;
         }
 
         /* Card wrapper */
@@ -234,7 +197,7 @@ export default function MasterDataPage() {
           gap: 8px;
 
           /* ✅ FIX: beri ruang kiri/kanan agar pill pertama tidak kepotong */
-          padding: 12px 14px 10px;
+          padding: 14px 16px 12px;
 
           border-bottom: 1px solid var(--md-line);
           background: linear-gradient(180deg, rgba(247, 250, 255, 1), rgba(255, 255, 255, 1));
@@ -249,8 +212,8 @@ export default function MasterDataPage() {
           -ms-overflow-style: none;
 
           /* ✅ agar saat swipe, start tidak mepet */
-          scroll-padding-left: 14px;
-          scroll-padding-right: 14px;
+          scroll-padding-left: 16px;
+          scroll-padding-right: 16px;
 
           /* opsional: feel lebih premium */
           scroll-snap-type: x proximity;
@@ -263,10 +226,10 @@ export default function MasterDataPage() {
 
         .md-tab {
           appearance: none;
-          border: 1px solid rgba(16, 42, 79, 0.10);
-          background: rgba(255, 255, 255, 0.86);
+          border: none;
+          background: transparent;
           color: rgba(11, 31, 58, 0.70);
-          border-radius: 999px;
+          border-radius: 0;
           padding: 10px 12px;
           cursor: pointer;
 
@@ -275,8 +238,7 @@ export default function MasterDataPage() {
           gap: 8px;
           white-space: nowrap;
 
-          transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease,
-            background 0.12s ease, color 0.12s ease;
+          transition: color 0.12s ease;
 
           user-select: none;
           font-weight: 520;
@@ -302,26 +264,35 @@ export default function MasterDataPage() {
         .md-tabIcon {
           width: 30px;
           height: 30px;
-          border-radius: 10px;
+          border-radius: 0;
           display: grid;
           place-items: center;
-          background: rgba(16, 42, 79, 0.05);
-          border: 1px solid rgba(16, 42, 79, 0.08);
+          background: transparent;
+          border: none;
           color: rgba(31, 79, 174, 0.80);
           flex: 0 0 auto;
         }
 
         .md-tabText {
-          font-size: 0.92rem;
+          font-size: 0.95rem;
           letter-spacing: -0.01em;
+          text-shadow: 0 1px 2px rgba(43, 108, 255, 0.15);
         }
 
         .md-tab.is-active {
-          background: rgba(43, 108, 255, 0.10);
-          border-color: rgba(43, 108, 255, 0.18);
           color: rgba(11, 31, 58, 0.88);
-          box-shadow: 0 12px 22px rgba(31, 79, 174, 0.12);
-          transform: translateY(-1px);
+          position: relative;
+        }
+
+        .md-tab.is-active::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: linear-gradient(90deg, rgba(15, 42, 86, 0.3), rgba(58, 166, 255, 0.4));
+          border-radius: 2px;
         }
 
         .md-tab.is-active .md-tabIcon {
@@ -333,8 +304,8 @@ export default function MasterDataPage() {
         /* soft underline indicator */
         .md-ink {
           position: absolute;
-          left: 14px;   /* ✅ match padding */
-          right: 14px;  /* ✅ match padding */
+          left: 16px;   /* ✅ match padding */
+          right: 16px;  /* ✅ match padding */
           bottom: 0;
           height: 2px;
           background: rgba(15, 23, 42, 0.06);
@@ -361,7 +332,7 @@ export default function MasterDataPage() {
 
         /* Body */
         .md-body {
-          padding: 14px;
+          padding: 16px;
           background: linear-gradient(180deg, rgba(247, 249, 253, 1), rgba(255, 255, 255, 1));
           min-width: 0;
         }
@@ -392,6 +363,7 @@ export default function MasterDataPage() {
             gap: 8px;
             scroll-padding-left: 12px;
             scroll-padding-right: 12px;
+            justify-content: flex-start; /* allow free scrolling from start */
           }
 
           .md-tab {
@@ -405,7 +377,7 @@ export default function MasterDataPage() {
           }
 
           .md-tabText {
-            font-size: 0.90rem;
+            font-size: 0.85rem;
           }
 
           .md-body {

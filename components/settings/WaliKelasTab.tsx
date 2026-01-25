@@ -62,8 +62,7 @@ export default function WaliKelasTab() {
     setLoading(true)
     try {
       const res = await fetch(
-        `/api/settings/wali-kelas?q=${encodeURIComponent(searchTerm)}&tahun_ajaran=${
-          tahunAjaran === 'Semua' ? '' : encodeURIComponent(tahunAjaran)
+        `/api/settings/wali-kelas?q=${encodeURIComponent(searchTerm)}&tahun_ajaran=${tahunAjaran === 'Semua' ? '' : encodeURIComponent(tahunAjaran)
         }&semester=${semester === 'Semua' ? '' : encodeURIComponent(semester)}`
       )
       const json = await res.json()
@@ -228,11 +227,11 @@ export default function WaliKelasTab() {
         </div>
 
         <div className="wk__actions">
-          <button className="wk__btn wk__btnExport" onClick={handleExport} title="Export Data">
-            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
-          </button>
           <button className="wk__btn wk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
             <i className="bi bi-upload" /> <span>Import</span>
+          </button>
+          <button className="wk__btn wk__btnExport" onClick={handleExport} title="Export Data">
+            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
           </button>
           <button className="wk__btn wk__btnPrimary" onClick={openAdd}>
             <i className="bi bi-plus-lg" /> <span>Tambah</span>
@@ -341,42 +340,36 @@ export default function WaliKelasTab() {
             <div className="wk__card" key={`m-${item.id ?? `${item.nip}-${index}`}`}>
               <div className="wk__cardHead">
                 <div className="wk__cardTitle">
-                  <div className="wk__cardName" title={item.nama_guru}>
-                    {item.nama_guru}
+                  <div className="wk__cardName" title={item.nama_kelas}>
+                    {item.nama_kelas}
                   </div>
-                  <div className="wk__cardSub">{item.nama_kelas}</div>
-                </div>
-              </div>
-
-              <div className="wk__cardBody">
-                <div className="wk__kv">
-                  <div className="wk__k">Status</div>
-                  <div className="wk__v">
-                    <span className={`wk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
-                      {item.aktif ? 'Aktif' : 'Non-Aktif'}
-                    </span>
-                  </div>
+                  <div className="wk__cardSub">{item.nama_guru}</div>
                 </div>
               </div>
 
               <div className="wk__cardFoot">
-                <button
-                  className="wk__actionBtn"
-                  onClick={() => {
-                    setFormData(item)
-                    setSelectedClass(item.nama_kelas)
-                    setShowModal(true)
-                  }}
-                  title="Edit"
-                >
-                  <i className="bi bi-pencil" />
-                  <span>Edit</span>
-                </button>
+                <div className="wk__statusLeft">
+                  <span className={`wk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
+                    {item.aktif ? 'Aktif' : 'Non-Aktif'}
+                  </span>
+                </div>
+                <div className="wk__actionsRight">
+                  <button
+                    className="wk__actionBtn"
+                    onClick={() => {
+                      setFormData(item)
+                      setSelectedClass(item.nama_kelas)
+                      setShowModal(true)
+                    }}
+                    title="Edit"
+                  >
+                    <i className="bi bi-pencil" />
+                  </button>
 
-                <button className="wk__actionBtn danger" onClick={() => item.id && handleDelete(item.id)} title="Hapus">
-                  <i className="bi bi-trash" />
-                  <span>Hapus</span>
-                </button>
+                  <button className="wk__actionBtn danger" onClick={() => item.id && handleDelete(item.id)} title="Hapus">
+                    <i className="bi bi-trash" />
+                  </button>
+                </div>
               </div>
             </div>
           ))
@@ -847,8 +840,6 @@ export default function WaliKelasTab() {
 
         .wk__cardHead {
           padding: 14px 14px 10px;
-          background: linear-gradient(180deg, #ffffff, #fbfcff);
-          border-bottom: 1px solid rgba(15, 42, 86, 0.08);
         }
 
         .wk__cardTitle {
@@ -908,9 +899,17 @@ export default function WaliKelasTab() {
         .wk__cardFoot {
           display: flex;
           gap: 10px;
-          padding: 12px 14px;
-          background: rgba(15, 42, 86, 0.04);
-          border-top: 1px solid rgba(15, 42, 86, 0.08);
+          padding: 8px 12px;
+        }
+
+        .wk__statusLeft {
+          flex: 1 1 auto;
+        }
+
+        .wk__actionsRight {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
         }
 
         .wk__actionBtn {
@@ -919,7 +918,7 @@ export default function WaliKelasTab() {
           justify-content: center;
           align-items: center;
           gap: 8px;
-          padding: 10px 12px;
+          padding: 5px 12px;
           border-radius: 12px;
           border: 1px solid rgba(15, 42, 86, 0.16);
           background: #fff;
@@ -928,6 +927,7 @@ export default function WaliKelasTab() {
           font-size: 0.86rem;
           cursor: pointer;
           transition: transform 0.12s ease, box-shadow 0.18s ease;
+          height: auto;
         }
 
         .wk__actionBtn:hover {
@@ -1049,18 +1049,36 @@ export default function WaliKelasTab() {
 
         /* ✅ Switch yang konsisten: Desktop=Table, Mobile=Cards */
         @media (max-width: 768px) {
-          .wk__tableWrap {
-            display: none;
+          .wk__tableWrap { display: none; }
+          .wk__cards { display: flex; flex-direction: column; gap: 12px; }
+          .wk {
+             padding: 0;
+             padding-bottom: 20px; /* Safe padding */
+             background: transparent;
+             border-radius: 0;
           }
-          .wk__cards {
-            display: flex;
+          
+          .wk__actions {
+             width: 100%;
+             display: flex;
+             gap: 6px;
+             margin-bottom: 12px;
+          }
+          .wk__actions .wk__btn {
+             flex: 1;
+             height: 40px;
+             padding: 9px 8px;
+             justify-content: center;
+             min-width: 0;
+          }
+          .wk__actions .wk__btn span {
+             font-size: 0.75rem;
           }
         }
 
-        /* ========= MOBILE kecil (iPhone 13 / Oppo A-series) ========= */
         @media (max-width: 420px) {
           .wk {
-            padding: 12px;
+            padding-bottom: 20px;
           }
 
           .wk__filters {
@@ -1080,23 +1098,7 @@ export default function WaliKelasTab() {
             width: 100%;
           }
 
-          .wk__actions {
-            width: 100%;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            padding-bottom: 2px;
-          }
-          .wk__actions::-webkit-scrollbar {
-            display: none;
-          }
 
-          .wk__btn {
-            height: 40px;
-            padding: 9px 12px;
-          }
-          .wk__btn span {
-            display: none;
-          }
 
           .wk__modal {
             width: 100%;

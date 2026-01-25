@@ -18,7 +18,7 @@ export default function MapelTab() {
   const [searchTerm, setSearchTerm] = useState('')
   const [allData, setAllData] = useState<Mapel[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
@@ -209,11 +209,11 @@ export default function MapelTab() {
   // Group for mobile: by kelompok
   const groupedMobile = useMemo(() => {
     const map = new Map<string, Mapel[]>()
-    ;(mapelList || []).forEach((it) => {
-      const key = it.kelompok || 'A'
-      if (!map.has(key)) map.set(key, [])
-      map.get(key)!.push(it)
-    })
+      ; (mapelList || []).forEach((it) => {
+        const key = it.kelompok || 'A'
+        if (!map.has(key)) map.set(key, [])
+        map.get(key)!.push(it)
+      })
     const entries = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'id'))
     entries.forEach(([k, arr]) => {
       arr.sort((x, y) => {
@@ -351,50 +351,37 @@ export default function MapelTab() {
             </div>
           </div>
         ) : (
-          groupedMobile.map(([kelompokName, items]) => (
-            <section key={`grp-${kelompokName}`} className="sk__group">
-              <div className="sk__groupHead">
-                <div className="sk__groupLeft">
-                  <div className="sk__groupTitle">Kelompok {kelompokName}</div>
-                  <div className="sk__groupMeta">{items.length} mapel</div>
+          mapelList.map((mapel, idx) => (
+            <div className="sk__card sk__cardRow" key={`m-${mapel.id}-${idx}`}>
+              <div className="sk__cardHead">
+                <div className="sk__cardTitle">
+                  <div className="sk__cardName">{mapel.nama || '-'}</div>
+                  <div className="sk__cardSub">{mapel.kode}</div>
                 </div>
               </div>
 
-              <div className="sk__groupList">
-                {items.map((mapel, idx) => (
-                  <div className="sk__card sk__cardRow" key={`m-${mapel.id}-${idx}`}>
-                    <div className="sk__cardHead">
-                      <div className="sk__cardTitle">
-                        <div className="sk__cardName">{mapel.nama || '-'}</div>
-                        <div className="sk__cardSub">{mapel.kode}</div>
-                      </div>
-                    </div>
-
-                    <div className="sk__cardBody">
-                      <div className="sk__statusRow">
-                        <div className="sk__statusLeft">
-                          <span className={`sk__status ${mapel.aktif ? 'isOn' : 'isOff'}`}>
-                            {mapel.aktif ? 'Aktif' : 'Non-Aktif'}
-                          </span>
-                        </div>
-                        <div className="sk__actionsRight">
-                          <button className="sk__iconBtn" onClick={() => handleEdit(mapel)} title="Edit">
-                            <i className="bi bi-pencil" />
-                          </button>
-                          <button
-                            className="sk__iconBtn danger"
-                            onClick={() => handleDelete(mapel.id)}
-                            title="Hapus"
-                          >
-                            <i className="bi bi-trash" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+              <div className="sk__cardBody">
+                <div className="sk__statusRow">
+                  <div className="sk__statusLeft">
+                    <span className={`sk__status ${mapel.aktif ? 'isOn' : 'isOff'}`}>
+                      {mapel.aktif ? 'Aktif' : 'Non-Aktif'}
+                    </span>
                   </div>
-                ))}
+                  <div className="sk__actionsRight">
+                    <button className="sk__iconBtn" onClick={() => handleEdit(mapel)} title="Edit">
+                      <i className="bi bi-pencil" />
+                    </button>
+                    <button
+                      className="sk__iconBtn danger"
+                      onClick={() => handleDelete(mapel.id)}
+                      title="Hapus"
+                    >
+                      <i className="bi bi-trash" />
+                    </button>
+                  </div>
+                </div>
               </div>
-            </section>
+            </div>
           ))
         )}
       </div>
@@ -525,9 +512,9 @@ export default function MapelTab() {
   flex-direction: column;
   gap: 10px;
   font-size: var(--sk-fs);
-  padding: 16px;
-  background: #f5f7fb;
-  border-radius: 16px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
   padding-bottom: calc(16px + var(--sk-safe-b));
 }
 
@@ -1065,37 +1052,26 @@ export default function MapelTab() {
   }
 
   .sk {
-    padding-bottom: calc(86px + var(--sk-safe-b));
+    padding-bottom: calc(0px + var(--sk-safe-b));
   }
 
   .sk__actions {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: calc(10px + var(--sk-safe-b));
-    z-index: 1000;
-    padding: 10px;
-    border-radius: 16px;
-    border: 1px solid rgba(15, 42, 86, 0.16);
-    background: rgba(255, 255, 255, 0.78);
-    box-shadow: 0 18px 44px rgba(2, 6, 23, 0.14);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    width: 100%;
     display: flex;
-    gap: 10px;
-    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 12px;
   }
 
   .sk__actions .sk__btn {
-    flex: 1 1 0;
+    flex: 1;
+    height: 40px;
+    padding: 9px 8px;
     justify-content: center;
-    height: 44px;
-    padding: 10px 12px;
-    border-radius: 14px;
+    min-width: 0;
   }
 
   .sk__actions .sk__btn span {
-    display: none;
+    font-size: 0.75rem;
   }
 
   .sk__modal {
@@ -1145,3 +1121,5 @@ export default function MapelTab() {
     </div>
   )
 }
+
+

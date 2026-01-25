@@ -102,18 +102,19 @@ export default function DataSettingsPage() {
 
         .ds__headLeft h1 {
           margin: 0 0 6px;
-          font-size: clamp(1.2rem, 1.02rem + 0.9vw, 1.75rem);
-          line-height: 1.15;
-          color: var(--n-ink, #0b1324);
-          font-weight: 800;
+          font-size: 1.3rem;
+          line-height: 1.25;
+          color: rgba(11, 31, 58, 0.92);
+          font-weight: 600;
           letter-spacing: -0.02em;
         }
 
         .ds__headLeft p {
           margin: 0;
-          color: var(--n-muted, #64748b);
-          font-size: 0.95rem;
-          line-height: 1.5;
+          color: rgba(15, 23, 42, 0.62);
+          font-size: 1rem;
+          line-height: 1.4;
+          font-weight: 400;
         }
 
         /* Card */
@@ -165,18 +166,17 @@ export default function DataSettingsPage() {
           gap: 10px;
 
           padding: 10px 14px;
-          border-radius: 999px;
-          border: 1px solid rgba(15, 42, 86, 0.14);
-          background: rgba(255, 255, 255, 0.7);
-          color: rgba(7, 22, 46, 0.76);
+          border-radius: 0;
+          border: none;
+          background: transparent;
+          color: rgba(11, 31, 58, 0.70);
 
-          font-weight: 750;
+          font-weight: 520;
           font-size: 0.93rem;
           white-space: nowrap;
           cursor: pointer;
 
-          transition: transform 0.15s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease,
-            color 0.18s ease;
+          transition: color 0.12s ease;
           user-select: none;
           -webkit-tap-highlight-color: transparent;
           touch-action: manipulation;
@@ -192,40 +192,42 @@ export default function DataSettingsPage() {
           align-items: center;
           justify-content: center;
 
-          background: rgba(15, 42, 86, 0.08);
-          color: rgba(11, 31, 58, 0.9);
+          background: transparent;
+          color: rgba(31, 79, 174, 0.80);
           flex: 0 0 auto;
         }
 
+        .ds__tabLabel {
+           font-size: 0.95rem;
+           letter-spacing: -0.01em;
+           text-shadow: 0 1px 2px rgba(43, 108, 255, 0.15);
+        }
+
         .ds__tab:hover {
-          background: rgba(255, 255, 255, 0.9);
-          border-color: rgba(58, 166, 255, 0.22);
-          color: rgba(7, 22, 46, 0.9);
-          box-shadow: 0 10px 22px rgba(2, 6, 23, 0.08);
-          transform: translateY(-1px);
-        }
-
-        .ds__tab:active {
-          transform: translateY(0) scale(0.99);
-        }
-
-        .ds__tab:focus-visible {
-          outline: none;
-          box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.18), 0 10px 18px rgba(2, 6, 23, 0.08);
-          border-color: rgba(58, 166, 255, 0.45);
+          color: rgba(11, 31, 58, 0.80);
+          background: rgba(43, 108, 255, 0.06);
         }
 
         .ds__tab.isActive {
-          background: linear-gradient(135deg, rgba(58, 166, 255, 0.18) 0%, rgba(15, 42, 86, 0.12) 65%, #fff 100%);
-          border-color: rgba(58, 166, 255, 0.42);
-          color: rgba(7, 22, 46, 0.98);
-          box-shadow: 0 16px 34px rgba(7, 26, 51, 0.12);
-          transform: translateY(-1px);
+          color: rgba(11, 31, 58, 0.88);
+          position: relative;
+        }
+
+        .ds__tab.isActive::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: linear-gradient(90deg, rgba(15, 42, 86, 0.3), rgba(58, 166, 255, 0.4));
+          border-radius: 2px;
         }
 
         .ds__tab.isActive .ds__tabIcon {
-          background: linear-gradient(135deg, rgba(58, 166, 255, 0.26), rgba(15, 42, 86, 0.18));
-          color: rgba(7, 22, 46, 0.98);
+          background: rgba(43, 108, 255, 0.12);
+          border-color: rgba(43, 108, 255, 0.16);
+          color: rgba(31, 79, 174, 0.92);
         }
 
         /* Panel body */

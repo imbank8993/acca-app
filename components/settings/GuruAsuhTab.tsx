@@ -370,11 +370,11 @@ export default function GuruAsuhTab() {
         </div>
 
         <div className="ga__actions" aria-label="Aksi">
-          <button className="ga__btn ga__btnExport" onClick={handleExport} title="Export Excel">
-            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
-          </button>
           <button className="ga__btn ga__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
             <i className="bi bi-upload" /> <span>Import</span>
+          </button>
+          <button className="ga__btn ga__btnExport" onClick={handleExport} title="Export Excel">
+            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
           </button>
           <button className="ga__btn ga__btnPrimary" onClick={openAdd}>
             <i className="bi bi-plus-lg" /> <span>Tambah</span>
@@ -1497,66 +1497,48 @@ export default function GuruAsuhTab() {
         }
 
         /* ========= iOS Sticky Action Bar (Mobile) ========= */
+        /* ========= Mobile Actions Above Cards ========= */
         @media (max-width: 768px) {
           .ga {
-            padding-bottom: calc(92px + var(--ga-safe-b));
+            padding: 0;
+            padding-bottom: calc(16px + var(--ga-safe-b));
+            background: transparent;
+            border-radius: 0;
           }
 
           .ga__actions {
-            position: fixed;
-            left: 12px;
-            right: 12px;
-            bottom: calc(10px + var(--ga-safe-b));
-            z-index: 1000;
-
-            padding: 10px;
-            border-radius: 16px;
-            border: 1px solid rgba(15, 42, 86, 0.16);
-            background: rgba(255, 255, 255, 0.78);
-            box-shadow: 0 18px 44px rgba(2, 6, 23, 0.14);
-
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-
-            display: flex;
-            gap: 10px;
-            justify-content: space-between;
+             width: 100%;
+             display: flex;
+             gap: 6px;
+             margin-bottom: 12px;
+             
+             /* Reset sticky if present in previous CSS */
+             position: static;
+             padding: 0;
+             background: none;
+             border: none;
+             box-shadow: none;
           }
 
           .ga__actions .ga__btn {
-            flex: 1 1 0;
+            flex: 1;
+            height: 40px;
+            padding: 9px 8px;
             justify-content: center;
-            height: 44px;
-            padding: 10px 12px;
-            border-radius: 14px;
+            min-width: 0;
           }
 
           .ga__actions .ga__btn span {
-            display: none;
-          }
-
-          .ga__filters {
-            width: 100%;
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 9px;
-          }
-
-          .ga__search {
-            min-width: 0;
-          }
-
-          .ga__filters select {
-            min-width: 0;
-            width: 100%;
+             font-size: 0.75rem;
           }
         }
+
+
 
         /* ========= small phones (iPhone 13 / Oppo A-series) ========= */
         @media (max-width: 420px) {
           .ga {
-            padding: 12px;
-            padding-bottom: calc(92px + var(--ga-safe-b));
+             padding-bottom: calc(16px + var(--ga-safe-b));
           }
 
           .ga__grid2 {

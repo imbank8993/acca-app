@@ -322,11 +322,11 @@ export default function SiswaKelasTab() {
   // Group for mobile: by kelas
   const groupedMobile = useMemo(() => {
     const map = new Map<string, SiswaKelas[]>()
-    ;(list || []).forEach((it) => {
-      const key = String(it.kelas || '-').trim() || '-'
-      if (!map.has(key)) map.set(key, [])
-      map.get(key)!.push(it)
-    })
+      ; (list || []).forEach((it) => {
+        const key = String(it.kelas || '-').trim() || '-'
+        if (!map.has(key)) map.set(key, [])
+        map.get(key)!.push(it)
+      })
     // stable sort by kelas
     const entries = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'id'))
     // sort each group by nama_siswa then nisn
@@ -382,12 +382,12 @@ export default function SiswaKelasTab() {
         </div>
 
         <div className="sk__actions">
-          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
-            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
-          </button>
-
           <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
             <i className="bi bi-upload" /> <span>Import</span>
+          </button>
+
+          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
+            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
           </button>
 
           <button className="sk__btn sk__btnPrimary" onClick={openAdd}>
@@ -516,16 +516,6 @@ export default function SiswaKelasTab() {
                     {items.length} siswa • {tahunAjaran} • {semester === 'Semua' ? 'Ganjil & Genap' : semester}
                   </div>
                 </div>
-                <div className="sk__groupPills">
-                  {semester === 'Semua' ? (
-                    <>
-                      <span className="sk__pill isGanjil">Ganjil</span>
-                      <span className="sk__pill isGenap">Genap</span>
-                    </>
-                  ) : (
-                    <span className={`sk__pill ${semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>{semester}</span>
-                  )}
-                </div>
               </div>
 
               <div className="sk__groupList">
@@ -536,27 +526,26 @@ export default function SiswaKelasTab() {
                         <div className="sk__cardName">{item.nama_siswa || '-'}</div>
                         <div className="sk__cardSub">{item.nisn}</div>
                       </div>
-                      <div className="sk__cardActions">
-                        <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
-                          <i className="bi bi-pencil" />
-                        </button>
-                        <button
-                          className="sk__iconBtn danger"
-                          onClick={() => item.id && handleDelete(item.id)}
-                          title="Hapus"
-                        >
-                          <i className="bi bi-trash" />
-                        </button>
-                      </div>
                     </div>
 
                     <div className="sk__cardBody">
-                      <div className="sk__kv">
-                        <div className="sk__k">Status</div>
-                        <div className="sk__v">
+                      <div className="sk__statusRow">
+                        <div className="sk__statusLeft">
                           <span className={`sk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
                             {item.aktif ? 'Aktif' : 'Non-Aktif'}
                           </span>
+                        </div>
+                        <div className="sk__actionsRight">
+                          <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
+                            <i className="bi bi-pencil" />
+                          </button>
+                          <button
+                            className="sk__iconBtn danger"
+                            onClick={() => item.id && handleDelete(item.id)}
+                            title="Hapus"
+                          >
+                            <i className="bi bi-trash" />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1104,7 +1093,7 @@ export default function SiswaKelasTab() {
 .sk__cardName {
   font-weight: 800;
   color: rgba(11,31,58,.95);
-  font-size: .98rem;
+  font-size: .86rem;
   line-height: 1.25;
   white-space: normal;
   overflow: visible;
@@ -1130,6 +1119,23 @@ export default function SiswaKelasTab() {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.sk__statusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.sk__statusLeft {
+  flex: 0 0 auto;
+}
+
+.sk__actionsRight {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .sk__kv {
@@ -1311,72 +1317,38 @@ export default function SiswaKelasTab() {
   }
 }
 
-/* ========= iOS Sticky Action Bar (Mobile) =========
-   Mengubah toolbar action jadi sticky bottom (Export/Import/Tambah)
+/* ========= Mobile Actions Above Cards =========
+   Menempatkan action buttons tepat di atas mobile cards
 ==================================================== */
 @media (max-width: 768px) {
-  /* beri ruang agar konten tidak ketutup sticky bar */
-  .sk {
-    padding-bottom: calc(86px + var(--sk-safe-b));
-  }
-
   .sk__actions {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: calc(10px + var(--sk-safe-b));
-    z-index: 1000;
-
-    padding: 10px;
-    border-radius: 16px;
-    border: 1px solid rgba(15,42,86,.16);
-    background: rgba(255,255,255,.78);
-    box-shadow: 0 18px 44px rgba(2,6,23,.14);
-
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-
+    width: 100%;
     display: flex;
-    gap: 10px;
-    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 12px;
   }
 
   .sk__actions .sk__btn {
-    flex: 1 1 0;
+    flex: 1;
+    height: 40px;
+    padding: 9px 8px;
     justify-content: center;
-    height: 44px;
-    padding: 10px 12px;
-    border-radius: 14px;
+    min-width: 0;
   }
-
   .sk__actions .sk__btn span {
-    display: none; /* iOS style: icon-only */
+    font-size: 0.75rem;
+  }
+  
+  .sk {
+    padding: 0;
+    padding-bottom: calc(16px + var(--sk-safe-b));
+    background: transparent;
+    border-radius: 0;
   }
 }
 
 /* ========= MOBILE kecil (iPhone 13 / Oppo A-series) ========= */
-@media (max-width: 420px) {
-  .sk__filters {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 9px;
-  }
 
-  .sk__search {
-    grid-column: 1 / -1;
-    min-width: 0;
-  }
-
-  .sk__filters select {
-    min-width: 0;
-    width: 100%;
-  }
-
-  .sk__grid2 {
-    grid-template-columns: 1fr;
-  }
-}
 
 /* ========= Reduced motion ========= */
 @media (prefers-reduced-motion: reduce) {

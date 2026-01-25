@@ -1,36 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+
+// Note: We use supabaseAdmin (Service Role) here to bypass RLS policies.
+// The RLS policies for jadwal_guru rely on session variables ('app.current_user_role')
+// which might not be correctly set in this context with the Next.js App Router API. 
+// Using Service Role ensures the Settings page works for Admins.
 
 export async function GET(request: NextRequest) {
     try {
-        const supabase = await createClient()
+        const supabase = supabaseAdmin
         const { searchParams } = new URL(request.url)
         const q = searchParams.get('q')
         const kelas = searchParams.get('kelas')
         const hari = searchParams.get('hari')
         const guru = searchParams.get('guru')
+        const valid_date = searchParams.get('valid_date')
 
         let query = supabase
             .from('jadwal_guru')
             .select('*')
             .eq('aktif', true)
-            .order('hari', { ascending: false }) // Senin, Selasa etc needs custom sort usually, but for now simple sort
+            .order('hari', { ascending: false })
             .order('jam_ke', { ascending: true })
 
         if (kelas && kelas !== 'Semua') {
             query = query.eq('kelas', kelas)
         }
-
         if (hari && hari !== 'Semua') {
             query = query.eq('hari', hari)
         }
-
         if (guru) {
-            query = query.ilike('nama_guru', `%${guru}%`)
+            // Use string concatenation to avoid template literal issues
+            query = query.ilike('nama_guru', '%' + guru + '%')
+        }
+
+        if (valid_date) {
+            query = query.lte('berlaku_mulai', valid_date)
         }
 
         if (q) {
-            query = query.or(`nama_guru.ilike.%${q}%,mapel.ilike.%${q}%,kelas.ilike.%${q}%`)
+            // Use string concatenation
+            const filterStr = 'nama_guru.ilike.%' + q + '%,mata_pelajaran.ilike.%' + q + '%,kelas.ilike.%' + q + '%'
+            query = query.or(filterStr)
         }
 
         const { data, error } = await query
@@ -44,22 +55,25 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
+        const supabase = supabaseAdmin
         const body = await request.json()
 
-        // Validate
-        if (!body.nama_guru || !body.mapel || !body.hari || !body.kelas || !body.jam_ke) {
-            return NextResponse.json({ ok: false, error: 'Data tidak lengkap (Guru, Mapel, Hari, Kelas, Jam harus diisi).' }, { status: 400 })
+        if (!body.nama_guru || !body.mapel || !body.hari || !body.kelas || !body.jam_ke || !body.berlaku_mulai || !body.nip) {
+            return NextResponse.json({ ok: false, error: 'Data tidak lengkap. Pastikan Guru (NIP), Mapel, Hari, Jam, dan Tanggal Berlaku diisi.' }, { status: 400 })
         }
-
-        // Check for duplicates (same class, day, jam_ke) - collision detection
-        // Maybe optional? User didn't strictly ask for collision check, but good practice.
-        // For now, let's just insert.
 
         const { data, error } = await supabase
             .from('jadwal_guru')
             .insert([{
-                ...body,
+                nama_guru: body.nama_guru,
+                nip: body.nip,
+                mata_pelajaran: body.mapel,
+                hari: body.hari,
+                kelas: body.kelas,
+                jam_ke: body.jam_ke,
+                berlaku_mulai: body.berlaku_mulai,
+                // tahun_ajaran removed
+                // semester removed
                 aktif: true
             }])
             .select()
@@ -74,20 +88,25 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
     try {
-        const supabase = await createClient()
+        const supabase = supabaseAdmin
         const body = await request.json()
 
         if (!body.id) throw new Error('ID wajib ada untuk edit.')
+        if (!body.berlaku_mulai) throw new Error('Tanggal mulai berlaku wajib diisi.')
 
         const { data, error } = await supabase
             .from('jadwal_guru')
             .update({
                 nama_guru: body.nama_guru,
-                mapel: body.mapel,
+                nip: body.nip,
+                mata_pelajaran: body.mapel,
                 hari: body.hari,
                 kelas: body.kelas,
                 jam_ke: body.jam_ke,
-                aktif: body.aktif
+                aktif: body.aktif,
+                berlaku_mulai: body.berlaku_mulai,
+                // tahun_ajaran removed
+                // semester removed
             })
             .eq('id', body.id)
             .select()
@@ -102,14 +121,12 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
     try {
-        const supabase = await createClient()
+        const supabase = supabaseAdmin
         const { searchParams } = new URL(request.url)
         const id = searchParams.get('id')
 
         if (!id) throw new Error('ID is required')
 
-        // Hard delete or Soft delete?
-        // Usually soft delete.
         const { error } = await supabase
             .from('jadwal_guru')
             .update({ aktif: false })

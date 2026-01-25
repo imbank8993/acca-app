@@ -252,12 +252,12 @@ export default function LiburTab() {
           </select>
         </div>
 
-        <div className="lb__actions">
-          <button className="lb__btn lb__btnExport" onClick={handleExport} title="Export Data">
-            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
-          </button>
+        <div className="lb__actions" aria-label="Aksi">
           <button className="lb__btn lb__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
             <i className="bi bi-upload" /> <span>Import</span>
+          </button>
+          <button className="lb__btn lb__btnExport" onClick={handleExport} title="Export Data">
+            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
           </button>
           <button className="lb__btn lb__btnPrimary" onClick={openAdd}>
             <i className="bi bi-plus-lg" /> <span>Tambah</span>
@@ -309,19 +309,20 @@ export default function LiburTab() {
                     <div className="lb__cardName">{item.keterangan}</div>
                     <div className="lb__cardSub">{item.tanggal}</div>
                   </div>
-                  <button className="lb__moreBtn" onClick={() => setMobileAction({ open: true, item: item })}>
-                    <i className="bi bi-three-dots-vertical" />
-                  </button>
+
                 </div>
                 <div className="lb__cardBody">
                   <div className="lb__kv">
-                    <div className="lb__k">Jam</div>
-                    <div className="lb__v">{item.jam_ke}</div>
+                    <div className="lb__left">
+                      <div className="lb__k">Jam</div>
+                      <div className="lb__v">{item.jam_ke}</div>
+                    </div>
+                    <div className="lb__rowActions">
+                      <button className="lb__iconBtn" onClick={() => handleEdit(item)}><i className="bi bi-pencil" /></button>
+                      <button className="lb__iconBtn danger" onClick={() => item.id && handleDelete(item.id)}><i className="bi bi-trash" /></button>
+                    </div>
                   </div>
-                  <div className="lb__kv">
-                    <div className="lb__k">Tahun Ajaran</div>
-                    <div className="lb__v">{item.tahun_ajaran}</div>
-                  </div>
+
                 </div>
               </div>
             ))
@@ -434,41 +435,131 @@ export default function LiburTab() {
         select { padding-left: 10px; cursor: pointer; }
 
         .lb__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-        @media (max-width: 640px) { .lb__actions { width: 100%; } .lb__btn { flex: 1; justify-content: center; } }
+        @media (max-width: 768px) {
+            .lb__actions {
+                width: 100%;
+                display: flex;
+                gap: 6px;
+                margin-bottom: 12px;
+            }
+            .lb__actions .lb__btn {
+                flex: 1;
+                height: 40px;
+                padding: 9px 8px;
+                justify-content: center;
+                min-width: 0;
+            }
+            .lb__actions .lb__btn span {
+                font-size: 0.75rem;
+            }
+        }
 
-        .lb__btn { border: none; padding: 8px 14px; border-radius: 12px; cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 6px; font-size: 0.9rem; transition: transform 0.1s; white-space: nowrap; }
-        .lb__btn:hover { transform: translateY(-1px); }
-        .lb__btnPrimary { background: linear-gradient(135deg, #3aa6ff 0%, #0f2a56 100%); color: white; box-shadow: 0 8px 16px rgba(15,42,86,.15); }
+        .lb__btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            height: 38px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            border: 1px solid var(--lb-line);
+            background: rgba(255, 255, 255, 0.78);
+            color: rgba(7, 22, 46, 0.9);
+            font-weight: 650;
+            cursor: pointer;
+            font-size: var(--lb-fs);
+            transition: transform 0.15s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            white-space: nowrap;
+        }
+        .lb__btn:hover {
+            background: rgba(255, 255, 255, 0.92);
+            border-color: rgba(58, 166, 255, 0.24);
+            box-shadow: var(--lb-shadow2);
+            transform: translateY(-1px);
+        }
+        .lb__btn:active { transform: translateY(0); }
+
+        .lb__btnPrimary {
+          background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
+          border-color: rgba(58, 166, 255, 0.32);
+          color: #fff;
+          font-weight: 700;
+        }
+
+        .lb__btnExport {
+          background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
+          border-color: rgba(16, 185, 129, 0.28);
+          color: #fff;
+        }
+
+        .lb__btnImport {
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
+          border-color: rgba(245, 158, 11, 0.28);
+          color: #fff;
+        }
+
         .lb__btnGhost { background: transparent; color: #64748b; border: 1px solid #cbd5e1; }
-        .lb__btn.lb__btnExport, .lb__btn.lb__btnImport { background: white; border: 1px solid var(--lb-line); color: #0f172a; }
 
         /* Table */
         .lb__tableWrap { border-radius: 16px; overflow: hidden; border: 1px solid var(--lb-line); box-shadow: var(--lb-shadow2); background: white; }
         .lb__table { width: 100%; border-collapse: separate; border-spacing: 0; }
         .lb__table th { background: #f8fafc; padding: 12px 14px; text-align: left; font-weight: 700; color: #0f2a56; border-bottom: 1px solid var(--lb-line); position: sticky; top: 0; }
         .lb__table td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; color: #334155; }
-        .lb__rowActions { display: flex; gap: 6px; }
-        .lb__iconBtn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: white; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #64748b; }
-        .lb__iconBtn:hover { background: #f1f5f9; color: #0f172a; }
-        .lb__iconBtn.danger:hover { background: #fee2e2; color: #ef4444; border-color: #fca5a5; }
+        .lb__rowActions { display: flex; gap: 7px; justify-content: flex-end; }
+        .lb__iconBtn { 
+            width: 34px; height: 34px; border-radius: 11px; 
+            border: 1px solid rgba(148, 163, 184, 0.22); 
+            background: rgba(255, 255, 255, 0.9); 
+            display: flex; align-items: center; justify-content: center; 
+            cursor: pointer; color: rgba(7, 22, 46, 0.9);
+            transition: transform 0.15s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+        .lb__iconBtn:hover { 
+            background: rgba(255, 255, 255, 0.92); 
+            border-color: rgba(58, 166, 255, 0.24); 
+            box-shadow: var(--lb-shadow2); 
+            transform: translateY(-1px);
+        }
+        .lb__iconBtn.danger:hover { background: rgba(239, 68, 68, 0.06); color: rgba(220, 38, 38, 1); border-color: rgba(239, 68, 68, 0.18); }
+        .lb__iconBtn.danger {
+            color: rgba(220, 38, 38, 1);
+            border-color: rgba(239, 68, 68, 0.18);
+            background: rgba(239, 68, 68, 0.06);
+        }
 
         .tCenter { text-align: center; }
         .tMono { font-family: monospace; }
         
         /* Mobile Cards */
         .lb__cards { display: none; flex-direction: column; gap: 12px; }
-        .lb__card { background: white; border-radius: 16px; border: 1px solid var(--lb-line); padding: 12px; }
+        .lb__card { 
+            background: white; 
+            border-radius: 16px; 
+            border: 1px solid rgba(15, 42, 86, 0.14); 
+            padding: 12px;
+            box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+        }
         .lb__cardHead { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
         .lb__cardTitle .lb__cardName { font-weight: 700; color: #0f172a; }
         .lb__cardTitle .lb__cardSub { font-size: 0.8rem; color: #64748b; }
         .lb__moreBtn { background: none; border: none; font-size: 1.2rem; color: #94a3b8; }
-        .lb__cardBody { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85rem; }
+        .lb__cardBody { display: flex; flex-direction: column; gap: 8px; font-size: 0.85rem; }
+        .lb__kv { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+        .lb__left { display: flex; flex-direction: column; gap: 2px; }
         .lb__kv .lb__k { color: #64748b; font-size: 0.75rem; }
         .lb__kv .lb__v { font-weight: 600; color: #0f172a; }
 
         @media (max-width: 768px) {
             .lb__tableWrap { display: none; }
             .lb__cards { display: flex; }
+            .lb {
+                padding: 0;
+                padding-bottom: calc(16px + var(--lb-safe-b));
+                background: transparent;
+                border-radius: 0;
+            }
         }
 
         /* Modal */

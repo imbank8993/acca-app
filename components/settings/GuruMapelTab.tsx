@@ -298,11 +298,11 @@ export default function GuruMapelTab() {
                 </div>
 
                 <div className="gm__actions" aria-label="Aksi">
-                    <button className="gm__btn gm__btnExport" onClick={handleExport} title="Export Excel">
-                        <i className="bi bi-file-earmark-excel" /> <span>Export</span>
-                    </button>
                     <button className="gm__btn gm__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
                         <i className="bi bi-upload" /> <span>Import</span>
+                    </button>
+                    <button className="gm__btn gm__btnExport" onClick={handleExport} title="Export Excel">
+                        <i className="bi bi-file-earmark-excel" /> <span>Export</span>
                     </button>
                     <button className="gm__btn gm__btnPrimary" onClick={openAdd}>
                         <i className="bi bi-plus-lg" /> <span>Tambah</span>
@@ -1265,33 +1265,47 @@ export default function GuruMapelTab() {
                 @media (max-width: 768px) {
                     .gm__tableWrap { display: none; }
                     .gm__cards { display: flex; flex-direction: column; gap: 12px; }
-                    .gm { padding-bottom: calc(92px + var(--gm-safe-b)); }
-                    .gm__actions {
-                        position: fixed;
-                        left: 12px;
-                        right: 12px;
-                        bottom: calc(10px + var(--gm-safe-b));
-                        z-index: 1000;
-                        padding: 10px;
-                        border-radius: 16px;
-                        border: 1px solid rgba(15, 42, 86, 0.16);
-                        background: rgba(255, 255, 255, 0.78);
-                        box-shadow: 0 18px 44px rgba(2, 6, 23, 0.14);
-                        backdrop-filter: blur(10px);
-                        -webkit-backdrop-filter: blur(10px);
-                        display: flex;
-                        gap: 10px;
-                        justify-content: space-between;
+                    .gm { 
+                        padding: 0;
+                        padding-bottom: calc(16px + var(--gm-safe-b));
+                        background: transparent;
+                        border-radius: 0;
                     }
-                    .gm__actions .gm__btn { flex: 1 1 0; justify-content: center; height: 44px; padding: 10px 12px; border-radius: 14px; }
-                    .gm__actions .gm__btn span { display: none; }
+                    
+                    .gm__actions {
+                         width: 100%;
+                         display: flex;
+                         gap: 6px;
+                         margin-bottom: 12px;
+                         
+                         /* Reset sticky */
+                         position: static;
+                         padding: 0;
+                         background: none;
+                         border: none;
+                         box-shadow: none;
+                    }
+
+                    .gm__actions .gm__btn {
+                        flex: 1;
+                        height: 40px;
+                        padding: 9px 8px;
+                        justify-content: center;
+                        min-width: 0;
+                        border-radius: 12px;
+                    }
+                    .gm__actions .gm__btn span {
+                        font-size: 0.75rem;
+                        display: inline; /* Ensure text is visible if it was hidden */
+                    }
+
                     .gm__filters { width: 100%; display: grid; grid-template-columns: 1fr; gap: 9px; }
                     .gm__search { min-width: 0; }
                     .gm__filters select { min-width: 0; width: 100%; }
                 }
 
-                @media (max-width: 420px) {
-                    .gm { padding: 12px; padding-bottom: calc(92px + var(--gm-safe-b)); }
+                @media (max-width: 420px) { 
+                    .gm { padding-bottom: calc(16px + var(--gm-safe-b)); }
                     .gm__grid2 { grid-template-columns: 1fr; }
                     .gm__multi { grid-template-columns: 1fr; max-height: 360px; }
                 }
