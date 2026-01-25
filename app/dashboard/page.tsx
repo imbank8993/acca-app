@@ -15,35 +15,44 @@ import ResetDataPage from '@/components/reset/ResetDataPage'
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={
-      <div className="loading-screen">
-        <div className="loading-content">
-          <div className="spinner"></div>
-          <p>Memuat Dashboard...</p>
+    <Suspense
+      fallback={
+        <div className="loading-screen">
+          <div className="loading-content">
+            <div className="spinner"></div>
+            <p>Memuat Dashboard...</p>
+          </div>
+          <style jsx>{`
+            .loading-screen {
+              min-height: 100dvh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: linear-gradient(135deg, #061126, #0b1b3a, #0f2a56);
+            }
+            .loading-content {
+              text-align: center;
+              color: #eaf2ff;
+            }
+            .spinner {
+              display: inline-block;
+              width: 48px;
+              height: 48px;
+              border: 4px solid rgba(58, 166, 255, 0.2);
+              border-top-color: #3aa6ff;
+              border-radius: 50%;
+              animation: spin 0.8s linear infinite;
+              margin-bottom: 16px;
+            }
+            @keyframes spin {
+              to {
+                transform: rotate(360deg);
+              }
+            }
+          `}</style>
         </div>
-        <style jsx>{`
-          .loading-screen {
-            min-height: 100dvh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #061126, #0b1b3a, #0f2a56);
-          }
-          .loading-content { text-align: center; color: #eaf2ff; }
-          .spinner {
-            display: inline-block;
-            width: 48px;
-            height: 48px;
-            border: 4px solid rgba(58, 166, 255, 0.2);
-            border-top-color: #3aa6ff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-bottom: 16px;
-          }
-          @keyframes spin { to { transform: rotate(360deg); } }
-        `}</style>
-      </div>
-    }>
+      }
+    >
       <DashboardLogic />
     </Suspense>
   )
@@ -193,95 +202,66 @@ function DashboardLogic() {
         <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
           <Header user={user} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} isCollapsed={sidebarCollapsed} />
 
-          {/* ✅ FIX iOS: gunakan padding-top (bukan margin-top), dan tinggi pakai dvh */}
           <main className="content-area">
             <div className="content-container">{renderPageContent(currentPage, user)}</div>
           </main>
         </div>
       </div>
 
-      {/* ===== GLOBAL RESET + iOS SAFE SCROLL ===== */}
-      <style jsx global>{`
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-
-        html,
-        body {
-          font-family: 'Poppins', 'Segoe UI', sans-serif;
-          font-size: 14px;
-          line-height: 1.5;
-
-          /* ✅ iOS Safari: jangan kunci height 100% */
-          height: auto;
-          min-height: 100%;
-
-          overflow-x: hidden;
-          -webkit-overflow-scrolling: touch;
-        }
-
-        body {
-          background: #f5f7fb;
-        }
-      `}</style>
-
-      {/* ===== LAYOUT SHELL (Fix kepotong iPhone 13) ===== */}
+      {/* ===== LAYOUT SHELL ONLY (NO GLOBAL RESET HERE) ===== */}
       <style jsx>{`
         .dashboard-layout {
-          display: flex;
           width: 100%;
-          min-height: 100dvh; /* ✅ iPhone safe */
-          overflow: hidden; /* cegah horizontal overflow */
-          background: #f5f7fb;
+          min-height: 100dvh;
+          overflow-x: hidden;
+          background: var(--n-bg, #f5f7fb);
         }
 
         .main-content {
-          flex: 1;
-          margin-left: 260px;
-          transition: margin-left 0.3s ease;
+          position: relative;
 
-          min-width: 0; /* ✅ penting agar child tidak maksa lebar */
-          width: 100%;
+          /* offset konten sesuai sidebar fixed */
+          margin-left: var(--app-sidebar-w, 256px);
+          width: calc(100% - var(--app-sidebar-w, 256px));
+          min-width: 0;
+
+          transition: margin-left 0.3s ease, width 0.3s ease;
         }
 
         .main-content.collapsed {
-          margin-left: 70px;
+          margin-left: var(--app-sidebar-w-collapsed, 70px);
+          width: calc(100% - var(--app-sidebar-w-collapsed, 70px));
         }
 
-        /* ✅ offset header fixed: pakai padding-top */
         .content-area {
-          padding-top: 90px;
-          padding-left: 24px;
-          padding-right: 24px;
+          padding-top: calc(var(--app-header-h, 65px) + 16px);
           padding-bottom: 24px;
-
           min-height: 100dvh;
-          background: #f5f7fb;
-
-          min-width: 0;
-          overflow: visible;
+          background: var(--n-bg, #f5f7fb);
         }
 
+        /* konten dipusatkan rapi */
         .content-container {
-          max-width: 1400px;
-          margin: 0 auto;
-
-          min-width: 0;
           width: 100%;
+          max-width: 1600px;
+          margin: 0 auto;
+          padding: 0 16px;
         }
 
-        @media (max-width: 992px) {
+        @media (max-width: 991.98px) {
           .main-content,
           .main-content.collapsed {
             margin-left: 0;
+            width: 100%;
           }
 
           .content-area {
-            padding-left: 14px;
-            padding-right: 14px;
-            padding-bottom: 18px;
+            padding-top: calc(var(--app-header-h, 65px) + 18px);
+            padding-bottom: 24px;
+          }
+
+          .content-container {
+            padding: 0 14px;
           }
         }
       `}</style>
@@ -411,6 +391,8 @@ function DashboardContent({ user }: { user: User }) {
           display: flex;
           flex-direction: column;
           gap: 24px;
+          padding: 0;
+          max-width: none;
         }
 
         .welcome-card {

@@ -1,18 +1,72 @@
 @import "tailwindcss";
 
 /* =========================================================
-   GLOBAL BASE
+   GLOBAL TOKENS
 ========================================================= */
 :root {
   --background: #ffffff;
   --foreground: #171717;
 
-  /* ✅ Layout tokens (sinkron dengan header/sidebar Ustadz) */
+  /* ✅ Layout tokens (1 sumber kebenaran) */
   --app-header-h: 65px;
   --app-sidebar-w: 256px;
   --app-sidebar-w-collapsed: 70px;
+
+  /* =========================================================
+     SMOOTH NAVY SYSTEM (Unified)
+  ========================================================= */
+
+  /* Backgrounds & Surfaces */
+  --n-bg: #f5f7fb;
+  --n-card: #ffffff;
+  --n-card-prominent: linear-gradient(135deg, #ffffff 0%, #fefeff 100%);
+
+  /* Brand / Primary (Navy) */
+  --n-navy-950: #07162e;
+  --n-navy-900: #0b1f3a;
+  --n-navy-800: #0f2a56;
+  --n-navy-700: #163663;
+
+  /* Aliases */
+  --navy: var(--n-navy-900);
+  --navy-2: var(--n-navy-800);
+  --bg: var(--n-bg);
+  --card: var(--n-card);
+
+  /* Accents */
+  --n-blue: #3aa6ff;
+  --n-blue-hover: #2183d6;
+  --accent: var(--n-blue);
+
+  /* Text */
+  --n-ink: #0b1324;
+  --n-muted: #64748b;
+  --text: var(--n-ink);
+  --muted: var(--n-muted);
+
+  /* Borders & Dividers */
+  --n-border: rgba(15, 42, 86, 0.14);
+  --n-soft: rgba(15, 42, 86, 0.06);
+  --line: var(--n-border);
+  --line-2: rgba(148, 163, 184, 0.22);
+
+  /* Elevation */
+  --n-shadow: 0 12px 30px rgba(15, 23, 42, 0.10);
+  --n-shadow-2: 0 10px 18px rgba(15, 23, 42, 0.08);
+  --n-shadow-soft: 0 6px 16px rgba(2, 6, 23, 0.07);
+  --shadow-soft: var(--n-shadow);
+  --shadow-mini: var(--n-shadow-soft);
+
+  /* Radius */
+  --n-radius: 16px;
+  --n-radius-sm: 12px;
+  --radius: var(--n-radius);
+
+  /* Interaction */
+  --n-ring: 0 0 0 4px rgba(58, 166, 255, 0.16);
 }
 
+/* tailwind v4 theme bridge (biarkan) */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -28,9 +82,14 @@
 }
 
 /* =========================================================
-   ✅ iOS SAFE SCROLL FIX (PENTING)
-   Kalau tidak ada ini, iPhone 13 sering "kepotong"
+   RESET + iOS SAFE SCROLL
 ========================================================= */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 html,
 body {
   height: auto;
@@ -39,86 +98,20 @@ body {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* ✅ background app sebaiknya sama dengan navy system */
+  background: var(--n-bg);
+  color: var(--n-ink);
+  font-family: "Poppins", system-ui, -apple-system, Segoe UI, Roboto, Arial, Helvetica, sans-serif;
 
   /* ✅ iOS: scroll halus */
   -webkit-overflow-scrolling: touch;
 }
 
 /* =========================================================
-   ✅ APP SHELL LAYOUT (WAJIB UNTUK HEADER FIXED)
-   Sesuaikan class kalau wrapper layout Ustadz beda.
-   Saya targetkan selector yang umum + aman.
+   IMPORTANT: JANGAN buat layout shell global di sini.
+   Dashboard/layout component sudah handle offset sidebar/header.
+   (Ini mencegah double spacing / gap)
 ========================================================= */
-
-/* Wrapper utama (kalau ada) */
-#app,
-.app,
-.app-shell,
-.dashboard-layout,
-.layout,
-.wrapper {
-  min-height: 100dvh;   /* ✅ bukan 100vh */
-  height: auto;
-  overflow: visible;
-}
-
-/* Konten utama (tempat halaman tampil) — sering bernama main/content */
-main,
-.main,
-.main-content,
-.content,
-.page-content {
-  /* offset header fixed */
-  padding-top: var(--app-header-h);
-  padding-bottom: env(safe-area-inset-bottom);
-
-  /* offset sidebar di desktop */
-  margin-left: var(--app-sidebar-w);
-
-  /* tinggi aman iOS */
-  min-height: 100dvh;
-
-  /* scroll terjadi di sini (kalau layout Ustadz mengunci body) */
-  overflow-x: hidden;
-  overflow-y: auto;
-
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Jika sidebar collapsed, biasanya ada class di body/app.
-   Kalau Ustadz pakai class lain, sesuaikan salah satu:
-   .collapsed / .is-collapsed / .sidebar-collapsed */
-.collapsed main,
-.is-collapsed main,
-.sidebar-collapsed main,
-.collapsed .main,
-.is-collapsed .main,
-.sidebar-collapsed .main,
-.collapsed .main-content,
-.is-collapsed .main-content,
-.sidebar-collapsed .main-content,
-.collapsed .content,
-.is-collapsed .content,
-.sidebar-collapsed .content,
-.collapsed .page-content,
-.is-collapsed .page-content,
-.sidebar-collapsed .page-content {
-  margin-left: var(--app-sidebar-w-collapsed);
-}
-
-/* Mobile: sidebar overlay -> konten full */
-@media (max-width: 992px) {
-  main,
-  .main,
-  .main-content,
-  .content,
-  .page-content {
-    margin-left: 0;
-  }
-}
 
 /* =========================================================
    Status Radio Styling (punya Ustadz)
@@ -192,6 +185,7 @@ main,
 .status-radio-item input:checked:hover + .status-radio-label {
   color: white;
 }
+
 .status-radio-item input:checked:hover + .status-radio-label[data-status="HADIR"] {
   color: #1e293b;
   background-color: white;

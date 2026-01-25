@@ -151,6 +151,9 @@ export default function MasterDataPage() {
         .md-page {
           min-height: 100%;
           min-width: 0;
+          padding: 0 12px;
+          max-width: 1600px;
+          margin: 0; /* Left align strict */
         }
 
         /* Header */

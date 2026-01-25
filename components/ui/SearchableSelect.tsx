@@ -1,127 +1,399 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 interface Option {
-    value: string | number;
-    label: string;
-    subLabel?: string;
+  value: string | number
+  label: string
+  subLabel?: string
 }
 
 interface SearchableSelectProps {
-    options: Option[];
-    value: string | number;
-    onChange: (value: string) => void;
-    placeholder?: string;
-    label?: string;
-    className?: string;
-    disabled?: boolean;
+  options: Option[]
+  value: string | number
+  onChange: (value: string) => void
+  placeholder?: string
+  label?: string
+  className?: string
+  disabled?: boolean
 }
 
 export default function SearchableSelect({
-    options,
-    value,
-    onChange,
-    placeholder = 'Pilih...',
-    label,
-    className = '',
-    disabled = false
+  options,
+  value,
+  onChange,
+  placeholder = 'Pilih...',
+  label,
+  className = '',
+  disabled = false
 }: SearchableSelectProps) {
-    const [isOpen, setIsOpen] = useState(false)
-    const [search, setSearch] = useState('')
-    const wrapperRef = useRef<HTMLDivElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-                setIsOpen(false)
-            }
-        }
-        document.addEventListener('mousedown', handleClickOutside)
-        return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [])
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
 
-    const filteredOptions = options.filter(opt =>
-        opt.label.toLowerCase().includes(search.toLowerCase()) ||
-        (opt.subLabel && opt.subLabel.toLowerCase().includes(search.toLowerCase()))
+  useEffect(() => {
+    // reset search saat dropdown ditutup
+    if (!isOpen) setSearch('')
+    // autofocus input saat dibuka
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 0)
+    }
+  }, [isOpen])
+
+  const selectedOption = useMemo(() => options.find((opt) => opt.value === value), [options, value])
+
+  const filteredOptions = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return options
+    return options.filter(
+      (opt) =>
+        opt.label.toLowerCase().includes(q) || (opt.subLabel && opt.subLabel.toLowerCase().includes(q))
     )
+  }, [options, search])
 
-    const selectedOption = options.find(opt => opt.value === value)
+  const toggle = () => {
+    if (disabled) return
+    setIsOpen((v) => !v)
+  }
 
-    return (
-        <div className={`relative ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`} ref={wrapperRef}>
-            {label && <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>}
+  const pick = (opt: Option) => {
+    onChange(String(opt.value))
+    setIsOpen(false)
+  }
 
-            <div
-                className={`w-full border border-gray-300 rounded-lg bg-white px-3 py-2 flex justify-between items-center shadow-sm transition-colors ${disabled ? 'pointer-events-none bg-gray-100' : 'cursor-pointer hover:border-blue-400'}`}
-                onClick={() => !disabled && setIsOpen(!isOpen)}
-            >
-                {selectedOption ? (
-                    <div className="flex flex-col leading-tight">
-                        <span className="font-semibold text-gray-900">{selectedOption.label}</span>
-                        {selectedOption.subLabel && (
-                            <span className="text-xs text-blue-600 font-mono">{selectedOption.subLabel}</span>
-                        )}
-                    </div>
-                ) : (
-                    <span className="text-gray-400">{placeholder}</span>
-                )}
-                <i className={`bi bi-chevron-down text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}></i>
-            </div>
+  return (
+    <div
+      ref={wrapperRef}
+      className={`ss ${disabled ? 'ss--disabled' : ''} ${className}`}
+      aria-disabled={disabled}
+    >
+      {label && <label className="ss__label">{label}</label>}
 
-            {isOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-hidden flex flex-col animate-fadeIn">
-                    <div className="p-2 border-b border-gray-100 bg-gray-50">
-                        <div className="relative">
-                            <i className="bi bi-search absolute left-3 top-2.5 text-gray-400 text-sm"></i>
-                            <input
-                                type="text"
-                                className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-blue-500"
-                                placeholder="Cari..."
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                autoFocus
-                                onClick={(e) => e.stopPropagation()}
-                            />
-                        </div>
-                    </div>
-                    <div className="overflow-y-auto flex-1">
-                        {filteredOptions.length === 0 ? (
-                            <div className="p-3 text-center text-sm text-gray-400">Tidak ada data.</div>
-                        ) : (
-                            filteredOptions.map((opt) => (
-                                <div
-                                    key={opt.value}
-                                    className={`px-3 py-2 cursor-pointer hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0 ${opt.value === value ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
-                                    onClick={() => {
-                                        onChange(String(opt.value))
-                                        setIsOpen(false)
-                                        setSearch('')
-                                    }}
-                                >
-                                    <div className="flex flex-col leading-tight">
-                                        <span className={`text-sm ${opt.value === value ? 'font-bold text-blue-900' : 'font-semibold text-gray-800'}`}>
-                                            {opt.label}
-                                        </span>
-                                        {opt.subLabel && (
-                                            <span className={`text-xs font-mono ${opt.value === value ? 'text-blue-700' : 'text-gray-500'}`}>
-                                                {opt.subLabel}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </div>
+      {/* Trigger */}
+      <button
+        type="button"
+        className={`ss__trigger ${isOpen ? 'is-open' : ''}`}
+        onClick={toggle}
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+      >
+        {selectedOption ? (
+          <div className="ss__selected">
+            <span className="ss__selectedMain">{selectedOption.label}</span>
+            {selectedOption.subLabel && <span className="ss__selectedSub">{selectedOption.subLabel}</span>}
+          </div>
+        ) : (
+          <span className="ss__placeholder">{placeholder}</span>
+        )}
+
+        <i className={`bi bi-chevron-down ss__chev ${isOpen ? 'rot' : ''}`} aria-hidden="true" />
+      </button>
+
+      {/* Dropdown */}
+      {isOpen && (
+        <div className="ss__drop" role="listbox">
+          <div className="ss__searchWrap">
+            <i className="bi bi-search ss__searchIcon" aria-hidden="true" />
+            <input
+              ref={inputRef}
+              type="text"
+              className="ss__searchInput"
+              placeholder="Cari..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+
+          <div className="ss__list">
+            {filteredOptions.length === 0 ? (
+              <div className="ss__empty">Tidak ada data.</div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const active = opt.value === value
+                return (
+                  <button
+                    type="button"
+                    key={opt.value}
+                    className={`ss__item ${active ? 'is-active' : ''}`}
+                    onClick={() => pick(opt)}
+                  >
+                    <span className="ss__itemMain">{opt.label}</span>
+                    {opt.subLabel && <span className="ss__itemSub">{opt.subLabel}</span>}
+                  </button>
+                )
+              })
             )}
-            <style jsx>{`
-                .animate-fadeIn { animation: fadeIn 0.15s ease-out; }
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(-5px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-            `}</style>
+          </div>
         </div>
-    )
+      )}
+
+      <style jsx>{`
+        /* =========================================
+           SearchableSelect — Compact Navy System
+           - no bold in body
+           - mobile safe (iPhone 13)
+        ========================================= */
+
+        .ss {
+          width: 100%;
+          min-width: 0;
+          position: relative;
+        }
+
+        .ss--disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .ss__label {
+          display: block;
+          margin: 0 0 6px;
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: rgba(15, 23, 42, 0.8);
+        }
+
+        .ss__trigger {
+          width: 100%;
+          min-width: 0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+
+          padding: 8px 10px;
+          border-radius: 12px;
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          background: rgba(255, 255, 255, 0.92);
+          box-shadow: 0 1px 0 rgba(2, 6, 23, 0.02);
+
+          cursor: pointer;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+          text-align: left;
+        }
+
+        .ss__trigger:hover {
+          border-color: rgba(58, 166, 255, 0.35);
+        }
+
+        .ss__trigger:focus-visible {
+          outline: none;
+          border-color: rgba(58, 166, 255, 0.6);
+          box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+        }
+
+        .ss__trigger:disabled {
+          cursor: not-allowed;
+          background: rgba(241, 245, 249, 0.9);
+        }
+
+        .ss__selected {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          min-width: 0;
+          line-height: 1.2;
+        }
+
+        .ss__selectedMain {
+          font-size: 0.82rem;
+          font-weight: 500; /* ✅ tidak tebal */
+          color: rgba(15, 23, 42, 0.92);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .ss__selectedSub {
+          font-size: 0.76rem;
+          font-weight: 400; /* ✅ tidak tebal */
+          color: rgba(59, 130, 246, 0.95);
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+            monospace;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .ss__placeholder {
+          font-size: 0.82rem;
+          font-weight: 400;
+          color: rgba(100, 116, 139, 0.75);
+        }
+
+        .ss__chev {
+          color: rgba(100, 116, 139, 0.8);
+          font-size: 0.9rem;
+          flex: 0 0 auto;
+          transition: transform 0.15s ease;
+        }
+
+        .ss__chev.rot {
+          transform: rotate(180deg);
+        }
+
+        .ss__drop {
+          position: absolute;
+          z-index: 50;
+          width: 100%;
+          margin-top: 8px;
+
+          background: rgba(255, 255, 255, 0.98);
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          border-radius: 14px;
+          box-shadow: 0 18px 46px rgba(2, 6, 23, 0.16);
+
+          overflow: hidden;
+          animation: fadeIn 0.12s ease-out;
+        }
+
+        .ss__searchWrap {
+          position: sticky;
+          top: 0;
+          z-index: 2;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          padding: 10px 10px;
+          background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 0.98));
+          border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+        }
+
+        .ss__searchIcon {
+          color: rgba(100, 116, 139, 0.9);
+          font-size: 0.9rem;
+        }
+
+        .ss__searchInput {
+          width: 100%;
+          padding: 7px 9px;
+          border-radius: 10px;
+          border: 1px solid rgba(148, 163, 184, 0.28);
+          background: rgba(255, 255, 255, 0.98);
+          font-size: 0.82rem;
+          font-weight: 400;
+          color: rgba(15, 23, 42, 0.92);
+          outline: none;
+        }
+
+        .ss__searchInput:focus {
+          border-color: rgba(58, 166, 255, 0.55);
+          box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.12);
+        }
+
+        .ss__list {
+          max-height: 260px;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .ss__empty {
+          padding: 12px;
+          font-size: 0.82rem;
+          color: rgba(100, 116, 139, 0.85);
+          text-align: center;
+        }
+
+        .ss__item {
+          width: 100%;
+          padding: 9px 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+
+          background: transparent;
+          border: none;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.10);
+          text-align: left;
+          cursor: pointer;
+
+          transition: background 0.12s ease;
+        }
+
+        .ss__item:hover {
+          background: rgba(58, 166, 255, 0.06);
+        }
+
+        .ss__item:last-child {
+          border-bottom: none;
+        }
+
+        .ss__itemMain {
+          font-size: 0.82rem;
+          font-weight: 500; /* ✅ tidak tebal */
+          color: rgba(15, 23, 42, 0.92);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .ss__itemSub {
+          font-size: 0.76rem;
+          font-weight: 400; /* ✅ tidak tebal */
+          color: rgba(100, 116, 139, 0.95);
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+            monospace;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .ss__item.is-active {
+          background: rgba(58, 166, 255, 0.08);
+          box-shadow: inset 3px 0 0 rgba(58, 166, 255, 0.85);
+        }
+
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        /* ===== Mobile (iPhone 13) ===== */
+        @media (max-width: 420px) {
+          .ss__trigger {
+            padding: 8px 10px;
+          }
+          .ss__selectedMain,
+          .ss__placeholder {
+            font-size: 0.81rem;
+          }
+          .ss__selectedSub {
+            font-size: 0.75rem;
+          }
+
+          /* dropdown jangan kepotong layar kecil */
+          .ss__list {
+            max-height: 220px;
+          }
+        }
+      `}</style>
+    </div>
+  )
 }

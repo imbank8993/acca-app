@@ -1,886 +1,1142 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '../ui/ImportModal'
-
 import SearchableSelect from '../ui/SearchableSelect'
 
 interface WaliKelas {
-    id?: number;
-    nama_kelas: string;
-    nip: string;
-    nama_guru: string;
-    tahun_ajaran: string;
-    semester: string;
-    aktif: boolean;
+  id?: number
+  nama_kelas: string
+  nip: string
+  nama_guru: string
+  tahun_ajaran: string
+  semester: string
+  aktif: boolean
 }
 
 export default function WaliKelasTab() {
-    // Local Filter State
-    // Local Filter State
-    const [tahunAjaran, setTahunAjaran] = useState('2025/2026')
-    const [semester, setSemester] = useState('Ganjil')
+  // Local Filter State
+  const [tahunAjaran, setTahunAjaran] = useState('2025/2026')
+  const [semester, setSemester] = useState('Ganjil')
 
-    const [list, setList] = useState<WaliKelas[]>([])
-    const [loading, setLoading] = useState(true)
-    const [searchTerm, setSearchTerm] = useState('')
-    const [showModal, setShowModal] = useState(false)
-    const [showImportModal, setShowImportModal] = useState(false)
-    const [formData, setFormData] = useState<Partial<WaliKelas>>({ aktif: true })
-    const [saving, setSaving] = useState(false)
+  const [list, setList] = useState<WaliKelas[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [formData, setFormData] = useState<Partial<WaliKelas>>({ aktif: true })
+  const [saving, setSaving] = useState(false)
 
-    // Selection States
-    const [selectedClass, setSelectedClass] = useState('')
+  // Selection States
+  const [selectedClass, setSelectedClass] = useState('')
 
-    // Master data for selection
-    const [masterGuru, setMasterGuru] = useState<any[]>([])
-    const [masterKelas, setMasterKelas] = useState<any[]>([])
+  // Master data for selection
+  const [masterGuru, setMasterGuru] = useState<any[]>([])
+  const [masterKelas, setMasterKelas] = useState<any[]>([])
 
-    useEffect(() => {
-        fetchMasterData()
-    }, [])
+  useEffect(() => {
+    fetchMasterData()
+  }, [])
 
-    useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            fetchData()
-        }, 500)
-        return () => clearTimeout(timeoutId)
-    }, [tahunAjaran, semester, searchTerm])
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchData()
+    }, 500)
+    return () => clearTimeout(timeoutId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tahunAjaran, semester, searchTerm])
 
-    const fetchMasterData = async () => {
-        try {
-            const [resGuru, resKelas] = await Promise.all([
-                fetch('/api/master/guru'),
-                fetch('/api/master/kelas')
-            ])
-            const [jsonGuru, jsonKelas] = await Promise.all([
-                resGuru.json(),
-                resKelas.json()
-            ])
-            if (jsonGuru.ok) setMasterGuru(jsonGuru.data)
-            if (jsonKelas.ok) setMasterKelas(jsonKelas.data)
-        } catch (err) {
-            console.error('Error fetching master data:', err)
+  const fetchMasterData = async () => {
+    try {
+      const [resGuru, resKelas] = await Promise.all([fetch('/api/master/guru'), fetch('/api/master/kelas')])
+      const [jsonGuru, jsonKelas] = await Promise.all([resGuru.json(), resKelas.json()])
+      if (jsonGuru.ok) setMasterGuru(jsonGuru.data)
+      if (jsonKelas.ok) setMasterKelas(jsonKelas.data)
+    } catch (err) {
+      console.error('Error fetching master data:', err)
+    }
+  }
+
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(
+        `/api/settings/wali-kelas?q=${encodeURIComponent(searchTerm)}&tahun_ajaran=${
+          tahunAjaran === 'Semua' ? '' : encodeURIComponent(tahunAjaran)
+        }&semester=${semester === 'Semua' ? '' : encodeURIComponent(semester)}`
+      )
+      const json = await res.json()
+      if (json.ok) setList(json.data)
+      else setList([])
+    } catch (err) {
+      console.error(err)
+      setList([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.nip) {
+      alert('Silahkan pilih Wali Kelas (Guru)')
+      return
+    }
+    setSaving(true)
+    try {
+      if (formData.id) {
+        const payload = {
+          ...formData,
+          tahun_ajaran: tahunAjaran,
+          semester: formData.semester,
         }
+        const res = await fetch('/api/settings/wali-kelas', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const json = await res.json()
+        if (!json.ok) throw new Error(json.error)
+      } else {
+        const targetSemesters = !semester || semester === 'Semua' ? ['Ganjil', 'Genap'] : [semester]
+
+        const promises = targetSemesters.map((sem) => {
+          const payload = {
+            ...formData,
+            tahun_ajaran: tahunAjaran,
+            semester: sem,
+          }
+          return fetch('/api/settings/wali-kelas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        })
+
+        const responses = await Promise.all(promises)
+        const jsonResponses = await Promise.all(responses.map((r) => r.json()))
+
+        const error = jsonResponses.find((j) => !j.ok)
+        if (error) throw new Error(error.error || 'Gagal menyimpan sebagian data')
+      }
+
+      setShowModal(false)
+      fetchData()
+    } catch (err: any) {
+      console.error(err)
+      alert(err.message || 'Terjadi kesalahan')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Hapus data ini?')) return
+    try {
+      const res = await fetch(`/api/settings/wali-kelas?id=${id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (json.ok) fetchData()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleExport = () => {
+    if (list.length === 0) {
+      alert('Tidak ada data untuk diexport')
+      return
+    }
+    const dataToExport = list.map((item, index) => ({
+      No: index + 1,
+      Kelas: item.nama_kelas,
+      Nama_Guru: item.nama_guru,
+      NIP: item.nip,
+      Tahun_Ajaran: item.tahun_ajaran,
+      Semester: item.semester,
+      Status: item.aktif ? 'Aktif' : 'Non-Aktif',
+    }))
+    exportToExcel(dataToExport, `WaliKelas_${tahunAjaran.replace('/', '-')}_${semester}`)
+  }
+
+  const mapImportRow = (row: any) => {
+    const nip = row['NIP'] || row['nip']
+    const nama = row['Nama_Guru'] || row['Nama Guru'] || row['nama_guru'] || ''
+    const kelas = row['Kelas'] || row['kelas'] || row['Nama_Kelas']
+
+    const ta = row['Tahun_Ajaran'] || row['Tahun Ajaran'] || row['tahun_ajaran']
+    if (!ta || String(ta).trim() === '') return null
+
+    let sem = row['Semester'] || row['semester'] || ''
+
+    if (!nip || !kelas) return null
+
+    const base = {
+      nip: String(nip),
+      nama_guru: String(nama),
+      nama_kelas: String(kelas),
+      tahun_ajaran: String(ta),
+      aktif: true,
     }
 
-    const fetchData = async () => {
-        setLoading(true)
-        try {
-            const res = await fetch(`/api/settings/wali-kelas?q=${searchTerm}&tahun_ajaran=${tahunAjaran === 'Semua' ? '' : tahunAjaran}&semester=${semester === 'Semua' ? '' : semester}`)
-            const json = await res.json()
-            if (json.ok) setList(json.data)
-        } catch (err) {
-            console.error(err)
-        } finally {
-            setLoading(false)
-        }
+    if (!sem || String(sem).toLowerCase() === 'semua') {
+      return [
+        { ...base, semester: 'Ganjil' },
+        { ...base, semester: 'Genap' },
+      ]
     }
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!formData.nip) {
-            alert('Silahkan pilih Wali Kelas (Guru)')
-            return
-        }
-        setSaving(true)
-        try {
-            if (formData.id) {
-                // EDIT MODE: Single Row Update
-                const payload = {
-                    ...formData,
-                    tahun_ajaran: tahunAjaran, // Keep using global year or formData.tahun_ajaran check
-                    // Strict: Use the semester bound to the record being edited
-                    semester: formData.semester
-                }
-                const res = await fetch('/api/settings/wali-kelas', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                })
-                const json = await res.json()
-                if (!json.ok) throw new Error(json.error)
-            } else {
-                // ADD MODE: Handle 'Semua' split
-                const targetSemesters = (!semester || semester === 'Semua') ? ['Ganjil', 'Genap'] : [semester]
+    const validSemesters = ['ganjil', 'genap']
+    if (!validSemesters.includes(String(sem).toLowerCase())) return null
 
-                const promises = targetSemesters.map(sem => {
-                    const payload = {
-                        ...formData,
-                        tahun_ajaran: tahunAjaran,
-                        semester: sem
-                    }
-                    return fetch('/api/settings/wali-kelas', {
-                        method: 'POST', // Upsert
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    })
-                })
+    return { ...base, semester: String(sem) }
+  }
 
-                const responses = await Promise.all(promises)
-                const jsonResponses = await Promise.all(responses.map(r => r.json()))
+  const openAdd = () => {
+    setFormData({ aktif: true, tahun_ajaran: tahunAjaran })
+    setSelectedClass('')
+    setShowModal(true)
+  }
 
-                const error = jsonResponses.find(j => !j.ok)
-                if (error) throw new Error(error.error || 'Gagal menyimpan sebagian data')
-            }
-
-            setShowModal(false)
-            fetchData()
-        } catch (err: any) {
-            console.error(err)
-            alert(err.message || 'Terjadi kesalahan')
-        } finally {
-            setSaving(false)
-        }
-    }
-
-    const handleDelete = async (id: number) => {
-        if (!confirm('Hapus data ini?')) return
-        try {
-            const res = await fetch(`/api/settings/wali-kelas?id=${id}`, { method: 'DELETE' })
-            const json = await res.json()
-            if (json.ok) fetchData()
-        } catch (err) {
-            console.error(err)
-        }
-    }
-
-    const handleExport = () => {
-        if (list.length === 0) {
-            alert('Tidak ada data untuk diexport')
-            return
-        }
-        const dataToExport = list.map((item, index) => ({
-            No: index + 1,
-            Kelas: item.nama_kelas,
-            Nama_Guru: item.nama_guru,
-            NIP: item.nip,
-            Tahun_Ajaran: item.tahun_ajaran,
-            Semester: item.semester,
-            Status: item.aktif ? 'Aktif' : 'Non-Aktif'
-        }))
-        exportToExcel(dataToExport, `WaliKelas_${tahunAjaran.replace('/', '-')}_${semester}`)
-    }
-
-    const mapImportRow = (row: any) => {
-        const nip = row['NIP'] || row['nip']
-        const nama = row['Nama_Guru'] || row['Nama Guru'] || row['nama_guru'] || ''
-        const kelas = row['Kelas'] || row['kelas'] || row['Nama_Kelas']
-
-        const ta = row['Tahun_Ajaran'] || row['Tahun Ajaran'] || row['tahun_ajaran']
-        // Strict Year check
-        if (!ta || String(ta).trim() === '') return null
-
-        let sem = row['Semester'] || row['semester'] || ''
-
-        if (!nip || !kelas) return null
-
-        const base = {
-            nip: String(nip),
-            nama_guru: String(nama),
-            nama_kelas: String(kelas),
-            tahun_ajaran: String(ta),
-            aktif: true
-        }
-
-        if (!sem || String(sem).toLowerCase() === 'semua') {
-            return [
-                { ...base, semester: 'Ganjil' },
-                { ...base, semester: 'Genap' }
-            ]
-        }
-
-        // Strict Validation: Semester must be Ganjil or Genap if specified
-        const validSemesters = ['ganjil', 'genap']
-        if (!validSemesters.includes(String(sem).toLowerCase())) {
-            return null // Skip row if semester is invalid (e.g. typo)
-        }
-
-        return { ...base, semester: String(sem) }
-    }
-
-    return (
-        <div className="tab-content pd-24">
-            <div className="action-bar mb-24 flex justify-between items-center gap-4 flex-wrap">
-                <div className="flex gap-2 bg-gray-50 p-2 rounded-lg items-center border border-gray-200">
-                    <div className="search-container relative">
-                        <i className="bi bi-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10"></i>
-                        <input
-                            type="text"
-                            placeholder="Cari Kelas / Guru..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-[250px]"
-                        />
-                    </div>
-
-                    <div className="h-8 w-px bg-gray-300 mx-2"></div>
-
-                    <select
-                        value={tahunAjaran}
-                        onChange={(e) => setTahunAjaran(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
-                    >
-                        <option value="Semua">Semua Tahun</option>
-                        <option value="2024/2025">2024/2025</option>
-                        <option value="2025/2026">2025/2026</option>
-                        <option value="2026/2027">2026/2027</option>
-                    </select>
-
-                    <select
-                        value={semester}
-                        onChange={(e) => setSemester(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
-                    >
-                        <option value="Semua">Semua Sem.</option>
-                        <option value="Ganjil">Ganjil</option>
-                        <option value="Genap">Genap</option>
-                    </select>
-                </div>
-                <div className="flex gap-2">
-                    <button className="btn-secondary" onClick={handleExport} title="Export Data">
-                        <i className="bi bi-file-earmark-excel"></i> Export
-                    </button>
-                    <button className="btn-secondary" onClick={() => setShowImportModal(true)} title="Import Excel">
-                        <i className="bi bi-upload"></i> Import
-                    </button>
-                    <button className="btn-primary" onClick={() => { setFormData({ aktif: true, tahun_ajaran: tahunAjaran }); setSelectedClass(''); setShowModal(true); }}>
-                        <i className="bi bi-plus-lg"></i> Tambah
-                    </button>
-                </div>
-            </div>
-
-            <div className="table-container">
-                <table className="data-table">
-                    <thead>
-                        <tr>
-                            <th>No</th>
-                            <th>Nama Kelas</th>
-                            <th>Nama Guru (Wali Kelas)</th>
-                            <th>ID Guru / NIP</th>
-                            <th>Tahun Ajaran</th>
-                            <th>Semester</th>
-                            <th>Status</th>
-                            <th>Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading ? (
-                            <tr><td colSpan={8} className="text-center py-8">Memuat...</td></tr>
-                        ) : list.length === 0 ? (
-                            <tr><td colSpan={8} className="text-center py-8">Tidak ada data.</td></tr>
-                        ) : (
-                            list.map((item, index) => (
-                                <tr key={item.id}>
-                                    <td className="text-center">{index + 1}</td>
-                                    <td className="font-medium">{item.nama_kelas}</td>
-                                    <td className="font-medium">{item.nama_guru}</td>
-                                    <td className="font-mono">{item.nip}</td>
-                                    <td>{item.tahun_ajaran}</td>
-                                    <td>
-                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${item.semester === 'Ganjil' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>
-                                            {item.semester}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span className={`status-badge ${item.aktif ? 'active' : 'inactive'}`}>
-                                            {item.aktif ? 'Aktif' : 'Non-Aktif'}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div className="flex gap-2">
-                                            <button className="btn-icon" onClick={() => {
-                                                setFormData(item)
-                                                setSelectedClass(item.nama_kelas)
-                                                setShowModal(true)
-                                            }}>
-                                                <i className="bi bi-pencil"></i>
-                                            </button>
-                                            <button className="btn-icon delete" onClick={() => item.id && handleDelete(item.id)}>
-                                                <i className="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
-            {
-                showModal && (
-                    <div className="modal-overlay">
-                        <div className="modal-content">
-                            <div className="modal-header">
-                                <h2>{formData.id ? 'Edit Wali Kelas' : 'Tambah Wali Kelas'}</h2>
-                                <button onClick={() => setShowModal(false)} className="close-btn">&times;</button>
-                            </div>
-                            <form onSubmit={handleSubmit}>
-                                <div className="modal-body">
-                                    <div className="form-grid">
-                                        <div className="form-group">
-                                            <label>1. Pilih Kelas</label>
-                                            <select
-                                                value={formData.nama_kelas || ''}
-                                                onChange={e => {
-                                                    setFormData({ ...formData, nama_kelas: e.target.value })
-                                                    setSelectedClass(e.target.value)
-                                                }}
-                                                required
-                                            >
-                                                <option value="">-- Pilih Kelas --</option>
-                                                {masterKelas.map(k => (
-                                                    <option key={k.id} value={k.nama}>{k.nama}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="form-group z-50">
-                                            <SearchableSelect
-                                                label="2. Pilih Wali Kelas (Guru)"
-                                                placeholder="-- Pilih Guru --"
-                                                value={formData.nip || ''}
-                                                options={masterGuru.map(g => ({
-                                                    value: g.nip,
-                                                    label: g.nama_lengkap,
-                                                    subLabel: g.nip
-                                                }))}
-                                                onChange={(val) => {
-                                                    const selected = masterGuru.find(g => g.nip === val);
-                                                    setFormData({
-                                                        ...formData,
-                                                        nip: val,
-                                                        nama_guru: selected ? selected.nama_lengkap : ''
-                                                    })
-                                                }}
-                                                disabled={!formData.nama_kelas}
-                                            />
-                                        </div>
-                                        <div className="form-group hidden">
-                                            <label>Nama Guru</label>
-                                            <input type="text" value={formData.nama_guru || ''} readOnly className="bg-gray-100" placeholder="Otomatis terisi..." />
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Tahun Ajaran</label>
-                                            <input type="text" value={formData.tahun_ajaran || ''} onChange={e => setFormData({ ...formData, tahun_ajaran: e.target.value })} required placeholder="2024/2025" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="modal-footer">
-                                    <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Batal</button>
-                                    <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* Import Modal */}
-            <ImportModal
-                isOpen={showImportModal}
-                onClose={() => setShowImportModal(false)}
-                onImportSuccess={fetchData}
-                templateColumns={['No', 'NIP', 'Nama_Guru', 'Kelas', 'Tahun_Ajaran']}
-                templateName="Template_WaliKelas"
-                apiEndpoint="/api/settings/wali-kelas"
-                mapRowData={mapImportRow}
+  return (
+    <div className="wk">
+      {/* ===== Toolbar ===== */}
+      <div className="wk__bar">
+        <div className="wk__filters">
+          <div className="wk__search">
+            <i className="bi bi-search" aria-hidden="true" />
+            <input
+              type="text"
+              placeholder="Cari Kelas / Guru..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
+          </div>
 
-            <style jsx>{`
-/* =====================================================
-   TAB STYLE — PREMIUM NAVY (FULL REPLACE)
-   Target:
-   - Mobile iPhone 13 (390x844): tidak terpotong, no overflow
-   - Table → Card view di mobile
-   - Aksi icon tetap 1 baris di desktop
-   - Modal responsif (mobile full)
-   - Status badge tanpa “bulatan” / aman dari pseudo-element global
-===================================================== */
+          <select value={tahunAjaran} onChange={(e) => setTahunAjaran(e.target.value)}>
+            <option value="Semua">Semua Tahun</option>
+            <option value="2024/2025">2024/2025</option>
+            <option value="2025/2026">2025/2026</option>
+            <option value="2026/2027">2026/2027</option>
+          </select>
 
-:global(:root){
-  --n-bg:#f5f7fb;
-  --n-card:#ffffff;
-  --n-ink:#0b1324;
-  --n-muted:#64748b;
+          <select value={semester} onChange={(e) => setSemester(e.target.value)}>
+            <option value="Semua">Semua Sem.</option>
+            <option value="Ganjil">Ganjil</option>
+            <option value="Genap">Genap</option>
+          </select>
+        </div>
 
-  --n-navy-950:#07162e;
-  --n-navy-900:#0b1f3a;
-  --n-navy-800:#0f2a56;
+        <div className="wk__actions">
+          <button className="wk__btn wk__btnExport" onClick={handleExport} title="Export Data">
+            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
+          </button>
+          <button className="wk__btn wk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+            <i className="bi bi-upload" /> <span>Import</span>
+          </button>
+          <button className="wk__btn wk__btnPrimary" onClick={openAdd}>
+            <i className="bi bi-plus-lg" /> <span>Tambah</span>
+          </button>
+        </div>
+      </div>
 
-  --n-border: rgba(15, 42, 86, .14);
-  --n-soft: rgba(15, 42, 86, .06);
+      {/* ===== Table (Desktop/Tablet) ===== */}
+      <div className="wk__tableWrap">
+        <table className="wk__table">
+          <thead>
+            <tr>
+              <th className="cNo">No</th>
+              <th>Nama Kelas</th>
+              <th>Nama Guru (Wali Kelas)</th>
+              <th className="cNip">ID Guru / NIP</th>
+              <th className="cTa">Tahun Ajaran</th>
+              <th className="cSem">Semester</th>
+              <th className="cStatus">Status</th>
+              <th className="cAksi">Aksi</th>
+            </tr>
+          </thead>
 
-  --n-shadow: 0 12px 30px rgba(15, 23, 42, .10);
-  --n-shadow-2: 0 10px 18px rgba(15, 23, 42, .08);
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={8} className="wk__empty">
+                  Memuat...
+                </td>
+              </tr>
+            ) : list.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="wk__empty wk__muted">
+                  Tidak ada data.
+                </td>
+              </tr>
+            ) : (
+              list.map((item, index) => (
+                <tr key={item.id ?? `${item.nip}-${index}`}>
+                  <td className="tCenter">{index + 1}</td>
+                  <td className="tPlain">{item.nama_kelas}</td>
+                  <td className="tPlain">{item.nama_guru}</td>
+                  <td className="tMono">{item.nip}</td>
+                  <td className="tMuted">{item.tahun_ajaran}</td>
+                  <td>
+                    <span className={`wk__pill ${item.semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>
+                      {item.semester}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`wk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
+                      {item.aktif ? 'Aktif' : 'Non-Aktif'}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="wk__rowActions">
+                      <button
+                        className="wk__iconBtn"
+                        onClick={() => {
+                          setFormData(item)
+                          setSelectedClass(item.nama_kelas)
+                          setShowModal(true)
+                        }}
+                        title="Edit"
+                      >
+                        <i className="bi bi-pencil" />
+                      </button>
+                      <button
+                        className="wk__iconBtn danger"
+                        onClick={() => item.id && handleDelete(item.id)}
+                        title="Hapus"
+                      >
+                        <i className="bi bi-trash" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
-  --n-radius: 16px;
-  --n-radius-sm: 12px;
+      {/* ===== Mobile Cards ===== */}
+      <div className="wk__cards" aria-label="Daftar Wali Kelas versi mobile">
+        {loading ? (
+          <div className="wk__card">
+            <div className="wk__cardHead">
+              <div className="wk__cardTitle">
+                <div className="wk__cardName">Memuat data...</div>
+                <div className="wk__cardSub">Mohon tunggu</div>
+              </div>
+            </div>
+          </div>
+        ) : list.length === 0 ? (
+          <div className="wk__card">
+            <div className="wk__cardHead">
+              <div className="wk__cardTitle">
+                <div className="wk__cardName">Tidak ada data</div>
+                <div className="wk__cardSub">Coba ubah filter</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          list.map((item, index) => (
+            <div className="wk__card" key={`m-${item.id ?? `${item.nip}-${index}`}`}>
+              <div className="wk__cardHead">
+                <div className="wk__cardTitle">
+                  <div className="wk__cardName" title={item.nama_guru}>
+                    {item.nama_guru}
+                  </div>
+                  <div className="wk__cardSub">{item.nama_kelas}</div>
+                </div>
+              </div>
 
-  --n-blue:#2563eb;
-  --n-green:#16a34a;
-  --n-red:#ef4444;
+              <div className="wk__cardBody">
+                <div className="wk__kv">
+                  <div className="wk__k">Tahun Ajaran</div>
+                  <div className="wk__v">{item.tahun_ajaran}</div>
+                </div>
 
-  --n-ring: 0 0 0 4px rgba(37,99,235,.12);
-}
+                <div className="wk__kv">
+                  <div className="wk__k">Semester</div>
+                  <div className="wk__v">
+                    <span className={`wk__pill ${item.semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>
+                      {item.semester}
+                    </span>
+                  </div>
+                </div>
 
-/* =========================
-   Layout helpers you use
-========================= */
-.pd-24{
-  padding: 16px;         /* ✅ default aman mobile */
-  background: var(--n-bg);
-  border-radius: 0 0 16px 16px;
-  min-width: 0;
-  max-width: 100%;
-  overflow-x: clip;
-}
+                <div className="wk__kv">
+                  <div className="wk__k">Status</div>
+                  <div className="wk__v">
+                    <span className={`wk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
+                      {item.aktif ? 'Aktif' : 'Non-Aktif'}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-.mb-24{ margin-bottom: 16px; }
+              <div className="wk__cardFoot">
+                <button
+                  className="wk__actionBtn"
+                  onClick={() => {
+                    setFormData(item)
+                    setSelectedClass(item.nama_kelas)
+                    setShowModal(true)
+                  }}
+                  title="Edit"
+                >
+                  <i className="bi bi-pencil" />
+                  <span>Edit</span>
+                </button>
 
-.opacity-50{ opacity: .5; }
-.cursor-not-allowed{ cursor: not-allowed; }
+                <button className="wk__actionBtn danger" onClick={() => item.id && handleDelete(item.id)} title="Hapus">
+                  <i className="bi bi-trash" />
+                  <span>Hapus</span>
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
 
-.font-mono{
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-.font-medium{ font-weight: 650; }
+      {/* ===== Modal Add/Edit ===== */}
+      {showModal && (
+        <div className="wk__modalOverlay">
+          <div className="wk__modal">
+            <div className="wk__modalHead">
+              <div className="wk__modalTitle">
+                <h2>{formData.id ? 'Edit Wali Kelas' : 'Tambah Wali Kelas'}</h2>
+                <p>
+                  Periode: {tahunAjaran} • {semester === 'Semua' ? 'Ganjil & Genap' : semester}
+                </p>
+              </div>
+              <button className="wk__close" onClick={() => setShowModal(false)} aria-label="Tutup">
+                <i className="bi bi-x-lg" />
+              </button>
+            </div>
 
-/* =========================
-   Action Bar
-========================= */
-.action-bar{
-  display:flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+            <form onSubmit={handleSubmit}>
+              <div className="wk__modalBody">
+                <div className="wk__field">
+                  <label>1. Pilih Kelas</label>
+                  <select
+                    value={formData.nama_kelas || ''}
+                    onChange={(e) => {
+                      setFormData({ ...formData, nama_kelas: e.target.value })
+                      setSelectedClass(e.target.value)
+                    }}
+                    required
+                  >
+                    <option value="">— Pilih Kelas —</option>
+                    {masterKelas.map((k) => (
+                      <option key={k.id} value={k.nama}>
+                        {k.nama}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-  padding: 14px;
-  margin-bottom: 14px;
+                <div className="wk__field wk__z">
+                  <SearchableSelect
+                    label="2. Pilih Wali Kelas (Guru)"
+                    placeholder="Cari guru..."
+                    value={formData.nip || ''}
+                    options={masterGuru.map((g) => ({
+                      value: g.nip,
+                      label: g.nama_lengkap,
+                      subLabel: g.nip,
+                    }))}
+                    onChange={(val) => {
+                      const selected = masterGuru.find((g) => g.nip === val)
+                      setFormData({
+                        ...formData,
+                        nip: val,
+                        nama_guru: selected ? selected.nama_lengkap : '',
+                      })
+                    }}
+                    disabled={!formData.nama_kelas}
+                  />
+                </div>
 
-  background: linear-gradient(180deg, #ffffff, #fbfcff);
-  border: 1px solid var(--n-border);
-  border-radius: var(--n-radius);
-  box-shadow: 0 8px 18px rgba(15,23,42,.06);
-  min-width: 0;
-}
+                <div className="wk__field">
+                  <label>Tahun Ajaran</label>
+                  <input
+                    type="text"
+                    value={formData.tahun_ajaran || tahunAjaran}
+                    onChange={(e) => setFormData({ ...formData, tahun_ajaran: e.target.value })}
+                    required
+                    placeholder="2024/2025"
+                  />
+                </div>
 
-/* =========================
-   Search
-========================= */
-.search-box{
-  display:flex;
-  align-items:center;
-  gap: 10px;
+                {formData.id && (
+                  <div className="wk__field">
+                    <label>Semester (Record)</label>
+                    <input type="text" value={formData.semester || ''} readOnly />
+                  </div>
+                )}
+              </div>
 
-  background: #fff;
-  border: 1px solid var(--n-border);
-  box-shadow: 0 6px 14px rgba(15, 23, 42, .05);
-  padding: 10px 14px;
-  border-radius: 999px;
+              <div className="wk__modalFoot">
+                <button type="button" className="wk__btn wk__btnGhost" onClick={() => setShowModal(false)}>
+                  Batal
+                </button>
+                <button type="submit" className="wk__btn wk__btnPrimary" disabled={saving}>
+                  {saving ? 'Menyimpan...' : 'Simpan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-  width: 420px;     /* desktop */
-  max-width: 100%;
-  min-width: 0;
-}
-.search-box :global(i){
-  color: rgba(15,42,86,.72);
-  font-size: 1.05rem;
-}
-.search-box input{
-  border: none;
-  background: transparent;
-  width: 100%;
-  outline: none;
-  margin-left: 0;
-  color: #111827;
-  font-weight: 650;
-  font-size: .95rem;
-  min-width: 0;
-}
-.search-box input::placeholder{
-  color: rgba(100,116,139,.95);
-  font-weight: 600;
-}
-.search-box:focus-within{
-  border-color: rgba(37,99,235,.35);
-  box-shadow: var(--n-ring), 0 8px 18px rgba(15,23,42,.06);
-}
+      {/* Import Modal */}
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={fetchData}
+        templateColumns={['No', 'NIP', 'Nama_Guru', 'Kelas', 'Tahun_Ajaran']}
+        templateName="Template_WaliKelas"
+        apiEndpoint="/api/settings/wali-kelas"
+        mapRowData={mapImportRow}
+      />
 
-/* =========================
-   Buttons
-========================= */
-.btn-primary,
-.btn-secondary{
-  border: none;
-  padding: 10px 16px;
-  border-radius: 999px;
-  cursor: pointer;
-  font-weight: 900;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, filter .18s ease, border-color .18s ease;
-  user-select: none;
-  white-space: nowrap;
-}
+      <style jsx>{`
+        :global(:root) {
+          --wk-line: rgba(148, 163, 184, 0.22);
+          --wk-card: rgba(255, 255, 255, 0.92);
+          --wk-shadow: 0 14px 34px rgba(2, 6, 23, 0.08);
+          --wk-shadow2: 0 10px 22px rgba(2, 6, 23, 0.08);
+          --wk-radius: 16px;
 
-.btn-primary{
-  background: linear-gradient(180deg, var(--n-navy-800), var(--n-navy-900));
-  color: #fff;
-  box-shadow: 0 12px 24px rgba(15,42,86,.18);
-}
-.btn-primary:hover{
-  transform: translateY(-1px);
-  filter: brightness(1.04);
-}
+          --wk-fs: 0.86rem;
+          --wk-fs-sm: 0.8rem;
+          --wk-fs-xs: 0.76rem;
 
-.btn-secondary{
-  background: #fff;
-  color: rgba(11,31,58,.92);
-  border: 1px solid var(--n-border);
-}
-.btn-secondary:hover{
-  background: rgba(15,42,86,.04);
-  box-shadow: var(--n-shadow-2);
-  transform: translateY(-1px);
-}
+          --wk-blue: rgba(58, 166, 255, 0.95);
+          --wk-blue2: rgba(15, 42, 86, 0.92);
+        }
 
-/* icon button */
-.btn-icon{
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  border: 1px solid rgba(15,42,86,.18);
-  background: #fff;
-  color: rgba(15,42,86,.70);
-  cursor: pointer;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease, color .18s ease;
-  flex: 0 0 auto;
-}
-.btn-icon:hover{
-  background: rgba(15,42,86,.05);
-  color: rgba(11,31,58,.92);
-  border-color: rgba(15,42,86,.26);
-  box-shadow: 0 10px 18px rgba(15,23,42,.10);
-  transform: translateY(-1px);
-}
-.btn-icon.delete:hover{
-  background: rgba(239,68,68,.10);
-  color: #991b1b;
-  border-color: rgba(239,68,68,.22);
-}
+        .wk {
+          width: 100%;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          font-size: var(--wk-fs);
+          padding: 16px;
+          background: #f5f7fb;
+          border-radius: 16px;
+        }
 
-/* =========================
-   Table (Desktop)
-========================= */
-.data-table{
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: #fff;
-  border: 1px solid var(--n-border);
-  border-radius: var(--n-radius);
-  overflow: hidden;
-  box-shadow: var(--n-shadow);
-  font-size: .95rem;
-}
+        /* ========= TOOLBAR ========= */
+        .wk__bar {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+          flex-wrap: wrap;
+          width: 100%;
+          min-width: 0;
+        }
 
-.data-table th,
-.data-table td{
-  padding: 12px 14px;
-  text-align: left;
-  border-bottom: 1px solid rgba(15,42,86,.08);
-  color: #0f172a;
-  vertical-align: middle;
-}
+        .wk__filters {
+          flex: 1 1 640px;
+          min-width: 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          padding: 8px;
+          border-radius: var(--wk-radius);
+          background: rgba(255, 255, 255, 0.72);
+          border: 1px solid var(--wk-line);
+          box-shadow: var(--wk-shadow2);
+        }
 
-.data-table th{
-  background: linear-gradient(180deg, rgba(11,31,58,.98), rgba(15,42,86,.96));
-  font-weight: 900;
-  color: rgba(255,255,255,.95);
-  letter-spacing: .2px;
-}
+        .wk__search {
+          position: relative;
+          flex: 1 1 280px;
+          min-width: 180px;
+        }
 
-.data-table td{
-  color: rgba(15,23,42,.92);
-  font-size: .95rem;
-}
+        .wk__search i {
+          position: absolute;
+          left: 10px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: rgba(100, 116, 139, 0.9);
+          pointer-events: none;
+          font-size: 0.88rem;
+        }
 
-.data-table tbody tr{
-  background: #fff;
-  transition: background .15s ease;
-}
-.data-table tbody tr:hover{
-  background: rgba(15,42,86,.03);
-}
+        .wk__search input {
+          width: 100%;
+          padding: 8px 10px 8px 30px;
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.92);
+          font-weight: 550;
+          color: rgba(15, 23, 42, 0.92);
+          outline: none;
+          font-size: var(--wk-fs-sm);
+          transition: box-shadow 0.15s ease, border-color 0.15s ease;
+        }
 
-.data-table tr:last-child td{ border-bottom: none; }
+        .wk__filters select {
+          padding: 8px 10px;
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.92);
+          font-weight: 600;
+          color: rgba(15, 23, 42, 0.86);
+          outline: none;
+          min-width: 138px;
+          font-size: var(--wk-fs-sm);
+        }
 
-/* ✅ aksi di desktop jangan wrap */
-.data-table td:last-child{ white-space: nowrap; }
+        .wk__search input:focus,
+        .wk__filters select:focus {
+          border-color: rgba(58, 166, 255, 0.55);
+          box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+        }
 
-/* =========================
-   Status badge (no dot)
-========================= */
-.status-badge{
-  display:inline-flex;
-  align-items:center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: .82rem;
-  font-weight: 900;
-  border: 1px solid rgba(15,42,86,.14);
-  background: rgba(15,42,86,.06);
-  color: rgba(11,31,58,.90);
-}
-.status-badge::before{ display:none !important; content:none !important; } /* ✅ anti pseudo global */
+        .wk__actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex: 0 0 auto;
+        }
 
-.status-badge.active{
-  background: rgba(22,163,74,.10);
-  color: #14532d;
-  border-color: rgba(22,163,74,.22);
-}
-.status-badge.inactive{
-  background: rgba(239,68,68,.10);
-  color: #991b1b;
-  border-color: rgba(239,68,68,.22);
-}
+        .wk__btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          height: 38px;
+          padding: 8px 12px;
+          border-radius: 12px;
+          border: 1px solid var(--wk-line);
+          background: rgba(255, 255, 255, 0.78);
+          color: rgba(7, 22, 46, 0.9);
+          font-weight: 700;
+          cursor: pointer;
+          font-size: var(--wk-fs-sm);
+          transition: transform 0.15s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+          user-select: none;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+          white-space: nowrap;
+        }
 
-/* =========================
-   Modal
-========================= */
-.modal-overlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(2, 6, 23, 0.55);
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  z-index: 1000;
-  padding: 14px;
-  backdrop-filter: blur(6px);
-}
+        .wk__btn i {
+          font-size: 1rem;
+        }
 
-.modal-content{
-  background: #fff;
-  border-radius: var(--n-radius);
-  width: 100%;
-  max-width: 620px;
-  border: 1px solid rgba(15,42,86,.14);
-  box-shadow: 0 30px 70px rgba(2,6,23,.35);
-  overflow: hidden;
-  max-height: 90vh;
-  display:flex;
-  flex-direction: column;
-}
+        .wk__btn:hover {
+          background: rgba(255, 255, 255, 0.92);
+          border-color: rgba(58, 166, 255, 0.24);
+          box-shadow: var(--wk-shadow2);
+          transform: translateY(-1px);
+        }
 
-.modal-header{
-  padding: 16px 18px;
-  border-bottom: 1px solid rgba(15,42,86,.10);
-  display:flex;
-  justify-content: space-between;
-  align-items:center;
-  background: linear-gradient(180deg, #ffffff, #fbfcff);
-}
-.modal-header h2{
-  font-size: 1.12rem;
-  font-weight: 900;
-  color: rgba(11,31,58,.95);
-  margin: 0;
-}
+        .wk__btn:active {
+          transform: translateY(0);
+        }
 
-.modal-body{
-  padding: 18px;
-  overflow: auto;
-}
+        .wk__btnGhost {
+          background: rgba(255, 255, 255, 0.78);
+        }
 
-.modal-footer{
-  padding: 16px 18px;
-  border-top: 1px solid rgba(15,42,86,.10);
-  display:flex;
-  justify-content:flex-end;
-  gap: 10px;
-  background: #fff;
-}
+        .wk__btnPrimary {
+          background: linear-gradient(135deg, var(--wk-blue), var(--wk-blue2));
+          border-color: rgba(58, 166, 255, 0.32);
+          color: #fff;
+        }
 
-.close-btn{
-  background: none;
-  border:none;
-  font-size: 1.6rem;
-  cursor:pointer;
-  color: rgba(15,42,86,.70);
-}
-.close-btn:hover{ color: rgba(11,31,58,.95); }
+        .wk__btnExport {
+          background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
+          border-color: rgba(16, 185, 129, 0.28);
+          color: #fff;
+        }
 
-/* form */
-.form-grid{
-  display:flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-.form-group{
-  display:flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
+        .wk__btnImport {
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
+          border-color: rgba(245, 158, 11, 0.28);
+          color: #fff;
+        }
 
-label{
-  font-size: .9rem;
-  font-weight: 800;
-  color: rgba(15,42,86,.85);
-}
+        /* ========= TABLE ========= */
+        .wk__tableWrap {
+          width: 100%;
+          min-width: 0;
+          overflow: auto;
+          border-radius: var(--wk-radius);
+          border: 1px solid var(--wk-line);
+          background: var(--wk-card);
+          box-shadow: var(--wk-shadow);
+        }
 
-input, select{
-  padding: 10px 12px;
-  border: 1px solid rgba(15,42,86,.18);
-  border-radius: 12px;
-  font-size: .95rem;
-  color: #111827;
-  font-weight: 650;
-  background: #fff;
-  transition: box-shadow .18s ease, border-color .18s ease;
-}
+        .wk__table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+          min-width: 980px;
+        }
 
-input:focus, select:focus{
-  outline: none;
-  border-color: rgba(37,99,235,.45);
-  box-shadow: var(--n-ring);
-}
+        .wk__table thead th {
+          position: sticky;
+          top: 0;
+          z-index: 1;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 250, 251, 0.98));
+          color: rgba(7, 22, 46, 0.86);
+          font-size: var(--wk-fs-xs);
+          font-weight: 800;
+          letter-spacing: 0.01em;
+          text-align: left;
+          padding: 10px 10px;
+          border-bottom: 1px solid var(--wk-line);
+          white-space: nowrap;
+        }
 
-/* =====================================================
-   MOBILE: iPhone 13 (390x844)
-===================================================== */
-@media (max-width: 768px){
-  .pd-24{ padding: 12px; }
-  .mb-24{ margin-bottom: 12px; }
+        .wk__table tbody td {
+          padding: 10px 10px;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+          color: rgba(15, 23, 42, 0.92);
+          font-size: var(--wk-fs-sm);
+          font-weight: 400;
+          vertical-align: middle;
+          background: rgba(255, 255, 255, 0.82);
+        }
 
-  .action-bar{
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    padding: 12px;
-  }
+        .wk__table tbody tr:nth-child(even) td {
+          background: rgba(248, 250, 252, 0.85);
+        }
 
-  .search-box{ width: 100%; }
+        .wk__table tbody tr:hover td {
+          background: rgba(58, 166, 255, 0.05);
+        }
 
-  /* table -> cards */
-  .data-table thead{ display:none; }
+        .wk__empty {
+          text-align: center;
+          padding: 18px 10px !important;
+          font-weight: 600;
+          font-size: var(--wk-fs-sm);
+        }
 
-  .data-table,
-  .data-table tbody,
-  .data-table tr,
-  .data-table td{
-    display:block;
-    width:100%;
-  }
+        .wk__muted {
+          color: rgba(100, 116, 139, 0.9) !important;
+          font-weight: 400 !important;
+        }
 
-  .data-table{
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    border-radius: 0;
-  }
+        .cNo {
+          width: 56px;
+        }
+        .cNip {
+          width: 170px;
+        }
+        .cTa {
+          width: 120px;
+        }
+        .cSem {
+          width: 110px;
+        }
+        .cStatus {
+          width: 110px;
+        }
+        .cAksi {
+          width: 120px;
+          text-align: right;
+        }
 
-  .data-table tbody{
-    display:flex;
-    flex-direction: column;
-    gap: 12px;
-  }
+        .tCenter {
+          text-align: center;
+        }
+        .tMono {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+            monospace;
+          font-size: var(--wk-fs-xs);
+          font-weight: 400;
+        }
+        .tPlain {
+          font-weight: 400;
+        }
+        .tMuted {
+          color: rgba(100, 116, 139, 0.9);
+        }
 
-  .data-table tbody tr{
-    background: #fff;
-    border: 1px solid rgba(15,42,86,.14);
-    border-radius: 16px;
-    padding: 14px;
-    box-shadow: 0 12px 26px rgba(15,23,42,.10);
-    overflow: hidden;
-  }
+        .wk__pill {
+          display: inline-flex;
+          align-items: center;
+          padding: 5px 8px;
+          border-radius: 999px;
+          font-weight: 500;
+          font-size: var(--wk-fs-xs);
+          border: 1px solid transparent;
+          white-space: nowrap;
+        }
 
-  .data-table td{
-    padding: 10px 0;
-    border-bottom: 1px dashed rgba(15,42,86,.10);
+        .wk__pill.isGanjil {
+          background: rgba(245, 158, 11, 0.12);
+          border-color: rgba(245, 158, 11, 0.18);
+          color: rgba(180, 83, 9, 1);
+        }
 
-    display:flex;
-    justify-content: space-between;
-    align-items:flex-start;
-    gap: 10px;
-    text-align: right;
+        .wk__pill.isGenap {
+          background: rgba(168, 85, 247, 0.12);
+          border-color: rgba(168, 85, 247, 0.18);
+          color: rgba(126, 34, 206, 1);
+        }
 
-    min-width: 0;
-    max-width: 100%;
-  }
+        .wk__status {
+          display: inline-flex;
+          align-items: center;
+          padding: 5px 8px;
+          border-radius: 999px;
+          font-weight: 500;
+          font-size: var(--wk-fs-xs);
+          border: 1px solid transparent;
+          white-space: nowrap;
+        }
+        .wk__status::before {
+          content: none !important;
+          display: none !important;
+        }
 
-  .data-table td:last-child{
-    border-bottom: none;
-    padding-top: 12px;
-    justify-content: flex-end;
-    background: rgba(15,42,86,.04);
-    margin: 0 -14px -14px;
-    padding-left: 14px;
-    padding-right: 14px;
-    white-space: normal; /* mobile boleh wrap */
-  }
+        .wk__status.isOn {
+          background: rgba(34, 197, 94, 0.12);
+          border-color: rgba(34, 197, 94, 0.18);
+          color: rgba(22, 163, 74, 1);
+        }
 
-  .data-table td::before{
-    content: attr(data-label);
-    font-weight: 900;
-    color: rgba(15,42,86,.70);
-    text-align: left;
-    font-size: .74rem;
-    letter-spacing: .5px;
-    text-transform: uppercase;
+        .wk__status.isOff {
+          background: rgba(239, 68, 68, 0.1);
+          border-color: rgba(239, 68, 68, 0.16);
+          color: rgba(220, 38, 38, 1);
+        }
 
-    flex: 0 0 92px;
-    max-width: 92px;
-  }
+        .wk__rowActions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 7px;
+        }
 
-  .data-table td > *{
-    flex: 1 1 auto;
-    min-width: 0;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    white-space: normal;
-  }
+        .wk__iconBtn {
+          width: 34px;
+          height: 34px;
+          border-radius: 11px;
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          background: rgba(255, 255, 255, 0.9);
+          color: rgba(7, 22, 46, 0.9);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: transform 0.15s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
 
-  /* modal full */
-  .modal-content{
-    width: 100%;
-    height: 100%;
-    max-height: none;
-    border-radius: 0;
-  }
+        .wk__iconBtn:hover {
+          box-shadow: var(--wk-shadow2);
+          transform: translateY(-1px);
+          border-color: rgba(58, 166, 255, 0.22);
+        }
 
-  .modal-footer{
-    flex-direction: column-reverse;
-    gap: 10px;
-  }
-  .modal-footer :global(button){
-    width: 100%;
-    justify-content: center;
-    margin: 0 !important;
-  }
-}
+        .wk__iconBtn.danger {
+          color: rgba(220, 38, 38, 1);
+          border-color: rgba(239, 68, 68, 0.18);
+          background: rgba(239, 68, 68, 0.06);
+        }
 
-@media (max-width: 390px){
-  .data-table td::before{
-    flex-basis: 86px;
-    max-width: 86px;
-  }
-  .btn-icon{
-    width: 34px;
-    height: 34px;
-  }
-}
-`}</style>
+        /* ========= MOBILE CARDS ========= */
+        .wk__cards {
+          display: none; /* ✅ default desktop: hide */
+          flex-direction: column;
+          gap: 12px;
+        }
 
-        </div >
-    )
+        .wk__card {
+          background: #fff;
+          border: 1px solid rgba(15, 42, 86, 0.14);
+          border-radius: 16px;
+          box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+          overflow: hidden;
+        }
+
+        .wk__cardHead {
+          padding: 14px 14px 10px;
+          background: linear-gradient(180deg, #ffffff, #fbfcff);
+          border-bottom: 1px solid rgba(15, 42, 86, 0.08);
+        }
+
+        .wk__cardTitle {
+          min-width: 0;
+        }
+
+        .wk__cardName {
+          font-weight: 800;
+          color: rgba(11, 31, 58, 0.95);
+          font-size: 0.98rem;
+          line-height: 1.25;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: unset;
+          word-break: break-word;
+        }
+
+        .wk__cardSub {
+          margin-top: 4px;
+          color: rgba(100, 116, 139, 0.95);
+          font-weight: 600;
+          font-size: 0.82rem;
+        }
+
+        .wk__cardBody {
+          padding: 12px 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .wk__kv {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: flex-start;
+        }
+
+        .wk__k {
+          color: rgba(15, 42, 86, 0.7);
+          font-size: 0.74rem;
+          font-weight: 800;
+          letter-spacing: 0.4px;
+          text-transform: uppercase;
+          flex: 0 0 112px;
+        }
+
+        .wk__v {
+          flex: 1 1 auto;
+          min-width: 0;
+          text-align: right;
+          color: rgba(15, 23, 42, 0.92);
+          font-weight: 500;
+          overflow-wrap: anywhere;
+        }
+
+        .wk__cardFoot {
+          display: flex;
+          gap: 10px;
+          padding: 12px 14px;
+          background: rgba(15, 42, 86, 0.04);
+          border-top: 1px solid rgba(15, 42, 86, 0.08);
+        }
+
+        .wk__actionBtn {
+          flex: 1 1 0;
+          display: inline-flex;
+          justify-content: center;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 12px;
+          border-radius: 12px;
+          border: 1px solid rgba(15, 42, 86, 0.16);
+          background: #fff;
+          color: rgba(11, 31, 58, 0.92);
+          font-weight: 600;
+          font-size: 0.86rem;
+          cursor: pointer;
+          transition: transform 0.12s ease, box-shadow 0.18s ease;
+        }
+
+        .wk__actionBtn:hover {
+          box-shadow: 0 10px 18px rgba(15, 23, 42, 0.1);
+          transform: translateY(-1px);
+        }
+
+        .wk__actionBtn.danger {
+          color: rgba(220, 38, 38, 1);
+          border-color: rgba(239, 68, 68, 0.18);
+          background: rgba(239, 68, 68, 0.06);
+        }
+
+        /* ========= MODAL ========= */
+        .wk__modalOverlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(2, 6, 23, 0.55);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 16px;
+        }
+
+        .wk__modal {
+          width: min(640px, 100%);
+          background: rgba(255, 255, 255, 0.96);
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          border-radius: 16px;
+          box-shadow: 0 28px 80px rgba(2, 6, 23, 0.35);
+          overflow: hidden;
+        }
+
+        .wk__modalHead {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+          padding: 14px 14px;
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+          border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+        }
+
+        .wk__modalTitle h2 {
+          margin: 0 0 3px;
+          font-size: 0.98rem;
+          font-weight: 800;
+          color: rgba(7, 22, 46, 0.96);
+        }
+
+        .wk__modalTitle p {
+          margin: 0;
+          font-size: var(--wk-fs-sm);
+          font-weight: 500;
+          color: rgba(100, 116, 139, 0.95);
+        }
+
+        .wk__close {
+          width: 38px;
+          height: 38px;
+          border-radius: 12px;
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          background: rgba(255, 255, 255, 0.9);
+          color: rgba(7, 22, 46, 0.92);
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .wk__modalBody {
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .wk__modalFoot {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          padding: 12px 14px;
+          border-top: 1px solid rgba(148, 163, 184, 0.18);
+          background: rgba(255, 255, 255, 0.92);
+        }
+
+        .wk__field label {
+          display: block;
+          font-size: var(--wk-fs-xs);
+          font-weight: 700;
+          color: rgba(7, 22, 46, 0.88);
+          margin-bottom: 7px;
+        }
+
+        .wk__field input,
+        .wk__field select {
+          width: 100%;
+          padding: 8px 10px;
+          border-radius: 12px;
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          background: rgba(248, 250, 252, 0.9);
+          color: rgba(15, 23, 42, 0.92);
+          font-weight: 500;
+          outline: none;
+          font-size: var(--wk-fs-sm);
+        }
+
+        .wk__field input:focus,
+        .wk__field select:focus {
+          border-color: rgba(58, 166, 255, 0.55);
+          box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+        }
+
+        .wk__z {
+          position: relative;
+          z-index: 50;
+        }
+
+        /* ✅ Switch yang konsisten: Desktop=Table, Mobile=Cards */
+        @media (max-width: 768px) {
+          .wk__tableWrap {
+            display: none;
+          }
+          .wk__cards {
+            display: flex;
+          }
+        }
+
+        /* ========= MOBILE kecil (iPhone 13 / Oppo A-series) ========= */
+        @media (max-width: 420px) {
+          .wk {
+            padding: 12px;
+          }
+
+          .wk__filters {
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 9px;
+          }
+
+          .wk__search {
+            grid-column: 1 / -1;
+            min-width: 0;
+          }
+
+          .wk__filters select {
+            min-width: 0;
+            width: 100%;
+          }
+
+          .wk__actions {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 2px;
+          }
+          .wk__actions::-webkit-scrollbar {
+            display: none;
+          }
+
+          .wk__btn {
+            height: 40px;
+            padding: 9px 12px;
+          }
+          .wk__btn span {
+            display: none;
+          }
+
+          .wk__modal {
+            width: 100%;
+          }
+          .wk__modalFoot {
+            flex-direction: column-reverse;
+          }
+          .wk__modalFoot .wk__btn {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .wk__btn,
+          .wk__iconBtn,
+          .wk__actionBtn {
+            transition: none;
+          }
+          .wk__btn:hover,
+          .wk__iconBtn:hover,
+          .wk__actionBtn:hover {
+            transform: none;
+          }
+        }
+      `}</style>
+    </div>
+  )
 }

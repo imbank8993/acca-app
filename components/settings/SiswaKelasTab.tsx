@@ -1,852 +1,1435 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '../ui/ImportModal'
 import SearchableSelect from '../ui/SearchableSelect'
 
 interface SiswaKelas {
-    id?: number;
-    nisn: string;
-    nama_siswa: string;
-    kelas: string;
-    tahun_ajaran: string;
-    semester: string;
-    aktif: boolean;
+  id?: number
+  nisn: string
+  nama_siswa: string
+  kelas: string
+  tahun_ajaran: string
+  semester: string
+  aktif: boolean
 }
 
 export default function SiswaKelasTab() {
-    // Local Filter State
-    const [tahunAjaran, setTahunAjaran] = useState('2025/2026')
-    const [semester, setSemester] = useState('Ganjil')
-    const [filterKelas, setFilterKelas] = useState('Semua')
+  // Local Filter State
+  const [tahunAjaran, setTahunAjaran] = useState('2025/2026')
+  const [semester, setSemester] = useState('Ganjil')
+  const [filterKelas, setFilterKelas] = useState('Semua')
 
-    const [list, setList] = useState<SiswaKelas[]>([])
-    const [loading, setLoading] = useState(true)
-    const [searchTerm, setSearchTerm] = useState('')
-    const [showModal, setShowModal] = useState(false)
-    const [showImportModal, setShowImportModal] = useState(false)
-    const [selectedClass, setSelectedClass] = useState('')
-    const [selectedStudent, setSelectedStudent] = useState('')
-    const [saving, setSaving] = useState(false)
-    const [editId, setEditId] = useState<number | null>(null)
+  const [list, setList] = useState<SiswaKelas[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
 
-    // Master data for selection
-    const [masterSiswa, setMasterSiswa] = useState<any[]>([])
-    const [masterKelas, setMasterKelas] = useState<any[]>([])
+  const [selectedClass, setSelectedClass] = useState('')
+  const [selectedStudent, setSelectedStudent] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [editId, setEditId] = useState<number | null>(null)
 
-    // Global Enrollments for Filtering (Fetched separately to know status of ALL students in this Year/Semester)
-    const [allEnrollments, setAllEnrollments] = useState<SiswaKelas[]>([])
+  // Master data for selection
+  const [masterSiswa, setMasterSiswa] = useState<any[]>([])
+  const [masterKelas, setMasterKelas] = useState<any[]>([])
 
-    useEffect(() => {
-        fetchMasterData()
-    }, [])
+  // Global Enrollments for Filtering
+  const [allEnrollments, setAllEnrollments] = useState<SiswaKelas[]>([])
 
-    useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            fetchData()
-        }, 500)
-        return () => clearTimeout(timeoutId)
-    }, [tahunAjaran, semester, filterKelas, searchTerm])
+  // Mobile sticky action state
+  const [mobileAction, setMobileAction] = useState<{
+    open: boolean
+    item: SiswaKelas | null
+    index: number
+  }>({ open: false, item: null, index: 0 })
 
-    // Specific effect to fetch ALL enrollments for the current context (ignoring class filter)
-    // This is used to filter the dropdown intelligently
-    useEffect(() => {
-        if (showModal) {
-            fetchAllEnrollmentsForContext()
-        }
-    }, [showModal, tahunAjaran, semester])
+  useEffect(() => {
+    fetchMasterData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-    const fetchMasterData = async () => {
-        try {
-            const [resSiswa, resKelas] = await Promise.all([
-                fetch('/api/master/students?limit=2000'),
-                fetch('/api/master/kelas')
-            ])
-            const [jsonSiswa, jsonKelas] = await Promise.all([
-                resSiswa.json(),
-                resKelas.json()
-            ])
-            if (jsonSiswa.ok) setMasterSiswa(jsonSiswa.data)
-            if (jsonKelas.ok) setMasterKelas(jsonKelas.data)
-        } catch (err) {
-            console.error('Error fetching master data:', err)
-        }
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchData()
+    }, 450)
+    return () => clearTimeout(timeoutId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tahunAjaran, semester, filterKelas, searchTerm])
+
+  useEffect(() => {
+    if (showModal) fetchAllEnrollmentsForContext()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal, tahunAjaran, semester])
+
+  // Close mobile action on escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileAction({ open: false, item: null, index: 0 })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const fetchMasterData = async () => {
+    try {
+      const [resSiswa, resKelas] = await Promise.all([
+        fetch('/api/master/students?limit=2000'),
+        fetch('/api/master/kelas'),
+      ])
+      const [jsonSiswa, jsonKelas] = await Promise.all([resSiswa.json(), resKelas.json()])
+      if (jsonSiswa.ok) setMasterSiswa(jsonSiswa.data)
+      if (jsonKelas.ok) setMasterKelas(jsonKelas.data)
+    } catch (err) {
+      console.error('Error fetching master data:', err)
+    }
+  }
+
+  const fetchData = async () => {
+    setLoading(true)
+    const params = new URLSearchParams({
+      q: searchTerm,
+      tahun_ajaran: tahunAjaran === 'Semua' ? '' : tahunAjaran,
+      semester: semester === 'Semua' ? '' : semester,
+      kelas: filterKelas === 'Semua' ? '' : filterKelas,
+    })
+    try {
+      const res = await fetch(`/api/settings/siswa-kelas?${params}`)
+      const json = await res.json()
+      if (json.ok) setList(json.data)
+      else setList([])
+    } catch (err) {
+      console.error(err)
+      setList([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchAllEnrollmentsForContext = async () => {
+    if (tahunAjaran === 'Semua') return
+    const params = new URLSearchParams({
+      tahun_ajaran: tahunAjaran,
+      semester: semester === 'Semua' ? '' : semester,
+    })
+    try {
+      const res = await fetch(`/api/settings/siswa-kelas?${params}`)
+      const json = await res.json()
+      if (json.ok) setAllEnrollments(json.data)
+      else setAllEnrollments([])
+    } catch (e) {
+      console.error('Enrollment check failed', e)
+      setAllEnrollments([])
+    }
+  }
+
+  const closeModal = () => {
+    setShowModal(false)
+    setEditId(null)
+    setSelectedStudent('')
+    setSelectedClass('')
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedClass || !selectedStudent) {
+      alert('Pilih kelas dan siswa!')
+      return
+    }
+    if (tahunAjaran === 'Semua') {
+      alert('Harap pilih Tahun Ajaran spesifik untuk menambah relasi.')
+      return
     }
 
-    const fetchData = async () => {
-        setLoading(true)
-        const params = new URLSearchParams({
-            q: searchTerm,
-            tahun_ajaran: tahunAjaran === 'Semua' ? '' : tahunAjaran,
-            semester: semester === 'Semua' ? '' : semester,
-            kelas: filterKelas === 'Semua' ? '' : filterKelas
-        })
-        try {
-            const res = await fetch(`/api/settings/siswa-kelas?${params}`)
-            const json = await res.json()
-            if (json.ok) setList(json.data)
-        } catch (err) {
-            console.error(err)
-        } finally {
-            setLoading(false)
-        }
-    }
+    setSaving(true)
+    try {
+      const targetSemesters = semester === 'Semua' ? ['Ganjil', 'Genap'] : [semester]
+      const nisn = selectedStudent
+      const siswa = masterSiswa.find((s) => s.nisn === nisn)
 
-    const fetchAllEnrollmentsForContext = async () => {
-        // Fetch ALL data for this Year/Semester (no class filter, no search)
-        // to build a complete map of who is enrolled where.
-        // If "Semua" is selected, we might be cautious, but typically adding is done for specific Year.
-        if (tahunAjaran === 'Semua') return;
-
-        const params = new URLSearchParams({
+      if (editId) {
+        const res = await fetch('/api/settings/siswa-kelas', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editId,
+            nisn,
+            nama_siswa: siswa?.nama_lengkap || '',
+            kelas: selectedClass,
             tahun_ajaran: tahunAjaran,
-            semester: semester === 'Semua' ? '' : semester,
-            // limit: '10000' // Ensure we get all? The API default pagination might limit this. 
-            // The current API seems to return all if no limit specified or we might need to paginate?
-            // Assuming simplified API returns reasonable bulk.
+            semester: targetSemesters[0],
+            aktif: true,
+          }),
         })
-        try {
-            const res = await fetch(`/api/settings/siswa-kelas?${params}`)
-            const json = await res.json()
-            if (json.ok) setAllEnrollments(json.data)
-        } catch (e) { console.error("Enrollment check failed", e) }
+        const json = await res.json()
+        if (!json.ok) throw new Error(json.error || 'Gagal mengubah data')
+      } else {
+        const promises = targetSemesters.map((sem) =>
+          fetch('/api/settings/siswa-kelas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nisn,
+              nama_siswa: siswa?.nama_lengkap || '',
+              kelas: selectedClass,
+              tahun_ajaran: tahunAjaran,
+              semester: sem,
+              aktif: true,
+            }),
+          })
+        )
+
+        const results = await Promise.all(promises)
+        const payloads = await Promise.all(results.map((r) => r.json()))
+        const anyFailed = payloads.some((j) => !j.ok)
+        if (anyFailed) throw new Error('Sebagian data gagal disimpan.')
+      }
+
+      closeModal()
+      fetchData()
+    } catch (err: any) {
+      console.error(err)
+      alert(err.message || 'Gagal menyimpan data')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEdit = (item: SiswaKelas) => {
+    setEditId(item.id!)
+    setSelectedClass(item.kelas)
+    setSelectedStudent(item.nisn)
+    setShowModal(true)
+  }
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Hapus relasi siswa ini dari kelas?')) return
+    try {
+      const res = await fetch(`/api/settings/siswa-kelas?id=${id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (json.ok) fetchData()
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleExport = () => {
+    if (list.length === 0) {
+      alert('Tidak ada data untuk diexport')
+      return
+    }
+    const dataToExport = list.map((item, index) => ({
+      No: index + 1,
+      NISN: item.nisn,
+      Nama_Siswa: item.nama_siswa,
+      Kelas: item.kelas,
+      Tahun_Ajaran: item.tahun_ajaran,
+      Semester: item.semester,
+      Status: item.aktif ? 'Aktif' : 'Non-Aktif',
+    }))
+    exportToExcel(dataToExport, `SiswaKelas_${tahunAjaran.replace('/', '-')}_${semester}`)
+  }
+
+  const mapImportRow = (row: any) => {
+    const nisn = row['NISN'] || row['nisn']
+    const nama = row['Nama_Siswa'] || row['Nama Siswa'] || row['nama_siswa'] || ''
+    const kelas = row['Kelas'] || row['kelas']
+
+    const ta = row['Tahun_Ajaran'] || row['Tahun Ajaran'] || row['tahun_ajaran']
+    if (!ta || String(ta).trim() === '') return null
+
+    let sem = row['Semester'] || row['semester'] || ''
+    const statusStr = row['Status'] || row['status']
+    const aktif = statusStr
+      ? String(statusStr).toLowerCase() === 'aktif' || statusStr === 'true' || statusStr === true
+      : true
+
+    const rawNisn = String(nisn ?? '').trim()
+    const fixedNisn = rawNisn.length < 10 && /^\d+$/.test(rawNisn) ? rawNisn.padStart(10, '0') : rawNisn
+
+    const baseObj = {
+      nisn: fixedNisn,
+      nama_siswa: String(nama).trim(),
+      kelas: String(kelas ?? '').trim(),
+      tahun_ajaran: String(ta).trim(),
+      aktif,
     }
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!selectedClass || !selectedStudent) {
-            alert('Pilih kelas dan siswa!')
-            return
-        }
-
-        if (tahunAjaran === 'Semua') {
-            alert('Harap pilih Tahun Ajaran spesifik untuk menambah relasi.')
-            return
-        }
-
-        setSaving(true)
-        try {
-            const targetSemesters = semester === 'Semua' ? ['Ganjil', 'Genap'] : [semester]
-            const nisn = selectedStudent
-            const siswa = masterSiswa.find(s => s.nisn === nisn)
-
-            if (editId) {
-                // Single Edit
-                const res = await fetch('/api/settings/siswa-kelas', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        id: editId,
-                        nisn,
-                        nama_siswa: siswa?.nama_lengkap || '',
-                        kelas: selectedClass,
-                        tahun_ajaran: tahunAjaran,
-                        semester: targetSemesters[0],
-                        aktif: true
-                    })
-                })
-                const json = await res.json()
-                if (!json.ok) throw new Error(json.error || 'Gagal mengubah data')
-            } else {
-                // Insert New
-                const promises = []
-                for (const sem of targetSemesters) {
-                    promises.push(fetch('/api/settings/siswa-kelas', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            nisn,
-                            nama_siswa: siswa?.nama_lengkap || '',
-                            kelas: selectedClass,
-                            tahun_ajaran: tahunAjaran,
-                            semester: sem,
-                            aktif: true
-                        })
-                    }))
-                }
-                await Promise.all(promises)
-            }
-
-            setShowModal(false)
-            setEditId(null)
-            setSelectedStudent('')
-            setSelectedClass('')
-            // Refresh main list and also re-fetch enrollments for next time?
-            fetchData()
-        } catch (err: any) {
-            console.error(err)
-            alert(err.message || 'Gagal menyimpan data')
-        } finally {
-            setSaving(false)
-        }
+    if (!sem || String(sem).toLowerCase() === 'semua') {
+      return [
+        { ...baseObj, semester: 'Ganjil' },
+        { ...baseObj, semester: 'Genap' },
+      ]
     }
 
-    const handleEdit = (item: SiswaKelas) => {
-        setEditId(item.id!)
-        setSelectedClass(item.kelas)
-        setSelectedStudent(item.nisn)
-        setShowModal(true)
+    return { ...baseObj, semester: String(sem).trim() }
+  }
+
+  const siswaOptions = useMemo(() => {
+    const targetClassObj = masterKelas.find((k) => k.nama === selectedClass)
+    const targetProgram = targetClassObj?.program || 'Reguler'
+
+    return masterSiswa
+      .filter((student) => {
+        if (editId && student.nisn === selectedStudent) return true
+
+        const enrollments = allEnrollments.filter((e) => e.nisn === student.nisn)
+        if (enrollments.length === 0) return true
+
+        const inTargetClass = enrollments.some((e) => e.kelas === selectedClass)
+        if (inTargetClass) return false
+
+        const existingPrograms = enrollments.map((e) => {
+          const cls = masterKelas.find((k) => k.nama === e.kelas)
+          return cls?.program || 'Reguler'
+        })
+
+        if (existingPrograms.includes(targetProgram)) return false
+        if (enrollments.length >= 2) return false
+
+        return true
+      })
+      .map((s) => ({
+        value: s.nisn,
+        label: s.nama_lengkap || s.nisn,
+        subLabel: s.nisn,
+      }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [masterSiswa, masterKelas, selectedClass, allEnrollments, editId, selectedStudent])
+
+  const openAdd = () => {
+    if (tahunAjaran === 'Semua') {
+      alert('Pilih Tahun Ajaran spesifik terlebih dahulu.')
+      return
     }
+    setSelectedClass('')
+    setSelectedStudent('')
+    setEditId(null)
+    setShowModal(true)
+  }
 
-    const handleDelete = async (id: number) => {
-        if (!confirm('Hapus relasi siswa ini dari kelas?')) return
-        try {
-            const res = await fetch(`/api/settings/siswa-kelas?id=${id}`, { method: 'DELETE' })
-            const json = await res.json()
-            if (json.ok) fetchData()
-        } catch (err) {
-            console.error(err)
-        }
-    }
+  // Group for mobile: by kelas
+  const groupedMobile = useMemo(() => {
+    const map = new Map<string, SiswaKelas[]>()
+    ;(list || []).forEach((it) => {
+      const key = String(it.kelas || '-').trim() || '-'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(it)
+    })
+    // stable sort by kelas
+    const entries = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'id'))
+    // sort each group by nama_siswa then nisn
+    entries.forEach(([k, arr]) => {
+      arr.sort((x, y) => {
+        const nx = String(x.nama_siswa || '').toLowerCase()
+        const ny = String(y.nama_siswa || '').toLowerCase()
+        if (nx !== ny) return nx.localeCompare(ny, 'id')
+        return String(x.nisn || '').localeCompare(String(y.nisn || ''), 'id')
+      })
+    })
+    return entries
+  }, [list])
 
-    const handleExport = () => {
-        if (list.length === 0) {
-            alert('Tidak ada data untuk diexport')
-            return
-        }
-        const dataToExport = list.map((item, index) => ({
-            No: index + 1,
-            NISN: item.nisn,
-            Nama_Siswa: item.nama_siswa,
-            Kelas: item.kelas,
-            Tahun_Ajaran: item.tahun_ajaran,
-            Semester: item.semester,
-            Status: item.aktif ? 'Aktif' : 'Non-Aktif'
-        }))
-        exportToExcel(dataToExport, `SiswaKelas_${tahunAjaran.replace('/', '-')}_${semester}`)
-    }
+  const openMobileAction = (item: SiswaKelas, index: number) => {
+    setMobileAction({ open: true, item, index })
+  }
 
-    const mapImportRow = (row: any) => {
-        const nisn = row['NISN'] || row['nisn']
-        const nama = row['Nama_Siswa'] || row['Nama Siswa'] || row['nama_siswa'] || ''
-        const kelas = row['Kelas'] || row['kelas']
+  const closeMobileAction = () => setMobileAction({ open: false, item: null, index: 0 })
 
-        const ta = row['Tahun_Ajaran'] || row['Tahun Ajaran'] || row['tahun_ajaran']
-        if (!ta || String(ta).trim() === '') return null;
+  const doMobileEdit = () => {
+    if (!mobileAction.item) return
+    closeMobileAction()
+    handleEdit(mobileAction.item)
+  }
 
-        let sem = row['Semester'] || row['semester'] || ''
-        const statusStr = row['Status'] || row['status']
-        const aktif = statusStr ? (statusStr.toLowerCase() === 'aktif' || statusStr === 'true' || statusStr === true) : true
+  const doMobileDelete = async () => {
+    if (!mobileAction.item?.id) return
+    const id = mobileAction.item.id
+    closeMobileAction()
+    await handleDelete(id)
+  }
 
-        const rawNisn = String(nisn).trim()
-        const fixedNisn = rawNisn.length < 10 && /^\d+$/.test(rawNisn) ? rawNisn.padStart(10, '0') : rawNisn
-
-        const baseObj = {
-            nisn: fixedNisn,
-            nama_siswa: String(nama).trim(),
-            kelas: String(kelas),
-            tahun_ajaran: String(ta),
-            aktif: aktif
-        }
-
-        if (!sem || String(sem).toLowerCase() === 'semua') {
-            return [
-                { ...baseObj, semester: 'Ganjil' },
-                { ...baseObj, semester: 'Genap' }
-            ]
-        }
-
-        return {
-            ...baseObj,
-            semester: String(sem)
-        }
-    }
-
-    // --- Smart Filtering Logic ---
-    const getFilteredSiswaOptions = () => {
-        // Find target class program
-        const targetClassObj = masterKelas.find(k => k.nama === selectedClass)
-        const targetProgram = targetClassObj?.program || 'Reguler'
-
-        return masterSiswa
-            .filter(student => {
-                // If editing, always allow the currently selected student (so they don't disappear)
-                if (editId && student.nisn === selectedStudent) return true;
-
-                // Find student's current enrollments in this context (Year/Semester)
-                const enrollments = allEnrollments.filter(e => e.nisn === student.nisn)
-
-                if (enrollments.length === 0) return true; // Not enrolled anywhere -> Available
-
-                // Check if already in THIS class
-                const inTargetClass = enrollments.some(e => e.kelas === selectedClass)
-                if (inTargetClass) return false; // Already here -> Hidden
-
-                // Check Program compatibility
-                // 1. Get programs of already enrolled classes
-                const existingPrograms = enrollments.map(e => {
-                    const cls = masterKelas.find(k => k.nama === e.kelas)
-                    return cls?.program || 'Reguler'
-                })
-
-                // 2. Rule: "Bisa 2 kelas jika program berbeda"
-                // Implies: If already enrolled in Program A, can only pick Program B.
-                // Strict: If any existing program == targetProgram -> Block.
-                const sameProgramConflict = existingPrograms.includes(targetProgram)
-                if (sameProgramConflict) return false;
-
-                // 3. Max Classes Rule? User said "Masuk ke-2 kelas". 
-                // Let's assume Max 2 is the limit.
-                if (enrollments.length >= 2) return false;
-
-                return true;
-            })
-            .map(s => ({
-                value: s.nisn,
-                label: s.nama_lengkap || s.nisn,
-                subLabel: s.nisn
-            }))
-    }
-
-    const siswaOptions = getFilteredSiswaOptions()
-
-    return (
-        <div className="tab-content pd-24">
-            <div className="action-bar mb-24 flex justify-between items-center gap-4 flex-wrap">
-                <div className="flex gap-2 bg-gray-50 p-2 rounded-lg items-center border border-gray-200">
-                    <div className="search-container relative">
-                        <i className="bi bi-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10"></i>
-                        <input
-                            type="text"
-                            placeholder="Cari Siswa / Kelas..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-[200px]"
-                        />
-                    </div>
-
-                    <div className="h-8 w-px bg-gray-300 mx-2"></div>
-
-                    <select
-                        value={tahunAjaran}
-                        onChange={(e) => setTahunAjaran(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
-                    >
-                        <option value="Semua">Semua Tahun</option>
-                        <option value="2024/2025">2024/2025</option>
-                        <option value="2025/2026">2025/2026</option>
-                        <option value="2026/2027">2026/2027</option>
-                    </select>
-
-                    <select
-                        value={semester}
-                        onChange={(e) => setSemester(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
-                    >
-                        <option value="Semua">Semua Sem.</option>
-                        <option value="Ganjil">Ganjil</option>
-                        <option value="Genap">Genap</option>
-                    </select>
-
-                    <select
-                        value={filterKelas}
-                        onChange={(e) => setFilterKelas(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none bg-white font-medium text-gray-700"
-                    >
-                        <option value="Semua">Semua Kelas</option>
-                        {masterKelas.map(k => (
-                            <option key={k.id} value={k.nama}>{k.nama}</option>
-                        ))}
-                    </select>
-                </div>
-
-                <div className="flex gap-2">
-                    <div className="flex gap-2">
-                        <button className="btn-secondary" onClick={handleExport} title="Export Data">
-                            <i className="bi bi-file-earmark-excel"></i> Export
-                        </button>
-                        <button className="btn-secondary" onClick={() => setShowImportModal(true)} title="Import Excel">
-                            <i className="bi bi-upload"></i> Import
-                        </button>
-                        <button className="btn-primary" onClick={() => {
-                            if (tahunAjaran === 'Semua') {
-                                alert('Pilih Tahun Ajaran spesifik terlebih dahulu.');
-                                return;
-                            }
-                            setSelectedClass('');
-                            setSelectedStudent('');
-                            setShowModal(true);
-                        }}>
-                            <i className="bi bi-plus-lg"></i> Tambah
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div className="table-container">
-                <table className="data-table">
-                    <thead>
-                        <tr>
-                            <th>No</th>
-                            <th>NISN</th>
-                            <th>Nama Siswa</th>
-                            <th>Kelas</th>
-                            <th>Tahun Ajaran</th>
-                            <th>Semester</th>
-                            <th>Status</th>
-                            <th>Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading ? (
-                            <tr><td colSpan={8} className="text-center py-8">Memuat...</td></tr>
-                        ) : list.length === 0 ? (
-                            <tr><td colSpan={8} className="text-center py-8 text-gray-500">Tidak ada data untuk filter ini.</td></tr>
-                        ) : (
-                            list.map((item, index) => (
-                                <tr key={item.id}>
-                                    <td className="text-center">{index + 1}</td>
-                                    <td className="font-mono">{item.nisn}</td>
-                                    <td className="font-medium">{item.nama_siswa}</td>
-                                    <td><span className="badge-kelas">{item.kelas}</span></td>
-                                    <td>{item.tahun_ajaran}</td>
-                                    <td>
-                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${item.semester === 'Ganjil' ? 'bg-orange-100 text-orange-700' : 'bg-purple-100 text-purple-700'}`}>
-                                            {item.semester}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span className={`status-badge ${item.aktif ? 'active' : 'inactive'}`}>
-                                            {item.aktif ? 'Aktif' : 'Non-Aktif'}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div className="flex gap-2">
-                                            <button className="btn-icon" onClick={() => handleEdit(item)}><i className="bi bi-pencil"></i></button>
-                                            <button className="btn-icon delete" onClick={() => item.id && handleDelete(item.id)} title="Hapus dari kelas">
-                                                <i className="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
-            {showModal && (
-                <div className="modal-overlay">
-                    <div className="modal-content">
-                        <div className="modal-header">
-                            <h2>{editId ? 'Edit Relasi Siswa' : 'Tambah Relasi Siswa - Kelas'}</h2>
-                            <button onClick={() => { setShowModal(false); setEditId(null); setSelectedStudent(''); setSelectedClass(''); }} className="close-btn">&times;</button>
-                        </div>
-                        <form onSubmit={handleSubmit}>
-                            <div className="modal-body">
-                                <div className="grid grid-cols-2 gap-4 mb-4">
-                                    <div className="form-group">
-                                        <label>Tahun Ajaran</label>
-                                        <input type="text" value={tahunAjaran} disabled className="bg-gray-100 font-bold text-gray-600" />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Semester</label>
-                                        <input type="text" value={semester === 'Semua' ? 'Ganjil & Genap' : semester} disabled className="bg-gray-100 font-bold text-gray-600" />
-                                    </div>
-                                </div>
-
-                                <div className="form-group mb-4">
-                                    <label>Pilih Kelas</label>
-                                    <select
-                                        value={selectedClass}
-                                        onChange={e => setSelectedClass(e.target.value)}
-                                        required
-                                        className="w-full p-2 border rounded"
-                                    >
-                                        <option value="">-- Pilih Kelas --</option>
-                                        {masterKelas.map(k => (
-                                            <option key={k.id} value={k.nama}>{k.nama}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="form-group">
-                                    <label className="mb-1">Pilih Siswa</label>
-                                    <SearchableSelect
-                                        options={siswaOptions}
-                                        value={selectedStudent}
-                                        onChange={setSelectedStudent}
-                                        placeholder={selectedClass ? "Cari Nama Siswa atau NISN..." : "Pilih Kelas Terlebih Dahulu"}
-                                        disabled={!selectedClass}
-                                    />
-                                    {selectedClass && siswaOptions.length === 0 && (
-                                        <p className="text-xs text-red-500 mt-1">Semua siswa sudah terdaftar di kelas untuk periode ini (atau tidak memenuhi syarat program).</p>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="modal-footer">
-                                <button type="button" onClick={() => { setShowModal(false); setEditId(null); setSelectedStudent(''); setSelectedClass(''); }} className="btn-secondary">
-                                    Batal
-                                </button>
-                                <button type="submit" className="btn-primary" disabled={saving}>
-                                    {saving ? 'Menyimpan...' : 'Simpan'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Import Modal */}
-            <ImportModal
-                isOpen={showImportModal}
-                onClose={() => setShowImportModal(false)}
-                onImportSuccess={fetchData}
-                templateColumns={['No', 'NISN', 'Nama_Siswa', 'Kelas', 'Tahun_Ajaran', 'Semester']}
-                templateName={`Template_SiswaKelas`}
-                apiEndpoint="/api/settings/siswa-kelas"
-                mapRowData={mapImportRow}
+  return (
+    <div className="sk">
+      {/* ===== Toolbar ===== */}
+      <div className="sk__bar">
+        <div className="sk__filters">
+          <div className="sk__search">
+            <i className="bi bi-search" aria-hidden="true" />
+            <input
+              type="text"
+              placeholder="Cari siswa / kelas / NISN..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <style jsx>{`
-  :root{
-    /* Smooth Navy System (same pattern) */
-    --bg: #f6f8fc;
-    --card: #ffffff;
-    --text: #0f172a;
-    --muted: #64748b;
+          </div>
 
-    --navy: #0b1f3b;
-    --navy-2: #0f2a56;
-    --accent: #3aa6ff;
+          <select value={tahunAjaran} onChange={(e) => setTahunAjaran(e.target.value)}>
+            <option value="Semua">Semua Tahun</option>
+            <option value="2024/2025">2024/2025</option>
+            <option value="2025/2026">2025/2026</option>
+            <option value="2026/2027">2026/2027</option>
+          </select>
 
-    --line: rgba(148,163,184,.35);
-    --line-2: rgba(148,163,184,.22);
+          <select value={semester} onChange={(e) => setSemester(e.target.value)}>
+            <option value="Semua">Semua Sem.</option>
+            <option value="Ganjil">Ganjil</option>
+            <option value="Genap">Genap</option>
+          </select>
 
-    --shadow-soft: 0 12px 32px rgba(2,6,23,.10);
-    --shadow-mini: 0 6px 18px rgba(2,6,23,.08);
-
-    --radius: 16px;
-    --radius-sm: 12px;
-
-    --safe-b: env(safe-area-inset-bottom, 0px);
-    --safe-t: env(safe-area-inset-top, 0px);
-  }
-
-  /* ===== Layout ===== */
-  .pd-24{ padding: 20px; }
-  @media (max-width: 420px){
-    .pd-24{ padding: 14px; }
-  }
-
-  .action-bar{
-    display:flex;
-    align-items:center;
-    justify-content: space-between;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  /* ===== Table ===== */
-  .data-table{
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    background: rgba(255,255,255,.86);
-    border: 1px solid var(--line-2);
-    border-radius: var(--radius);
-    overflow: hidden;
-    box-shadow: var(--shadow-mini);
-  }
-
-  .data-table th, .data-table td{
-    padding: 12px 16px;
-    text-align: left;
-    border-bottom: 1px solid rgba(148,163,184,.22);
-    vertical-align: middle;
-  }
-
-  .data-table th{
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: linear-gradient(180deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%);
-    color: var(--navy-2);
-    font-weight: 800;
-    letter-spacing: .01em;
-    font-size: .92rem;
-  }
-
-  .data-table td{
-    color: rgba(15,23,42,.88);
-    font-size: .95rem;
-    font-weight: 550;
-  }
-
-  .data-table tbody tr:nth-child(odd) td{ background: rgba(15,42,86,.015); }
-  .data-table tbody tr:hover td{ background: rgba(58,166,255,.06); }
-
-  @media (max-width: 420px){
-    .data-table{
-      display:block;
-      overflow-x:auto;
-      -webkit-overflow-scrolling: touch;
-      border-radius: 14px;
-    }
-    .data-table th, .data-table td{
-      padding: 10px 12px;
-      font-size: .9rem;
-      white-space: nowrap;
-    }
-  }
-
-  /* ===== Buttons ===== */
-  .btn-primary, .btn-secondary{
-    border: 1px solid transparent;
-    padding: 10px 14px;
-    border-radius: 12px;
-    cursor: pointer;
-    font-weight: 750;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: transform .15s ease, box-shadow .15s ease, filter .15s ease, background .15s ease, border-color .15s ease;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-    min-height: 40px;
-  }
-
-  .btn-primary{
-    color:#fff;
-    background: linear-gradient(135deg, rgba(58,166,255,1) 0%, rgba(15,42,86,1) 100%);
-    box-shadow: 0 10px 22px rgba(15,42,86,.18);
-  }
-  .btn-primary:hover{ filter: brightness(1.02); transform: translateY(-1px); }
-  .btn-primary:active{ transform: translateY(0) scale(.99); }
-
-  .btn-secondary{
-    background: rgba(15,23,42,.04);
-    color: rgba(15,23,42,.82);
-    border-color: rgba(148,163,184,.28);
-    box-shadow: 0 6px 16px rgba(2,6,23,.06);
-  }
-  .btn-secondary:hover{ background: rgba(15,23,42,.06); transform: translateY(-1px); }
-  .btn-secondary:active{ transform: translateY(0) scale(.99); }
-
-  .btn-primary:focus-visible,
-  .btn-secondary:focus-visible,
-  .btn-icon:focus-visible,
-  select:focus-visible,
-  input:focus-visible,
-  .close-btn:focus-visible{
-    outline: none;
-    box-shadow: 0 0 0 4px rgba(58,166,255,.18);
-  }
-
-  .btn-icon{
-    width: 36px;
-    height: 36px;
-    border-radius: 12px;
-    border: 1px solid rgba(148,163,184,.28);
-    background: rgba(255,255,255,.9);
-    color: rgba(15,23,42,.7);
-    cursor: pointer;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    transition: background .15s ease, transform .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
-    box-shadow: 0 6px 16px rgba(2,6,23,.06);
-  }
-  .btn-icon:hover{ background: rgba(15,23,42,.03); transform: translateY(-1px); }
-  .btn-icon:active{ transform: translateY(0) scale(.99); }
-  .btn-icon.delete:hover{
-    background: rgba(239,68,68,.10);
-    color: #991b1b;
-    border-color: rgba(239,68,68,.22);
-  }
-
-  /* ===== Modal ===== */
-  .modal-overlay{
-    position: fixed;
-    inset: 0;
-    background:
-      radial-gradient(900px 450px at 10% 0%, rgba(58,166,255,.10), transparent 55%),
-      rgba(2,6,23,.52);
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    z-index: 1000;
-    padding: 18px 14px;
-    padding-bottom: calc(18px + var(--safe-b));
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .modal-content{
-    background: rgba(255,255,255,.92);
-    border-radius: 18px;
-    width: 100%;
-    max-width: 620px;
-    max-height: min(92vh, 860px);
-    display:flex;
-    flex-direction: column;
-    border: 1px solid rgba(148,163,184,.26);
-    box-shadow: var(--shadow-soft);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    overflow: hidden;
-  }
-  .modal-content.large{ max-width: 860px; }
-
-  .modal-header{
-    padding: 18px 20px;
-    border-bottom: 1px solid rgba(148,163,184,.22);
-    display:flex;
-    justify-content: space-between;
-    align-items: center;
-    background: linear-gradient(180deg, rgba(248,250,252,1) 0%, rgba(255,255,255,1) 100%);
-  }
-  .modal-header h2{
-    font-size: 1.12rem;
-    font-weight: 850;
-    color: var(--navy-2);
-    margin: 0;
-    letter-spacing: -0.01em;
-  }
-
-  .modal-body{
-    padding: 18px 20px;
-    overflow-y: auto;
-  }
-
-  .modal-footer{
-    padding: 16px 20px;
-    border-top: 1px solid rgba(148,163,184,.22);
-    display:flex;
-    justify-content: flex-end;
-    gap: 10px;
-    background: linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 100%);
-  }
-
-  .close-btn{
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
-    background: rgba(15,23,42,.04);
-    border: 1px solid rgba(148,163,184,.22);
-    font-size: 1.25rem;
-    cursor: pointer;
-    color: rgba(15,23,42,.62);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    transition: background .15s ease, transform .15s ease, border-color .15s ease, color .15s ease;
-  }
-  .close-btn:hover{ background: rgba(15,23,42,.06); transform: translateY(-1px); color: rgba(15,23,42,.80); }
-  .close-btn:active{ transform: translateY(0) scale(.99); }
-
-  /* ===== Forms ===== */
-  .form-group{
-    display:flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 14px;
-  }
-
-  label{
-    font-size: .9rem;
-    font-weight: 750;
-    color: rgba(15,23,42,.90);
-  }
-
-  select, input{
-    padding: 10px 12px;
-    border: 1px solid rgba(148,163,184,.35);
-    border-radius: 12px;
-    font-size: .95rem;
-    color: rgba(15,23,42,.92);
-    font-weight: 600;
-    background: rgba(255,255,255,.92);
-    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
-  }
-
-  select:focus, input:focus{
-    border-color: rgba(58,166,255,.55);
-    box-shadow: 0 0 0 4px rgba(58,166,255,.16);
-    outline: none;
-    background: #fff;
-  }
-
-  /* ===== Multi Select (match pattern) ===== */
-  .multi-select-container{
-    border: 1px solid rgba(148,163,184,.35);
-    border-radius: 14px;
-    max-height: 320px;
-    overflow-y: auto;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 10px;
-    padding: 10px;
-    background: rgba(15,42,86,.02);
-  }
-
-  .select-item{
-    display:flex;
-    align-items:center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    cursor: pointer;
-    border: 1px solid rgba(148,163,184,.22);
-    background: rgba(255,255,255,.92);
-    color: rgba(15,23,42,.88);
-    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease, color .15s ease;
-    box-shadow: var(--shadow-mini);
-  }
-  .select-item:hover{
-    border-color: rgba(58,166,255,.34);
-    box-shadow: var(--shadow-soft);
-    transform: translateY(-1px);
-    background: rgba(255,255,255,.98);
-  }
-  .select-item.selected{
-    border-color: rgba(58,166,255,.50);
-    background: linear-gradient(135deg, rgba(58,166,255,.12), rgba(255,255,255,.96));
-    color: var(--navy-2);
-  }
-
-  .checkbox{
-    width: 18px;
-    height: 18px;
-    border: 2px solid rgba(148,163,184,.55);
-    border-radius: 6px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background: #fff;
-    flex-shrink: 0;
-    transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
-  }
-  .select-item.selected .checkbox{
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-    transform: scale(1.02);
-  }
-
-  @media (max-width: 420px){
-    .multi-select-container{
-      grid-template-columns: 1fr;
-      max-height: 340px;
-    }
-  }
-
-  /* ===== Utilities ===== */
-  .mb-24{ margin-bottom: 24px; }
-  .font-mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-  .font-medium{ font-weight: 600; }
-  .text-center{ text-align: center; }
-
-  @media (prefers-reduced-motion: reduce){
-    .btn-primary, .btn-secondary, .btn-icon, .close-btn, .select-item, .checkbox{
-      transition: none;
-    }
-    .btn-primary:hover, .btn-secondary:hover, .btn-icon:hover, .close-btn:hover, .select-item:hover{
-      transform: none;
-    }
-  }
-`}</style>
-
+          <select value={filterKelas} onChange={(e) => setFilterKelas(e.target.value)}>
+            <option value="Semua">Semua Kelas</option>
+            {masterKelas.map((k) => (
+              <option key={k.id} value={k.nama}>
+                {k.nama}
+              </option>
+            ))}
+          </select>
         </div>
-    )
+
+        <div className="sk__actions">
+          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Excel">
+            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
+          </button>
+
+          <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+            <i className="bi bi-upload" /> <span>Import</span>
+          </button>
+
+          <button className="sk__btn sk__btnPrimary" onClick={openAdd}>
+            <i className="bi bi-plus-lg" /> <span>Tambah</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ===== Table (Desktop/Tablet) ===== */}
+      <div className="sk__tableWrap">
+        <table className="sk__table">
+          <thead>
+            <tr>
+              <th className="cNo">No</th>
+              <th className="cNisn">NISN</th>
+              <th>Nama Siswa</th>
+              <th className="cKelas">Kelas</th>
+              <th className="cTa">Tahun</th>
+              <th className="cSem">Semester</th>
+              <th className="cStatus">Status</th>
+              <th className="cAksi">Aksi</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={8} className="sk__empty">
+                  Memuat data...
+                </td>
+              </tr>
+            ) : list.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="sk__empty sk__muted">
+                  Tidak ada data untuk filter ini.
+                </td>
+              </tr>
+            ) : (
+              list.map((item, index) => (
+                <tr key={item.id ?? `${item.nisn}-${index}`}>
+                  <td className="tCenter">{index + 1}</td>
+                  <td className="tMono">{item.nisn}</td>
+                  <td className="tPlain">{item.nama_siswa}</td>
+                  <td>
+                    <span className="sk__badge">{item.kelas}</span>
+                  </td>
+                  <td className="tMuted">{item.tahun_ajaran}</td>
+                  <td>
+                    <span className={`sk__pill ${item.semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>
+                      {item.semester}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`sk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
+                      {item.aktif ? 'Aktif' : 'Non-Aktif'}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="sk__rowActions">
+                      <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
+                        <i className="bi bi-pencil" />
+                      </button>
+                      <button
+                        className="sk__iconBtn danger"
+                        onClick={() => item.id && handleDelete(item.id)}
+                        title="Hapus"
+                      >
+                        <i className="bi bi-trash" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ===== Mobile Grouped Cards (by Kelas) ===== */}
+      <div className="sk__cards" aria-label="Daftar Siswa-Kelas versi mobile">
+        {loading ? (
+          <div className="sk__card">
+            <div className="sk__cardHead">
+              <div className="sk__cardTitle">
+                <div className="sk__cardName">Memuat data...</div>
+                <div className="sk__cardSub">Mohon tunggu</div>
+              </div>
+            </div>
+            <div className="sk__cardBody">
+              <div className="sk__kv">
+                <div className="sk__k">Status</div>
+                <div className="sk__v">Loading</div>
+              </div>
+              <div className="sk__kv">
+                <div className="sk__k">Info</div>
+                <div className="sk__v">—</div>
+              </div>
+            </div>
+          </div>
+        ) : list.length === 0 ? (
+          <div className="sk__card">
+            <div className="sk__cardHead">
+              <div className="sk__cardTitle">
+                <div className="sk__cardName">Tidak ada data</div>
+                <div className="sk__cardSub">Coba ubah filter</div>
+              </div>
+            </div>
+            <div className="sk__cardBody">
+              <div className="sk__kv">
+                <div className="sk__k">Info</div>
+                <div className="sk__v">Kosong</div>
+              </div>
+              <div className="sk__kv">
+                <div className="sk__k">Status</div>
+                <div className="sk__v">—</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          groupedMobile.map(([kelasName, items]) => (
+            <section key={`grp-${kelasName}`} className="sk__group">
+              <div className="sk__groupHead">
+                <div className="sk__groupLeft">
+                  <div className="sk__groupTitle">{kelasName}</div>
+                  <div className="sk__groupMeta">
+                    {items.length} siswa • {tahunAjaran} • {semester === 'Semua' ? 'Ganjil & Genap' : semester}
+                  </div>
+                </div>
+                <div className="sk__groupPills">
+                  {semester === 'Semua' ? (
+                    <>
+                      <span className="sk__pill isGanjil">Ganjil</span>
+                      <span className="sk__pill isGenap">Genap</span>
+                    </>
+                  ) : (
+                    <span className={`sk__pill ${semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>{semester}</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="sk__groupList">
+                {items.map((item, idx) => (
+                  <div className="sk__card sk__cardRow" key={`m-${item.id ?? `${item.nisn}-${idx}`}`}>
+                    <div className="sk__cardHead">
+                      <div className="sk__cardTitle">
+                        <div className="sk__cardName">{item.nama_siswa || '-'}</div>
+                        <div className="sk__cardSub">{item.nisn}</div>
+                      </div>
+
+                      <button
+                        className="sk__moreBtn"
+                        onClick={() => openMobileAction(item, idx)}
+                        aria-label="Aksi"
+                        title="Aksi"
+                      >
+                        <i className="bi bi-three-dots-vertical" />
+                      </button>
+                    </div>
+
+                    <div className="sk__cardBody">
+                      <div className="sk__kv">
+                        <div className="sk__k">Tahun</div>
+                        <div className="sk__v">{item.tahun_ajaran}</div>
+                      </div>
+                      <div className="sk__kv">
+                        <div className="sk__k">Semester</div>
+                        <div className="sk__v">
+                          <span className={`sk__pill ${item.semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>
+                            {item.semester}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="sk__kv">
+                        <div className="sk__k">Status</div>
+                        <div className="sk__v">
+                          <span className={`sk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
+                            {item.aktif ? 'Aktif' : 'Non-Aktif'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))
+        )}
+      </div>
+
+      {/* ===== iOS-like Sticky Action Sheet (Mobile) ===== */}
+      {mobileAction.open && mobileAction.item && (
+        <div
+          className="sk__sheetOverlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeMobileAction()
+          }}
+        >
+          <div className="sk__sheet">
+            <div className="sk__sheetHandle" aria-hidden="true" />
+            <div className="sk__sheetTitle">
+              <div className="sk__sheetName">{mobileAction.item.nama_siswa || '-'}</div>
+              <div className="sk__sheetSub">
+                {mobileAction.item.nisn} • {mobileAction.item.kelas}
+              </div>
+            </div>
+
+            <div className="sk__sheetActions">
+              <button className="sk__sheetBtn" onClick={doMobileEdit}>
+                <i className="bi bi-pencil" />
+                <span>Edit</span>
+              </button>
+
+              <button className="sk__sheetBtn danger" onClick={doMobileDelete}>
+                <i className="bi bi-trash" />
+                <span>Hapus</span>
+              </button>
+            </div>
+
+            <button className="sk__sheetCancel" onClick={closeMobileAction}>
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Modal Add/Edit ===== */}
+      {showModal && (
+        <div className="sk__modalOverlay" role="dialog" aria-modal="true">
+          <div className="sk__modal">
+            <div className="sk__modalHead">
+              <div className="sk__modalTitle">
+                <h2>{editId ? 'Edit Relasi Siswa' : 'Tambah Relasi Siswa - Kelas'}</h2>
+                <p>
+                  Periode: {tahunAjaran} • {semester === 'Semua' ? 'Ganjil & Genap' : semester}
+                </p>
+              </div>
+              <button className="sk__close" onClick={closeModal} aria-label="Tutup">
+                <i className="bi bi-x-lg" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <div className="sk__modalBody">
+                <div className="sk__grid2">
+                  <div className="sk__field">
+                    <label>Tahun Ajaran</label>
+                    <input value={tahunAjaran} disabled />
+                  </div>
+                  <div className="sk__field">
+                    <label>Semester</label>
+                    <input value={semester === 'Semua' ? 'Ganjil & Genap' : semester} disabled />
+                  </div>
+                </div>
+
+                <div className="sk__field">
+                  <label>Pilih Kelas</label>
+                  <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} required>
+                    <option value="">— Pilih Kelas —</option>
+                    {masterKelas.map((k) => (
+                      <option key={k.id} value={k.nama}>
+                        {k.nama}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="sk__field">
+                  <label>Pilih Siswa</label>
+                  <div className="sk__selectWrap">
+                    <SearchableSelect
+                      options={siswaOptions}
+                      value={selectedStudent}
+                      onChange={setSelectedStudent}
+                      placeholder={selectedClass ? 'Cari Nama Siswa atau NISN...' : 'Pilih kelas terlebih dahulu'}
+                      disabled={!selectedClass}
+                    />
+                  </div>
+
+                  {selectedClass && siswaOptions.length === 0 && (
+                    <div className="sk__hint sk__hintWarn">
+                      Semua siswa sudah terdaftar (atau tidak memenuhi syarat program).
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="sk__modalFoot">
+                <button type="button" className="sk__btn sk__btnGhost" onClick={closeModal}>
+                  Batal
+                </button>
+                <button type="submit" className="sk__btn sk__btnPrimary" disabled={saving}>
+                  {saving ? 'Menyimpan...' : 'Simpan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Import Modal ===== */}
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={fetchData}
+        templateColumns={['No', 'NISN', 'Nama_Siswa', 'Kelas', 'Tahun_Ajaran', 'Semester']}
+        templateName={`Template_SiswaKelas`}
+        apiEndpoint="/api/settings/siswa-kelas"
+        mapRowData={mapImportRow}
+      />
+
+      <style jsx>{`
+        :global(:root) {
+  --sk-line: rgba(148, 163, 184, 0.22);
+  --sk-card: rgba(255, 255, 255, 0.92);
+
+  --sk-shadow: 0 14px 34px rgba(2, 6, 23, 0.08);
+  --sk-shadow2: 0 10px 22px rgba(2, 6, 23, 0.08);
+
+  --sk-radius: 16px;
+
+  /* typography compact */
+  --sk-fs: 0.88rem;
+  --sk-fs-sm: 0.82rem;
+  --sk-fs-xs: 0.78rem;
+
+  /* iOS safe area */
+  --sk-safe-b: env(safe-area-inset-bottom, 0px);
+  --sk-safe-t: env(safe-area-inset-top, 0px);
+}
+
+.sk {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: var(--sk-fs);
+
+  /* background page feel */
+  padding: 16px;
+  background: #f5f7fb;
+  border-radius: 16px;
+
+  /* space for sticky bottom bar in mobile */
+  padding-bottom: calc(16px + var(--sk-safe-b));
+}
+
+/* ========= TOOLBAR ========= */
+.sk__bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
+}
+
+.sk__filters {
+  flex: 1 1 640px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  padding: 8px;
+  border-radius: var(--sk-radius);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--sk-line);
+  box-shadow: var(--sk-shadow2);
+}
+
+.sk__search {
+  position: relative;
+  flex: 1 1 280px;
+  min-width: 180px;
+}
+
+.sk__search i {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(100, 116, 139, 0.9);
+  pointer-events: none;
+  font-size: 0.9rem;
+}
+
+.sk__search input {
+  width: 100%;
+  padding: 8px 10px 8px 30px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+
+  /* lebih profesional */
+  font-weight: 500;
+  color: rgba(15, 23, 42, 0.92);
+
+  outline: none;
+  font-size: var(--sk-fs-sm);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.sk__filters select {
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+
+  font-weight: 550;
+  color: rgba(15, 23, 42, 0.86);
+  outline: none;
+  min-width: 138px;
+  font-size: var(--sk-fs-sm);
+}
+
+.sk__search input:focus,
+.sk__filters select:focus {
+  border-color: rgba(58, 166, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+}
+
+.sk__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/* Buttons */
+.sk__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--sk-line);
+  background: rgba(255, 255, 255, 0.78);
+  color: rgba(7, 22, 46, 0.9);
+
+  font-weight: 600;
+  font-size: var(--sk-fs-sm);
+
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+
+.sk__btn i {
+  font-size: 1rem;
+}
+
+.sk__btn:hover {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(58, 166, 255, 0.24);
+  box-shadow: var(--sk-shadow2);
+  transform: translateY(-1px);
+}
+
+.sk__btn:active {
+  transform: translateY(0);
+}
+
+.sk__btnPrimary {
+  background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
+  border-color: rgba(58, 166, 255, 0.32);
+  color: #fff;
+  font-weight: 650;
+}
+
+.sk__btnExport {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #fff;
+}
+
+.sk__btnImport {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
+  border-color: rgba(245, 158, 11, 0.28);
+  color: #fff;
+}
+
+.sk__modalFoot .sk__btn {
+  font-weight: 600;
+}
+
+/* ========= TABLE ========= */
+.sk__tableWrap {
+  width: 100%;
+  min-width: 0;
+  overflow: auto;
+  border-radius: var(--sk-radius);
+  border: 1px solid var(--sk-line);
+  background: var(--sk-card);
+  box-shadow: var(--sk-shadow);
+}
+
+.sk__table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 920px;
+}
+
+.sk__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 250, 251, 0.98));
+  color: rgba(7, 22, 46, 0.86);
+  font-size: var(--sk-fs-xs);
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  text-align: left;
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--sk-line);
+  white-space: nowrap;
+}
+
+.sk__table tbody td {
+  padding: 10px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  color: rgba(15, 23, 42, 0.92);
+  font-size: var(--sk-fs-sm);
+  font-weight: 400;
+  vertical-align: middle;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.sk__table tbody tr:nth-child(even) td {
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.sk__table tbody tr:hover td {
+  background: rgba(58, 166, 255, 0.055);
+}
+
+.sk__empty {
+  text-align: center;
+  padding: 18px 10px !important;
+  font-weight: 500;
+  font-size: var(--sk-fs-sm);
+}
+
+.sk__muted {
+  color: rgba(100, 116, 139, 0.9) !important;
+  font-weight: 400 !important;
+}
+
+.cNo { width: 56px; }
+.cNisn { width: 150px; }
+.cKelas { width: 110px; }
+.cTa { width: 110px; }
+.cSem { width: 110px; }
+.cStatus { width: 110px; }
+.cAksi { width: 110px; text-align: right; }
+
+.tCenter { text-align: center; }
+
+.tMono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: var(--sk-fs-xs);
+  font-weight: 400;
+}
+
+.tPlain { font-weight: 400; }
+.tMuted { color: rgba(100, 116, 139, 0.9); }
+
+.sk__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(15, 42, 86, 0.08);
+  border: 1px solid rgba(15, 42, 86, 0.12);
+  color: rgba(7, 22, 46, 0.92);
+  font-weight: 500;
+  font-size: var(--sk-fs-xs);
+  white-space: nowrap;
+}
+
+.sk__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: var(--sk-fs-xs);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.sk__pill.isGanjil {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.18);
+  color: rgba(180, 83, 9, 1);
+}
+
+.sk__pill.isGenap {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.18);
+  color: rgba(126, 34, 206, 1);
+}
+
+.sk__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: var(--sk-fs-xs);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.sk__status::before { display: none !important; content: none !important; }
+
+.sk__status.isOn {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.18);
+  color: rgba(22, 163, 74, 1);
+}
+
+.sk__status.isOff {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.16);
+  color: rgba(220, 38, 38, 1);
+}
+
+.sk__rowActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.sk__iconBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(7, 22, 46, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.sk__iconBtn:hover {
+  box-shadow: var(--sk-shadow2);
+  transform: translateY(-1px);
+  border-color: rgba(58, 166, 255, 0.22);
+}
+
+.sk__iconBtn.danger {
+  color: rgba(220, 38, 38, 1);
+  border-color: rgba(239, 68, 68, 0.18);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+/* ========= MOBILE CARDS ========= */
+.sk__cards {
+  display: none; /* default desktop hidden */
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* (Grouping ready) wrapper classes */
+.sk__group {
+  border: 1px solid rgba(15, 42, 86, 0.10);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255,255,255,.85);
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.06);
+}
+
+.sk__groupHead {
+  position: sticky;
+  top: 0; /* akan efektif kalau container diberi overflow; tetap aman */
+  z-index: 2;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,250,252,.96));
+  border-bottom: 1px solid rgba(15, 42, 86, 0.10);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.sk__groupTitleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sk__groupTitle {
+  margin: 0;
+  font-size: .92rem;
+  font-weight: 800;
+  color: rgba(11,31,58,.95);
+}
+
+.sk__groupMeta {
+  font-size: .78rem;
+  font-weight: 650;
+  color: rgba(100,116,139,.92);
+  white-space: nowrap;
+}
+
+.sk__groupBody {
+  padding: 12px 12px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Card */
+.sk__card {
+  background: #fff;
+  border: 1px solid rgba(15,42,86,.14);
+  border-radius: 16px;
+  box-shadow: 0 12px 26px rgba(15,23,42,.10);
+  overflow: hidden;
+}
+
+.sk__cardHead {
+  padding: 14px 14px 10px;
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+  border-bottom: 1px solid rgba(15,42,86,.08);
+
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sk__cardTitle { min-width: 0; }
+
+.sk__cardName {
+  font-weight: 800;
+  color: rgba(11,31,58,.95);
+  font-size: .98rem;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  word-break: break-word;
+}
+
+.sk__cardSub {
+  margin-top: 4px;
+  color: rgba(100,116,139,.95);
+  font-weight: 600;
+  font-size: .82rem;
+}
+
+.sk__cardActions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.sk__cardBody {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sk__kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.sk__k {
+  color: rgba(15,42,86,.70);
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  flex: 0 0 112px;
+}
+
+.sk__v {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  color: rgba(15,23,42,.92);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.sk__cardFoot {
+  padding: 12px 14px;
+  background: rgba(15,42,86,.04);
+  border-top: 1px solid rgba(15,42,86,.08);
+}
+
+.sk__cardTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ========= MODAL ========= */
+.sk__modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.sk__modal {
+  width: min(680px, 100%);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  box-shadow: 0 28px 80px rgba(2, 6, 23, 0.35);
+  overflow: hidden;
+}
+
+.sk__modalHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.sk__modalTitle h2 {
+  margin: 0 0 3px;
+  font-size: 0.98rem;
+  font-weight: 750;
+  color: rgba(7, 22, 46, 0.96);
+}
+
+.sk__modalTitle p {
+  margin: 0;
+  font-size: var(--sk-fs-sm);
+  font-weight: 500;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.sk__close {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.9);
+  color: rgba(7, 22, 46, 0.92);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sk__modalBody {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sk__grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sk__field label {
+  display: block;
+  font-size: var(--sk-fs-xs);
+  font-weight: 650;
+  color: rgba(7, 22, 46, 0.88);
+  margin-bottom: 7px;
+}
+
+.sk__field input,
+.sk__field select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(248, 250, 252, 0.9);
+  color: rgba(15, 23, 42, 0.92);
+  font-weight: 500;
+  outline: none;
+  font-size: var(--sk-fs-sm);
+}
+
+.sk__field input:focus,
+.sk__field select:focus {
+  border-color: rgba(58, 166, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+}
+
+.sk__hint {
+  margin-top: 7px;
+  font-size: var(--sk-fs-xs);
+  font-weight: 500;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(248, 250, 252, 0.92);
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.sk__hintWarn {
+  border-color: rgba(245, 158, 11, 0.22);
+  background: rgba(245, 158, 11, 0.1);
+  color: rgba(180, 83, 9, 1);
+}
+
+.sk__modalFoot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+/* =========================
+   RESPONSIVE SWITCH (CLEAN)
+   Desktop: TABLE
+   Mobile : CARDS
+========================= */
+.sk__tableWrap { display: block; }
+.sk__cards { display: none; }
+
+@media (max-width: 768px) {
+  .sk__tableWrap { display: none; }
+  .sk__cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+/* ========= iOS Sticky Action Bar (Mobile) =========
+   Mengubah toolbar action jadi sticky bottom (Export/Import/Tambah)
+==================================================== */
+@media (max-width: 768px) {
+  /* beri ruang agar konten tidak ketutup sticky bar */
+  .sk {
+    padding-bottom: calc(86px + var(--sk-safe-b));
+  }
+
+  .sk__actions {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + var(--sk-safe-b));
+    z-index: 1000;
+
+    padding: 10px;
+    border-radius: 16px;
+    border: 1px solid rgba(15,42,86,.16);
+    background: rgba(255,255,255,.78);
+    box-shadow: 0 18px 44px rgba(2,6,23,.14);
+
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+  }
+
+  .sk__actions .sk__btn {
+    flex: 1 1 0;
+    justify-content: center;
+    height: 44px;
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+
+  .sk__actions .sk__btn span {
+    display: none; /* iOS style: icon-only */
+  }
+}
+
+/* ========= MOBILE kecil (iPhone 13 / Oppo A-series) ========= */
+@media (max-width: 420px) {
+  .sk__filters {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+
+  .sk__search {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .sk__filters select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .sk__grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ========= Reduced motion ========= */
+@media (prefers-reduced-motion: reduce) {
+  .sk__btn,
+  .sk__iconBtn {
+    transition: none;
+  }
+  .sk__btn:hover,
+  .sk__iconBtn:hover {
+    transform: none;
+  }
+}
+`}</style>
+    </div>
+  )
 }

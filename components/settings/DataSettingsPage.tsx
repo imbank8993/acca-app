@@ -5,9 +5,10 @@ import SiswaKelasTab from './SiswaKelasTab'
 import WaliKelasTab from './WaliKelasTab'
 import GuruAsuhTab from './GuruAsuhTab'
 import GuruMapelTab from './GuruMapelTab'
+import JadwalGuruTab from './JadwalGuruTab'
 import LiburTab from './LiburTab'
 
-type TabType = 'siswa_kelas' | 'wali_kelas' | 'guru_asuh' | 'guru_mapel' | 'libur'
+type TabType = 'siswa_kelas' | 'wali_kelas' | 'guru_asuh' | 'guru_mapel' | 'jadwal_guru' | 'libur'
 
 export default function DataSettingsPage() {
   const [activeTab, setActiveTab] = useState<TabType>('siswa_kelas')
@@ -18,22 +19,23 @@ export default function DataSettingsPage() {
       { key: 'wali_kelas', label: 'Wali Kelas', icon: 'bi-person-workspace' },
       { key: 'guru_asuh', label: 'Guru Asuh', icon: 'bi-heart' },
       { key: 'guru_mapel', label: 'Guru Mapel', icon: 'bi-book-half' },
-      { key: 'libur', label: 'Data Libur', icon: 'bi-calendar-event' },
+      { key: 'jadwal_guru', label: 'Jadwal Guru', icon: 'bi-calendar-week' },
+      { key: 'libur', label: 'Data Libur', icon: 'bi-calendar-event' }
     ],
     []
   )
 
   return (
-    <div className="data-settings-page">
-      <div className="page-header">
-        <div className="page-header__left">
+    <section className="ds">
+      <header className="ds__head">
+        <div className="ds__headLeft">
           <h1>Pengaturan Data</h1>
           <p>Relasi data master dan konfigurasi hari libur.</p>
         </div>
-      </div>
+      </header>
 
-      <div className="tabs-container">
-        <div className="tabs-header" role="tablist" aria-label="Data settings tabs">
+      <div className="ds__card">
+        <div className="ds__tabs" role="tablist" aria-label="Data settings tabs">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key
             return (
@@ -43,283 +45,237 @@ export default function DataSettingsPage() {
                 role="tab"
                 aria-selected={isActive}
                 aria-current={isActive ? 'page' : undefined}
-                className={`tab-btn ${isActive ? 'active' : ''}`}
+                className={`ds__tab ${isActive ? 'isActive' : ''}`}
                 onClick={() => setActiveTab(tab.key as TabType)}
               >
-                <span className="tab-btn__icon" aria-hidden="true">
+                <span className="ds__tabIcon" aria-hidden="true">
                   <i className={`bi ${tab.icon}`}></i>
                 </span>
-                <span className="tab-btn__label">{tab.label}</span>
+                <span className="ds__tabLabel">{tab.label}</span>
               </button>
             )
           })}
         </div>
 
-        <div className="tab-body" role="tabpanel">
+        <div className="ds__panel" role="tabpanel">
           {activeTab === 'siswa_kelas' && <SiswaKelasTab />}
           {activeTab === 'wali_kelas' && <WaliKelasTab />}
           {activeTab === 'guru_asuh' && <GuruAsuhTab />}
           {activeTab === 'guru_mapel' && <GuruMapelTab />}
+          {activeTab === 'jadwal_guru' && <JadwalGuruTab />}
           {activeTab === 'libur' && <LiburTab />}
         </div>
       </div>
 
       <style jsx>{`
-/* =====================================================
-   DATA SETTINGS PAGE — iOS SAFE (FULL REPLACE)
-   Target: iPhone 13 (390x844) tidak kepotong ✅
-===================================================== */
+        /* =====================================================
+           DATA SETTINGS PAGE — CLEAN NAVY (FULL REPLACE)
+           - Mengikuti container dari Dashboard
+           - Sticky tabs aman (tanpa double offset header)
+        ====================================================== */
 
-:global(:root){
-  --app-header-h: 65px;
+        .ds {
+          width: 100%;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
 
-  --bg: #f5f7fb;
-  --card: rgba(255,255,255,.92);
-  --text: #0b1220;
-  --muted: #5b6b83;
+          /* background halus saja (tidak bikin layout aneh) */
+          background: radial-gradient(800px 420px at 10% -10%, rgba(58, 166, 255, 0.14), transparent 60%),
+            radial-gradient(720px 420px at 92% -15%, rgba(15, 42, 86, 0.16), transparent 62%);
+          border-radius: 16px;
+          padding: 12px;
+        }
 
-  --navy-900: #071a33;
-  --navy-800: #0b2346;
-  --navy-700: #0f2f5f;
+        .ds__head {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 12px;
+          min-width: 0;
+        }
 
-  --accent: #3aa6ff;
+        .ds__headLeft {
+          min-width: 0;
+        }
 
-  --line: rgba(148,163,184,.28);
-  --line-2: rgba(148,163,184,.18);
+        .ds__headLeft h1 {
+          margin: 0 0 6px;
+          font-size: clamp(1.2rem, 1.02rem + 0.9vw, 1.75rem);
+          line-height: 1.15;
+          color: var(--n-ink, #0b1324);
+          font-weight: 800;
+          letter-spacing: -0.02em;
+        }
 
-  --shadow: 0 18px 44px rgba(2,6,23,.10);
-  --shadow-soft: 0 10px 26px rgba(2,6,23,.09);
-  --shadow-mini: 0 6px 16px rgba(2,6,23,.07);
+        .ds__headLeft p {
+          margin: 0;
+          color: var(--n-muted, #64748b);
+          font-size: 0.95rem;
+          line-height: 1.5;
+        }
 
-  --radius: 18px;
+        /* Card */
+        .ds__card {
+          background: rgba(255, 255, 255, 0.86);
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          border-radius: 18px;
+          box-shadow: 0 14px 34px rgba(2, 6, 23, 0.08);
+          overflow: hidden;
+          min-width: 0;
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        }
 
-  --safe-b: env(safe-area-inset-bottom, 0px);
-  --safe-t: env(safe-area-inset-top, 0px);
-}
+        /* Tabs: sticky to top of content-area (header fixed sudah di-handle dashboard) */
+        .ds__tabs {
+          display: flex;
+          gap: 10px;
+          padding: 10px 12px;
 
-/* ✅ penting untuk iOS: pakai dynamic viewport */
-.data-settings-page{
-  width: 100%;
-  max-width: 100%;
-  min-height: 100dvh; /* iOS dynamic viewport */
-  overflow-x: hidden;
+          overflow-x: auto;
+          overflow-y: hidden;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          scroll-snap-type: x mandatory;
+          overscroll-behavior-x: contain;
 
-  /* ✅ offset untuk header fixed + safe area */
-  padding-top: calc(var(--app-header-h) + var(--safe-t) + 12px);
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-bottom: calc(16px + var(--safe-b));
+          position: sticky;
+          top: 0;
+          z-index: 20;
 
-  background:
-    radial-gradient(900px 520px at 12% -10%, rgba(58,166,255,.16), transparent 58%),
-    radial-gradient(820px 520px at 88% -18%, rgba(15,47,95,.18), transparent 62%),
-    linear-gradient(180deg, #fbfdff 0%, var(--bg) 46%, #f4f7ff 100%);
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.96) 0%,
+            rgba(255, 255, 255, 0.88) 60%,
+            rgba(255, 255, 255, 0.78) 100%
+          );
+          border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+        }
 
-  /* ✅ mencegah “layout melebar” akibat children */
-  contain: layout paint;
-}
+        .ds__tabs::-webkit-scrollbar {
+          display: none;
+        }
 
-/* ===== Header ===== */
-.page-header{
-  margin-bottom: 12px;
-  display:flex;
-  align-items:flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-}
+        .ds__tab {
+          scroll-snap-align: start;
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
 
-.page-header__left{ min-width: 0; }
+          padding: 10px 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(15, 42, 86, 0.14);
+          background: rgba(255, 255, 255, 0.7);
+          color: rgba(7, 22, 46, 0.76);
 
-.page-header__left h1{
-  margin: 0 0 6px;
-  font-size: clamp(1.25rem, 1.08rem + 1.1vw, 1.9rem);
-  line-height: 1.12;
-  color: var(--text);
-  font-weight: 900;
-  letter-spacing: -0.03em;
-}
+          font-weight: 750;
+          font-size: 0.93rem;
+          white-space: nowrap;
+          cursor: pointer;
 
-.page-header__left p{
-  margin: 0;
-  color: var(--muted);
-  font-size: clamp(.92rem, .88rem + .25vw, 1rem);
-  line-height: 1.5;
-}
+          transition: transform 0.15s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease,
+            color 0.18s ease;
+          user-select: none;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
 
-/* ===== Tabs Container ===== */
-.tabs-container{
-  position: relative;
-  min-width: 0;
-  max-width: 100%;
-}
+          flex: 0 0 auto;
+        }
 
-/* ✅ Kunci: sticky top = 0 karena page sudah punya padding-top header */
-.tabs-header{
-  display:flex;
-  gap: 10px;
-  margin: 0;
+        .ds__tabIcon {
+          width: 30px;
+          height: 30px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
 
-  overflow-x:auto;
-  overflow-y:hidden;
-  padding: 8px 6px 10px;
+          background: rgba(15, 42, 86, 0.08);
+          color: rgba(11, 31, 58, 0.9);
+          flex: 0 0 auto;
+        }
 
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  scroll-snap-type: x mandatory;
-  overscroll-behavior-x: contain;
+        .ds__tab:hover {
+          background: rgba(255, 255, 255, 0.9);
+          border-color: rgba(58, 166, 255, 0.22);
+          color: rgba(7, 22, 46, 0.9);
+          box-shadow: 0 10px 22px rgba(2, 6, 23, 0.08);
+          transform: translateY(-1px);
+        }
 
-  position: sticky;
-  top: 0;              /* ✅ tidak lagi pakai 65px */
-  z-index: 30;
+        .ds__tab:active {
+          transform: translateY(0) scale(0.99);
+        }
 
-  /* premium blur strip */
-  background: linear-gradient(
-    180deg,
-    rgba(245,247,251,.98) 0%,
-    rgba(245,247,251,.86) 60%,
-    rgba(245,247,251,0) 100%
-  );
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+        .ds__tab:focus-visible {
+          outline: none;
+          box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.18), 0 10px 18px rgba(2, 6, 23, 0.08);
+          border-color: rgba(58, 166, 255, 0.45);
+        }
 
-  min-width: 0;
-}
-.tabs-header::-webkit-scrollbar{ display:none; }
+        .ds__tab.isActive {
+          background: linear-gradient(135deg, rgba(58, 166, 255, 0.18) 0%, rgba(15, 42, 86, 0.12) 65%, #fff 100%);
+          border-color: rgba(58, 166, 255, 0.42);
+          color: rgba(7, 22, 46, 0.98);
+          box-shadow: 0 16px 34px rgba(7, 26, 51, 0.12);
+          transform: translateY(-1px);
+        }
 
-.tab-btn{
-  scroll-snap-align: start;
-  display:inline-flex;
-  align-items:center;
-  gap: 10px;
+        .ds__tab.isActive .ds__tabIcon {
+          background: linear-gradient(135deg, rgba(58, 166, 255, 0.26), rgba(15, 42, 86, 0.18));
+          color: rgba(7, 22, 46, 0.98);
+        }
 
-  padding: 10px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.68);
-  color: rgba(7,26,51,.72);
+        /* Panel body */
+        .ds__panel {
+          background: rgba(255, 255, 255, 0.92);
+          padding: 14px;
+          min-height: 420px;
+          min-width: 0;
+        }
 
-  font-weight: 800;
-  font-size: .93rem;
-  white-space: nowrap;
-  cursor: pointer;
+        /* Mobile tuning (iPhone 13) */
+        @media (max-width: 420px) {
+          .ds {
+            padding: 10px;
+            border-radius: 14px;
+          }
 
-  transition: transform .15s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease, color .18s ease;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+          .ds__tabs {
+            gap: 8px;
+            padding: 10px 10px;
+          }
 
-  flex: 0 0 auto;
-}
+          .ds__tab {
+            padding: 9px 12px;
+            font-size: 0.9rem;
+          }
 
-.tab-btn__icon{
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
+          .ds__tabIcon {
+            width: 28px;
+            height: 28px;
+          }
 
-  background: rgba(15,47,95,.08);
-  color: var(--navy-700);
-  flex: 0 0 auto;
-}
+          .ds__panel {
+            padding: 12px;
+            min-height: 360px;
+          }
+        }
 
-.tab-btn:hover{
-  background: rgba(255,255,255,.86);
-  border-color: rgba(58,166,255,.22);
-  color: rgba(7,26,51,.88);
-  box-shadow: var(--shadow-mini);
-  transform: translateY(-1px);
-}
-
-.tab-btn:active{ transform: translateY(0) scale(.99); }
-
-.tab-btn:focus-visible{
-  outline:none;
-  box-shadow: 0 0 0 4px rgba(58,166,255,.18), var(--shadow-mini);
-  border-color: rgba(58,166,255,.45);
-}
-
-.tab-btn.active{
-  background: linear-gradient(
-    135deg,
-    rgba(58,166,255,.18) 0%,
-    rgba(15,47,95,.10) 55%,
-    rgba(255,255,255,.90) 100%
-  );
-  border-color: rgba(58,166,255,.38);
-  color: var(--navy-900);
-  box-shadow: 0 14px 30px rgba(7,26,51,.14);
-  transform: translateY(-1px);
-}
-
-.tab-btn.active .tab-btn__icon{
-  background: linear-gradient(135deg, rgba(58,166,255,.28), rgba(15,47,95,.18));
-  color: var(--navy-900);
-}
-
-/* ===== Body ===== */
-.tab-body{
-  background: var(--card);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  overflow: hidden;
-
-  min-height: 420px;
-  max-width: 100%;
-  min-width: 0;
-
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.tab-body::before{
-  content:"";
-  display:block;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(58,166,255,.35), rgba(15,47,95,.25), transparent);
-}
-
-/* ===== Mobile (iPhone 13) ===== */
-@media (max-width: 420px){
-  .data-settings-page{
-    padding-left: 12px;
-    padding-right: 12px;
-    padding-top: calc(var(--app-header-h) + var(--safe-t) + 10px);
-    padding-bottom: calc(14px + var(--safe-b));
-  }
-
-  .tabs-header{
-    gap: 8px;
-    padding: 8px 2px 10px;
-  }
-
-  .tab-btn{
-    padding: 9px 12px;
-    font-size: .9rem;
-  }
-
-  .tab-btn__icon{
-    width: 28px;
-    height: 28px;
-  }
-
-  .tab-body{
-    min-height: 360px;
-    border-radius: 16px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce){
-  .tab-btn{ transition: none; }
-  .tab-btn:hover{ transform: none; }
-  .tab-btn:active{ transform: none; }
-}
-`}</style>
-
-
-    </div>
+        @media (prefers-reduced-motion: reduce) {
+          .ds__tab {
+            transition: none;
+          }
+          .ds__tab:hover {
+            transform: none;
+          }
+          .ds__tab:active {
+            transform: none;
+          }
+        }
+      `}</style>
+    </section>
   )
 }
