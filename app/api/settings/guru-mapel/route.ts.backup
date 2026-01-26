@@ -6,16 +6,15 @@ export async function GET(request: NextRequest) {
         const supabase = await createClient()
         const { searchParams } = new URL(request.url)
         const q = searchParams.get('q')
+
         const tahun_ajaran = searchParams.get('tahun_ajaran')
         const semester = searchParams.get('semester')
-        const page = parseInt(searchParams.get('page') || '1')
-        const limit = parseInt(searchParams.get('limit') || '20')
 
         let query = supabase
-            .from('wali_kelas')
-            .select('*', { count: 'exact' })
+            .from('guru_mapel')
+            .select('*')
             .eq('aktif', true)
-            .order('nama_kelas', { ascending: true })
+            .order('nama_guru', { ascending: true })
 
         if (tahun_ajaran) {
             query = query.eq('tahun_ajaran', tahun_ajaran)
@@ -26,17 +25,13 @@ export async function GET(request: NextRequest) {
         }
 
         if (q) {
-            query = query.or(`nama_kelas.ilike.%${q}%,nama_guru.ilike.%${q}%,nip.ilike.%${q}%`)
+            query = query.or(`nama_guru.ilike.%${q}%,nama_mapel.ilike.%${q}%,nip.ilike.%${q}%`)
         }
 
-        // Apply pagination
-        const offset = (page - 1) * limit
-        query = query.range(offset, offset + limit - 1)
-
-        const { data, error, count } = await query
+        const { data, error } = await query
 
         if (error) throw error
-        return NextResponse.json({ ok: true, data: data || [], total: count || 0 })
+        return NextResponse.json({ ok: true, data })
     } catch (error: any) {
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
     }
@@ -47,91 +42,87 @@ export async function POST(request: NextRequest) {
         const supabase = await createClient()
         const body = await request.json()
 
-        // 0. Validate Input
-        if (!body.nama_kelas || !body.nip || !body.tahun_ajaran) {
-            return NextResponse.json({ ok: false, error: 'Kelas, NIP, dan Tahun Ajaran wajib diisi.' }, { status: 400 })
+        // 1. Validate Input
+        if (!body.nip || !body.nama_mapel || !body.tahun_ajaran || !body.semester) {
+            return NextResponse.json({ ok: false, error: 'NIP, Nama Mapel, Tahun Ajaran, dan Semester wajib diisi.' }, { status: 400 })
         }
 
-        // 1. Strict Validation: Master Guru (NIP & Name)
-        const { data: masterGuru, error: guruError } = await supabase
+        // 2. Validate Master Data (Guru & Mapel)
+        // Check Guru
+        const { data: guruData, error: guruError } = await supabase
             .from('master_guru')
             .select('nama_lengkap')
-            .eq('nip', String(body.nip).trim())
+            .eq('nip', body.nip)
             .single()
 
-        if (guruError || !masterGuru) {
-            return NextResponse.json({ ok: false, error: `NIP ${body.nip} tidak ditemukan di Master Guru.` }, { status: 400 })
+        if (guruError || !guruData) {
+            return NextResponse.json({ ok: false, error: `Guru dengan NIP ${body.nip} tidak ditemukan di Master Guru.` }, { status: 400 })
         }
 
-        // Name Check (Case insensitive trim)
-        if (body.nama_guru && masterGuru.nama_lengkap.trim().toLowerCase() !== body.nama_guru.trim().toLowerCase()) {
+        if (guruData.nama_lengkap.trim().toLowerCase() !== body.nama_guru.trim().toLowerCase()) {
             return NextResponse.json({
                 ok: false,
-                error: `Nama guru tidak sesuai Master. Input: "${body.nama_guru}", Master: "${masterGuru.nama_lengkap}".`
+                error: `Nama guru tidak sesuai Master. Input: "${body.nama_guru}", Master: "${guruData.nama_lengkap}".`
             }, { status: 400 })
         }
 
-        // 2. Strict Validation: Master Kelas (Class Existence)
-        const { data: masterKelas, error: kelasError } = await supabase
-            .from('master_kelas')
+        // Check Mapel
+        const { data: mapelData, error: mapelError } = await supabase
+            .from('master_mapel')
             .select('id')
-            .eq('nama', body.nama_kelas)
+            .eq('nama', body.nama_mapel)
             .maybeSingle()
 
-        if (kelasError || !masterKelas) {
-            return NextResponse.json({
-                ok: false,
-                error: `Kelas "${body.nama_kelas}" tidak ditemukan di Master Kelas.`
-            }, { status: 400 })
+        // If not found by name, maybe body.nama_mapel is a code? Or just strictly name. 
+        // User template says "Nama_Mapel". Let's assume strict name match for now.
+        if (mapelError || !mapelData) {
+            return NextResponse.json({ ok: false, error: `Mapel "${body.nama_mapel}" tidak ditemukan di Master Mapel.` }, { status: 400 })
         }
 
-        // 3. Uniqueness Check (Constraint: 1 Class can have max 1 Wali in same Year/Semester)
-        // Check if ANY record exists for this Class+Year+Sem
-        const { data: existing, error: checkError } = await supabase
-            .from('wali_kelas')
-            .select('id, aktif')
-            .eq('nama_kelas', body.nama_kelas)
+        // 3. Upsert Logic (Check existing record for same Guru, Mapel, TA AND Semester)
+        const { data: existing } = await supabase
+            .from('guru_mapel')
+            .select('id')
+            .eq('nip', body.nip)
+            .eq('nama_mapel', body.nama_mapel)
             .eq('tahun_ajaran', body.tahun_ajaran)
-            .eq('semester', body.semester ?? 'Ganjil') // Semester is relevant? Usually Wali is per year?
-            // If Wali is per Year, remove Semester check?
-            // Usually Wali is per Year. But schema has semester.
-            // Let's assume per Year+Semester uniqueness based on schema.
+            .eq('semester', body.semester) // Added Semester check
             .maybeSingle()
-
-        if (checkError) throw checkError
-
-        // Prepare Payload
-        const payload = {
-            nama_kelas: body.nama_kelas,
-            nip: body.nip,
-            nama_guru: masterGuru.nama_lengkap, // Use Master Name
-            tahun_ajaran: body.tahun_ajaran,
-            semester: body.semester ?? 'Ganjil',
-            aktif: true
-        }
 
         if (existing) {
-            // Update Existing (Replace current Wali for this class)
-            // This satisfies "Kelas hanya boleh memiliki 1 wali" -> We overwrite the existing one.
+            if (body._mode === 'skip') {
+                return NextResponse.json({ ok: true, skipped: true, message: 'Data sudah ada (Skipped).' })
+            }
+            // Update
             const { data, error } = await supabase
-                .from('wali_kelas')
-                .update(payload)
+                .from('guru_mapel')
+                .update({
+                    nama_guru: guruData.nama_lengkap, // Sync name from Master
+                    aktif: true,
+                })
                 .eq('id', existing.id)
                 .select()
                 .single()
 
             if (error) throw error
-            return NextResponse.json({ ok: true, data, message: 'Data Wali Kelas diperbarui.' })
+            return NextResponse.json({ ok: true, data, message: 'Data diperbarui.' })
         } else {
-            // Insert New
+            // Insert
             const { data, error } = await supabase
-                .from('wali_kelas')
-                .insert([payload])
+                .from('guru_mapel')
+                .insert([{
+                    nip: body.nip,
+                    nama_guru: guruData.nama_lengkap,
+                    nama_mapel: body.nama_mapel,
+                    tahun_ajaran: body.tahun_ajaran,
+                    semester: body.semester,
+                    aktif: true,
+                }])
                 .select()
                 .single()
 
             if (error) throw error
-            return NextResponse.json({ ok: true, data, message: 'Data Wali Kelas ditambahkan.' })
+            return NextResponse.json({ ok: true, data, message: 'Data ditambahkan.' })
         }
 
     } catch (error: any) {
@@ -147,11 +138,11 @@ export async function PUT(request: NextRequest) {
         if (!body.id) throw new Error('ID is required for update')
 
         const { data, error } = await supabase
-            .from('wali_kelas')
+            .from('guru_mapel')
             .update({
-                nama_kelas: body.nama_kelas,
                 nip: body.nip,
                 nama_guru: body.nama_guru,
+                nama_mapel: body.nama_mapel,
                 tahun_ajaran: body.tahun_ajaran,
                 semester: body.semester,
                 aktif: body.aktif,
@@ -175,7 +166,7 @@ export async function DELETE(request: NextRequest) {
         const scope = searchParams.get('scope')
 
         if (scope === 'all') {
-            const { error } = await supabase.from('wali_kelas').delete().gt('id', 0)
+            const { error } = await supabase.from('guru_mapel').delete().gt('id', 0)
             if (error) throw error
             return NextResponse.json({ ok: true })
         }
@@ -187,7 +178,7 @@ export async function DELETE(request: NextRequest) {
             if (!yearsParam) throw new Error('Parameter years required')
             const years = yearsParam.split(',').map(y => y.trim())
 
-            const { error } = await supabase.from('wali_kelas').delete().in(field, years)
+            const { error } = await supabase.from('guru_mapel').delete().in(field, years)
             if (error) throw error
             return NextResponse.json({ ok: true })
         }
@@ -196,7 +187,7 @@ export async function DELETE(request: NextRequest) {
 
         // Soft delete
         const { error } = await supabase
-            .from('wali_kelas')
+            .from('guru_mapel')
             .update({ aktif: false })
             .eq('id', id)
 

@@ -9,6 +9,7 @@ import ImportModal from '@/components/ui/ImportModal'
 interface RawSiswa {
   nisn: string;
   nama_lengkap: string;
+  nik: string;
   gender: 'L' | 'P';
   tempat_lahir: string;
   tanggal_lahir: string;
@@ -25,7 +26,7 @@ export default function SiswaTab() {
   const [searchTerm, setSearchTerm] = useState('')
   const [allData, setAllData] = useState<RawSiswa[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
@@ -211,6 +212,7 @@ export default function SiswaTab() {
       'No': (currentPage - 1) * pageSize + index + 1,
       'NISN': s.nisn || '',
       'Nama Lengkap': s.nama_lengkap || '',
+      'NIK': s.nik || '',
       'Jenis Kelamin': s.gender || '',
       'Tempat Lahir': s.tempat_lahir || '',
       'Tanggal Lahir': s.tanggal_lahir || '',
@@ -250,14 +252,19 @@ export default function SiswaTab() {
       return s;
     };
 
+    const noRaw = getVal(['No', 'no', 'Nomor']);
     const nisnRaw = getVal(['NISN', 'nisn', 'No Induk', 'Nomor Induk']);
     const namaRaw = getVal(['Nama Lengkap', 'nama', 'Nama']);
 
-    if (!nisnRaw || !namaRaw) return null;
+    // Validasi: NISN dan Nama Lengkap wajib diisi
+    if (!nisnRaw || String(nisnRaw).trim() === '' || !namaRaw || String(namaRaw).trim() === '') {
+      return null; // Tolak data jika NISN atau Nama Lengkap kosong
+    }
 
     return {
       nisn: String(nisnRaw).replace(/[^0-9]/g, ''),
       nama_lengkap: String(namaRaw).trim(),
+      nik: String(getVal(['NIK', 'nik']) || '').replace(/[^0-9]/g, ''),
       gender: (String(getVal(['Jenis Kelamin', 'Gender'])).toUpperCase().startsWith('P') ? 'P' : 'L'),
       tempat_lahir: getVal(['Tempat Lahir']),
       tanggal_lahir: parseDate(getVal(['Tanggal Lahir'])),
@@ -524,6 +531,11 @@ export default function SiswaTab() {
                   </div>
 
                   <div className="sk__field">
+                    <label>NIK</label>
+                    <input type="text" name="nik" value={formData.nik || ''} onChange={handleInputChange} placeholder="Nomor Induk Kependudukan" />
+                  </div>
+
+                  <div className="sk__field">
                     <label>Jenis Kelamin</label>
                     <select name="gender" value={formData.gender} onChange={handleInputChange}>
                       <option value="L">Laki-laki</option>
@@ -603,7 +615,7 @@ export default function SiswaTab() {
           fetchSiswa();
           setShowImportModal(false);
         }}
-        templateColumns={['No', 'NISN', 'Nama Lengkap', 'Jenis Kelamin', 'Tempat Lahir', 'Tanggal Lahir', 'Nama Ayah', 'Nama Ibu', 'Nomor HP Ayah', 'Nomor HP Ibu', 'Alamat', 'Asal Sekolah', 'Status Aktif']}
+        templateColumns={['No', 'NISN', 'Nama Lengkap', 'NIK', 'Jenis Kelamin', 'Tempat Lahir', 'Tanggal Lahir', 'Nama Ayah', 'Nama Ibu', 'Nomor HP Ayah', 'Nomor HP Ibu', 'Alamat', 'Asal Sekolah', 'Status Aktif']}
         templateName="Template_Siswa"
         apiEndpoint="/api/master/students?upsert=true"
         mapRowData={mapImportRow}
@@ -736,7 +748,7 @@ export default function SiswaTab() {
 /* ========= TOOLBAR ========= */
 .sk__bar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
@@ -745,7 +757,7 @@ export default function SiswaTab() {
 }
 
 .sk__filters {
-  flex: 1 1 640px;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -867,15 +879,45 @@ export default function SiswaTab() {
   font-weight: 650;
 }
 
+.sk__btnPrimary:hover {
+  background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
+  color: #fff;
+}
+
+.sk__btnPrimary:active {
+  background: linear-gradient(135deg, rgba(58, 166, 255, 1), rgba(15, 42, 86, 1));
+  color: #fff;
+}
+
 .sk__btnExport {
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
   border-color: rgba(16, 185, 129, 0.28);
   color: #fff;
 }
 
+.sk__btnExport:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
+  color: #fff;
+}
+
+.sk__btnExport:active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 1), rgba(15, 42, 86, 1));
+  color: #fff;
+}
+
 .sk__btnImport {
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
   border-color: rgba(245, 158, 11, 0.28);
+  color: #fff;
+}
+
+.sk__btnImport:hover {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
+  color: #fff;
+}
+
+.sk__btnImport:active {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 1), rgba(15, 42, 86, 1));
   color: #fff;
 }
 

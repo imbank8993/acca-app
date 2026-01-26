@@ -6,12 +6,14 @@ import GuruTab from './GuruTab'
 import KelasTab from './KelasTab'
 import MapelTab from './MapelTab'
 import WaktuTab from './WaktuTab'
+import KodeGuruTab from './KodeGuruTab'
 
-type TabType = 'siswa' | 'guru' | 'mapel' | 'kelas' | 'waktu'
+type TabType = 'siswa' | 'guru' | 'kode-guru' | 'mapel' | 'kelas' | 'waktu'
 
 const tabs = [
   { key: 'siswa', label: 'Siswa', icon: 'bi-people' },
   { key: 'guru', label: 'Guru', icon: 'bi-person-badge' },
+  { key: 'kode-guru', label: 'Kode Guru', icon: 'bi-hash' },
   { key: 'mapel', label: 'Mapel', icon: 'bi-book' },
   { key: 'kelas', label: 'Kelas', icon: 'bi-door-open' },
   { key: 'waktu', label: 'Waktu', icon: 'bi-clock' },
@@ -37,7 +39,7 @@ export default function MasterDataPage() {
             <div className="md-titles">
               <h1 className="md-title">Master Data</h1>
               <p className="md-sub">
-                Kelola data referensi dasar aplikasi (Siswa, Guru, Mapel, Kelas, Waktu).
+                Kelola data referensi dasar aplikasi (Siswa, Guru, Kode Guru, Mapel, Kelas, Waktu).
               </p>
             </div>
           </div>
@@ -69,6 +71,7 @@ export default function MasterDataPage() {
         <div className="md-body" role="tabpanel">
           {activeTab === 'siswa' && <SiswaTab />}
           {activeTab === 'guru' && <GuruTab />}
+          {activeTab === 'kode-guru' && <KodeGuruTab />}
           {activeTab === 'mapel' && <MapelTab />}
           {activeTab === 'kelas' && <KelasTab />}
           {activeTab === 'waktu' && <WaktuTab />}
@@ -196,22 +199,22 @@ export default function MasterDataPage() {
           display: flex;
           gap: 8px;
 
-          /* ✅ FIX: beri ruang kiri/kanan agar pill pertama tidak kepotong */
+          /* FIX: beri ruang kiri/kanan agar pill pertama tidak kepotong */
           padding: 14px 16px 12px;
 
           border-bottom: 1px solid var(--md-line);
           background: linear-gradient(180deg, rgba(247, 250, 255, 1), rgba(255, 255, 255, 1));
 
-          /* ✅ tetap bisa swipe */
+          /* tetap bisa swipe */
           overflow-x: auto;
           overflow-y: hidden;
           -webkit-overflow-scrolling: touch;
 
-          /* ✅ sembunyikan scrollbar */
+          /* sembunyikan scrollbar */
           scrollbar-width: none;
           -ms-overflow-style: none;
 
-          /* ✅ agar saat swipe, start tidak mepet */
+          /* agar saat swipe, start tidak mepet */
           scroll-padding-left: 16px;
           scroll-padding-right: 16px;
 
@@ -243,7 +246,7 @@ export default function MasterDataPage() {
           user-select: none;
           font-weight: 520;
 
-          /* ✅ penting: jangan mengecil saat scroll */
+          /* penting: jangan mengecil saat scroll */
           flex: 0 0 auto;
           scroll-snap-align: start;
         }
@@ -304,8 +307,8 @@ export default function MasterDataPage() {
         /* soft underline indicator */
         .md-ink {
           position: absolute;
-          left: 16px;   /* ✅ match padding */
-          right: 16px;  /* ✅ match padding */
+          left: 16px;   /* match padding */
+          right: 16px;  /* match padding */
           bottom: 0;
           height: 2px;
           background: rgba(15, 23, 42, 0.06);
@@ -326,9 +329,10 @@ export default function MasterDataPage() {
 
         .md-ink--siswa::after { transform: translateX(0%); }
         .md-ink--guru::after  { transform: translateX(120%); }
-        .md-ink--mapel::after { transform: translateX(240%); }
-        .md-ink--kelas::after { transform: translateX(360%); }
-        .md-ink--waktu::after { transform: translateX(480%); }
+        .md-ink--kode-guru::after  { transform: translateX(240%); }
+        .md-ink--mapel::after { transform: translateX(360%); }
+        .md-ink--kelas::after { transform: translateX(480%); }
+        .md-ink--waktu::after { transform: translateX(600%); }
 
         /* Body */
         .md-body {
@@ -357,7 +361,7 @@ export default function MasterDataPage() {
             font-size: 0.88rem;
           }
 
-          /* ✅ FIX mobile: tab area lebih lega & tidak kepotong */
+          /* FIX mobile: tab area lebih lega & tidak kepotong */
           .md-tabsHeader {
             padding: 10px 12px 10px;
             gap: 8px;

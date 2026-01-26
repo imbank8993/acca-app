@@ -179,19 +179,145 @@ export default function ResetCard({ title, description, icon, apiEndpoint, mapRo
     }
 
     return (
-        <div className="bg-white border rounded-xl overflow-hidden hover:shadow-md transition-shadow">
-            <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 rounded-lg bg-red-50 flex items-center justify-center text-red-600 text-2xl">
+        <div className="reset-card">
+            <style jsx>{`
+                .reset-card {
+                    background: rgba(255, 255, 255, 0.95);
+                    backdrop-filter: blur(10px);
+                    border: 1px solid rgba(239, 68, 68, 0.1);
+                    border-radius: 16px;
+                    overflow: hidden;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.06);
+                }
+
+                .reset-card:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 25px rgba(239, 68, 68, 0.12);
+                    border-color: rgba(239, 68, 68, 0.2);
+                }
+
+                .card-content {
+                    padding: 1.5rem;
+                }
+
+                .icon-container {
+                    width: 3rem;
+                    height: 3rem;
+                    border-radius: 12px;
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: rgba(239, 68, 68, 0.8);
+                    font-size: 1.5rem;
+                    transition: all 0.3s ease;
+                }
+
+                .reset-card:hover .icon-container {
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.1));
+                    color: rgba(220, 38, 38, 0.9);
+                    transform: scale(1.05);
+                }
+
+                .status-badge {
+                    font-size: 0.75rem;
+                    font-weight: 700;
+                    color: rgba(59, 130, 246, 0.9);
+                    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.05));
+                    padding: 0.25rem 0.75rem;
+                    border-radius: 20px;
+                    animation: pulse 2s infinite;
+                }
+
+                .card-title {
+                    font-size: 1.1rem;
+                    font-weight: 700;
+                    color: rgba(31, 41, 55, 0.9);
+                    margin-bottom: 0.25rem;
+                    margin-top: 0.25rem;
+                    text-align: center;
+                }
+
+                .card-description {
+                    font-size: 0.875rem;
+                    color: rgba(107, 114, 128, 0.8);
+                    margin-bottom: 1.5rem;
+                    min-height: 2.5rem;
+                    line-height: 1.4;
+                }
+
+                .file-input {
+                    display: block;
+                    width: 100%;
+                    padding: 0.75rem 1rem;
+                    text-align: center;
+                    border-radius: 12px;
+                    font-weight: 600;
+                    font-size: 0.875rem;
+                    transition: all 0.3s ease;
+                    cursor: pointer;
+                    border: 1px solid rgba(239, 68, 68, 0.2);
+                }
+
+                .file-input:not(.disabled) {
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.05), rgba(220, 38, 38, 0.02));
+                    color: rgba(239, 68, 68, 0.8);
+                }
+
+                .file-input:not(.disabled):hover {
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));
+                    border-color: rgba(239, 68, 68, 0.3);
+                    color: rgba(220, 38, 38, 0.9);
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+                }
+
+                .file-input.disabled {
+                    background: rgba(156, 163, 175, 0.1);
+                    color: rgba(156, 163, 175, 0.6);
+                    border-color: rgba(156, 163, 175, 0.2);
+                    cursor: not-allowed;
+                    pointer-events: none;
+                }
+
+                @keyframes pulse {
+                    0%, 100% {
+                        opacity: 1;
+                    }
+                    50% {
+                        opacity: 0.7;
+                    }
+                }
+
+                @media (max-width: 768px) {
+                    .card-content {
+                        padding: 1.25rem;
+                    }
+
+                    .card-title {
+                        font-size: 1.125rem;
+                    }
+
+                    .card-description {
+                        font-size: 0.8125rem;
+                        margin-bottom: 1.25rem;
+                    }
+                }
+            `}</style>
+
+            <div className="card-content">
+                <div className="flex items-center justify-center mb-2">
+                    <div className="icon-container">
                         <i className={`bi ${icon}`}></i>
                     </div>
-                    {loading && <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded animate-pulse">Running...</span>}
+                    {loading && <span className="status-badge ml-2">Running...</span>}
                 </div>
 
-                <h3 className="font-bold text-lg text-gray-800 mb-1">{title}</h3>
-                <p className="text-sm text-gray-500 mb-6 min-h-[40px]">{description}</p>
+                <h3 className="card-title">{title}</h3>
+                <p className="card-description">{description}</p>
 
-                <div className="">
+                <div>
                     <input
                         type="file"
                         id={`file-${apiEndpoint}`}
@@ -201,7 +327,7 @@ export default function ResetCard({ title, description, icon, apiEndpoint, mapRo
                     />
                     <label
                         htmlFor={`file-${apiEndpoint}`}
-                        className={`block w-full py-2.5 text-center rounded-lg font-medium text-sm transition-colors border cursor-pointer ${loading ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed pointer-events-none' : 'bg-white text-red-600 border-red-200 hover:bg-red-50'}`}
+                        className={`file-input ${loading ? 'disabled' : ''}`}
                     >
                         {loading ? progress || 'Memproses...' : 'Reset & Import Excel'}
                     </label>

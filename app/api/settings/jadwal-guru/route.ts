@@ -15,10 +15,12 @@ export async function GET(request: NextRequest) {
         const hari = searchParams.get('hari')
         const guru = searchParams.get('guru')
         const valid_date = searchParams.get('valid_date')
+        const page = parseInt(searchParams.get('page') || '1')
+        const limit = parseInt(searchParams.get('limit') || '20')
 
         let query = supabase
             .from('jadwal_guru')
-            .select('*')
+            .select('*', { count: 'exact' })
             .eq('aktif', true)
             .order('hari', { ascending: false })
             .order('jam_ke', { ascending: true })
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
         }
 
         if (valid_date) {
-            query = query.lte('berlaku_mulai', valid_date)
+            query = query.or(`berlaku_mulai.is.null,berlaku_mulai.lte.${valid_date}`)
         }
 
         if (q) {
@@ -44,10 +46,14 @@ export async function GET(request: NextRequest) {
             query = query.or(filterStr)
         }
 
-        const { data, error } = await query
+        // Apply pagination
+        const offset = (page - 1) * limit
+        query = query.range(offset, offset + limit - 1)
+
+        const { data, error, count } = await query
 
         if (error) throw error
-        return NextResponse.json({ ok: true, data })
+        return NextResponse.json({ ok: true, data: data || [], total: count || 0 })
     } catch (error: any) {
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
     }

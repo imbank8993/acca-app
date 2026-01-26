@@ -4,12 +4,14 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import SearchableSelect from '../ui/SearchableSelect'
 import ImportModal from '../ui/ImportModal'
+import Pagination from '../ui/Pagination'
 import { exportToExcel } from '@/utils/excelHelper'
+import { getCurrentAcademicYear } from '@/lib/date-utils'
 
 // Interface reflects DB structure + Frontend needs
 interface JadwalGuru {
     id: number
-    guru_id?: string
+    nip: string
     nama_guru: string
     mata_pelajaran?: string // The DB column
     mapel?: string // Fallback alias
@@ -35,6 +37,11 @@ export default function JadwalGuruTab() {
     const [list, setList] = useState<JadwalGuru[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
+
+    // Pagination States
+    const [currentPage, setCurrentPage] = useState(1)
+    const [itemsPerPage, setItemsPerPage] = useState(20)
+    const [totalItems, setTotalItems] = useState(0)
 
     // Master Data
     const [masterGuruMapel, setMasterGuruMapel] = useState<any[]>([])
@@ -64,9 +71,15 @@ export default function JadwalGuruTab() {
     const [formJams, setFormJams] = useState<number[]>([]) // Array of selected jam
     const [formBerlakuMulai, setFormBerlakuMulai] = useState(todayStr)
 
+    // Generate Modal States
+    const [showGenerateModal, setShowGenerateModal] = useState(false)
+    const [generateFile, setGenerateFile] = useState<File | null>(null)
+    const [generating, setGenerating] = useState(false)
+    const [generateTanggalMulai, setGenerateTanggalMulai] = useState(todayStr)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
     // Defaults
-    const defaultTahunAjaran = '2025/2026'
-    const defaultSemester = 2 // Genap
+    const defaultTahunAjaran = getCurrentAcademicYear()
 
     useEffect(() => {
         fetchInitialData()
@@ -76,11 +89,11 @@ export default function JadwalGuruTab() {
     useEffect(() => {
         const to = setTimeout(fetchJadwal, 500)
         return () => clearTimeout(to)
-    }, [searchTerm, filterHari, filterKelas, filterValidDate])
+    }, [searchTerm, filterHari, filterKelas, filterValidDate, currentPage])
 
     const fetchInitialData = async () => {
         try {
-            const resGM = await fetch('/api/settings/guru-mapel?tahun_ajaran=2025/2026')
+            const resGM = await fetch(`/api/settings/guru-mapel?tahun_ajaran=${defaultTahunAjaran}`)
             const jsonGM = await resGM.json()
             if (jsonGM.ok) setMasterGuruMapel(jsonGM.data || [])
 
@@ -97,7 +110,7 @@ export default function JadwalGuruTab() {
     const fetchJadwal = async () => {
         setLoading(true)
         try {
-            let url = `/api/settings/jadwal-guru?q=${searchTerm}`
+            let url = `/api/settings/jadwal-guru?q=${searchTerm}&page=${currentPage}&limit=${itemsPerPage}`
             if (filterHari !== 'Semua') url += `&hari=${filterHari}`
             if (filterKelas !== 'Semua') url += `&kelas=${filterKelas}`
             if (filterValidDate) url += `&valid_date=${filterValidDate}`
@@ -123,14 +136,13 @@ export default function JadwalGuruTab() {
                 })
 
                 setList(data)
+                setTotalItems(json.total || 0)
             }
         } finally { setLoading(false) }
     }
 
     // --- Grouping Logic for "Merged" Display ---
     const groupedList = useMemo(() => {
-        // Group by unique key: Guru + Mapel + Hari + Kelas + BerlakuMulai
-        // Then merge continuous range of jams
         const groups: Record<string, JadwalGuru[]> = {}
 
         list.forEach(item => {
@@ -141,26 +153,9 @@ export default function JadwalGuruTab() {
 
         const result: any[] = []
         Object.values(groups).forEach(groupItems => {
-            // Sort groupItems by jam_ke
             groupItems.sort((a, b) => parseInt(a.jam_ke) - parseInt(b.jam_ke))
 
-            // Find continuous ranges
-            // [1, 2, 3, 5, 6] -> "1-3, 5-6"
-
-            // Or simpler: Just render one row per continuous block? 
-            // Or one row for the whole group and describe jams as "1-3"?
-            // User requested: "memilih jam ke- 1, 2, dan 3 ... di tampilan digabung jadi 1-3"
-
             if (groupItems.length === 0) return
-
-            // We will condense them into a single display object
-            // Just take the first item as base, and overwrite "jam_ke" property for display
-            // But we need to keep track of ALL IDs for editing/deleting? 
-            // If user clicks Edit on "1-3", they probably want to edit all of them.
-            // But the modal logic expects a single ID or handling multiple?
-            // "editId" is single number.
-
-            // Let's implement visual grouping only for the table.
 
             let currentRangeStart = groupItems[0]
             let currentRangeLast = groupItems[0]
@@ -171,27 +166,23 @@ export default function JadwalGuruTab() {
                 const curr = parseInt(groupItems[i].jam_ke)
 
                 if (curr === prev + 1) {
-                    // Continuous
                     currentRangeLast = groupItems[i]
                     rangeIds.push(groupItems[i].id)
                 } else {
-                    // Break in continuity -> push current range
                     result.push({
                         ...currentRangeStart,
                         displayJam: parseInt(currentRangeStart.jam_ke) === parseInt(currentRangeLast.jam_ke)
                             ? currentRangeStart.jam_ke
                             : `${currentRangeStart.jam_ke}-${currentRangeLast.jam_ke}`,
-                        ids: [...rangeIds] // Clone
+                        ids: [...rangeIds]
                     })
 
-                    // Start new range
                     currentRangeStart = groupItems[i]
                     currentRangeLast = groupItems[i]
                     rangeIds = [groupItems[i].id]
                 }
             }
 
-            // Push final range
             result.push({
                 ...currentRangeStart,
                 displayJam: parseInt(currentRangeStart.jam_ke) === parseInt(currentRangeLast.jam_ke)
@@ -201,7 +192,6 @@ export default function JadwalGuruTab() {
             })
         })
 
-        // Sort result again by day/time for display
         return result.sort((a, b) => {
             const d = (dayOrder[a.hari] || 99) - (dayOrder[b.hari] || 99)
             if (d !== 0) return d
@@ -229,7 +219,6 @@ export default function JadwalGuruTab() {
     }, [formGuru, masterGuruMapel])
 
     const availableWaktu = useMemo(() => {
-        // Find selected class program
         const selectedKelasObj = masterKelas.find(k => k.nama === formKelas)
         const program = selectedKelasObj ? selectedKelasObj.program : 'Reguler'
 
@@ -246,11 +235,19 @@ export default function JadwalGuruTab() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (formJams.length === 0) return alert('Pilih minimal satu jam!')
-        if (!formNip) return alert('Data Guru (NIP) tidak valid.')
+        if (!formNip || !formGuru) return alert('NIP dan Nama Guru wajib diisi.')
+
+        const matchingGuruMapel = masterGuruMapel.find(gm =>
+            gm.nama_guru === formGuru &&
+            gm.nip === formNip &&
+            gm.nama_mapel === formMapel
+        )
+        if (!matchingGuruMapel) {
+            return alert('Validasi gagal: NIP tidak sesuai dengan Nama Guru dan Mata Pelajaran yang dipilih.')
+        }
 
         setSaving(true)
         try {
-            // Delete existing IDs if editing a group
             if (editId && editingIds.length > 0) {
                 await Promise.all(editingIds.map(async (id) => {
                     const res = await fetch(`/api/settings/jadwal-guru?id=${id}`, { method: 'DELETE' })
@@ -259,14 +256,13 @@ export default function JadwalGuruTab() {
                 }))
             }
 
-            // Insert New
             await Promise.all(formJams.map(async (jam) => {
                 const res = await fetch('/api/settings/jadwal-guru', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         nama_guru: formGuru,
-                        nip: formNip,
+                        guru_id: formNip,
                         mapel: formMapel,
                         hari: formHari,
                         kelas: formKelas,
@@ -292,7 +288,6 @@ export default function JadwalGuruTab() {
     const [editingIds, setEditingIds] = useState<number[]>([])
 
     const handleEdit = (item: any) => {
-        // item is the "grouped" display object which has `ids` array
         if (item.ids && item.ids.length > 0) {
             setEditingIds(item.ids)
             setEditId(item.ids[0])
@@ -308,7 +303,6 @@ export default function JadwalGuruTab() {
         }
 
         setFormGuru(item.nama_guru)
-        // Try to find NIP from UniqueGurus if missing in item
         const found = uniqueGurus.find(g => g.label === item.nama_guru)
         setFormNip(item.nip || found?.nip || '')
 
@@ -343,13 +337,10 @@ export default function JadwalGuruTab() {
         setFormBerlakuMulai(todayStr)
     }
 
-
     // --- Import Logic using ImportModal ---
     const [showImport, setShowImport] = useState(false)
 
-    // Mapper function passed to ImportModal
     const mapJadwalData = (row: any) => {
-        // Flexible column names
         const nama = row['Guru'] || row['guru'] || row['Nama Guru']
         const mapel = row['Mapel'] || row['mapel'] || row['Mata Pelajaran']
         const hari = row['Hari'] || row['hari']
@@ -360,7 +351,6 @@ export default function JadwalGuruTab() {
 
         if (!nama || !hari || !kelas || jamRaw === undefined) return null
 
-        // Lookup NIP
         const guruObj = uniqueGurus.find(g => g.label.toLowerCase().trim() === String(nama).toLowerCase().trim())
         if (!guruObj) throw new Error(`Guru "${nama}" tidak ditemukan di database.`)
 
@@ -368,7 +358,6 @@ export default function JadwalGuruTab() {
         const importDate = filterValidDate || new Date().toISOString().split('T')[0]
         const isActive = String(aktifRaw).toLowerCase() === 'tidak' ? false : true
 
-        // Parse Jam (Handling ranges "1-3" or "1,2")
         const jams: number[] = []
         const jamStr = String(jamRaw).trim()
 
@@ -387,7 +376,6 @@ export default function JadwalGuruTab() {
             if (!isNaN(n)) jams.push(n)
         }
 
-        // Return array of rows to inserting
         return jams.map(j => ({
             nama_guru: nama,
             nip: nip,
@@ -400,9 +388,134 @@ export default function JadwalGuruTab() {
         }))
     }
 
+    // --- Generate Logic ---
+    const handleGenerateFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (file) {
+            setGenerateFile(file)
+        }
+    }
+
+    const handleGenerateProcess = async () => {
+        if (!generateFile) {
+            alert('Pilih file Excel terlebih dahulu!')
+            return
+        }
+
+        setGenerating(true)
+        try {
+            const data = await generateFile.arrayBuffer()
+            const workbook = XLSX.read(data, { type: 'array' })
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+            const jsonData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+            if (jsonData.length < 2) {
+                throw new Error('Format file tidak valid. Minimal harus ada 2 baris (header dan kelas).')
+            }
+
+            // Extract kelas names from row 1 (starting from column index 2)
+            const kelasNames: string[] = []
+            for (let col = 2; col < jsonData[1].length; col++) {
+                const kelasName = jsonData[1][col]
+                if (kelasName && String(kelasName).trim()) {
+                    kelasNames.push(String(kelasName).trim())
+                }
+            }
+
+            if (kelasNames.length === 0) {
+                throw new Error('Tidak ada nama kelas ditemukan di baris kedua.')
+            }
+
+            // Parse schedule data (starting from row 2)
+            const schedulesToInsert: any[] = []
+            const errors: string[] = []
+
+            for (let rowIndex = 2; rowIndex < jsonData.length; rowIndex++) {
+                const row = jsonData[rowIndex]
+                const hari = row[0] ? String(row[0]).trim() : null
+                const jamKe = row[1] ? parseInt(String(row[1])) : null
+
+                if (!hari || !jamKe || isNaN(jamKe)) continue
+
+                for (let colIndex = 0; colIndex < kelasNames.length; colIndex++) {
+                    const kelasName = kelasNames[colIndex]
+                    const cellValue = row[2 + colIndex]
+
+                    if (!cellValue || String(cellValue).trim() === '') continue
+
+                    const cellStr = String(cellValue).trim()
+                    const parts = cellStr.split(/\s+/)
+                    
+                    if (parts.length < 2) {
+                        errors.push(`Baris ${rowIndex + 1}, Kelas ${kelasName}: Format tidak valid "${cellStr}". Expected: "KODE_MAPEL KODE_GURU"`)
+                        continue
+                    }
+
+                    const kodeGuru = parts[0]
+                    const kodeMapel = parts[1]
+
+                    const guruMapel = masterGuruMapel.find(gm => 
+                        gm.kode_mapel === kodeMapel && gm.kode_guru === kodeGuru
+                    )
+
+                    if (!guruMapel) {
+                        errors.push(`Baris ${rowIndex + 1}, Kelas ${kelasName}: Tidak ditemukan guru dengan kode mapel "${kodeMapel}" dan kode guru "${kodeGuru}"`)
+                        continue
+                    }
+
+                    schedulesToInsert.push({
+                        nip: guruMapel.nip,
+                        nama_guru: guruMapel.nama_guru,
+                        mapel: guruMapel.nama_mapel,
+                        hari: hari,
+                        kelas: kelasName,
+                        jam_ke: jamKe,
+                        berlaku_mulai: generateTanggalMulai,
+                        aktif: true
+                    })
+                }
+            }
+
+            if (errors.length > 0) {
+                const errorMsg = errors.slice(0, 10).join('\n') + (errors.length > 10 ? `\n... dan ${errors.length - 10} error lainnya` : '')
+                if (!confirm(`Ditemukan ${errors.length} error:\n\n${errorMsg}\n\nLanjutkan dengan data yang valid?`)) {
+                    setGenerating(false)
+                    return
+                }
+            }
+
+            if (schedulesToInsert.length === 0) {
+                throw new Error('Tidak ada data valid untuk diimport.')
+            }
+
+            const insertPromises = schedulesToInsert.map(schedule =>
+                fetch('/api/settings/jadwal-guru', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(schedule)
+                })
+            )
+
+            await Promise.all(insertPromises)
+
+            alert(`Berhasil generate ${schedulesToInsert.length} jadwal!`)
+            setShowGenerateModal(false)
+            setGenerateFile(null)
+            if (fileInputRef.current) fileInputRef.current.value = ''
+            fetchJadwal()
+
+        } catch (err: any) {
+            console.error(err)
+            alert('Error: ' + err.message)
+        } finally {
+            setGenerating(false)
+        }
+    }
+
     const handleExport = () => {
         const data = list.map((l, i) => ({
             No: i + 1,
+            NIP: l.nip,
             Guru: l.nama_guru,
             Mapel: l.mapel,
             Hari: l.hari,
@@ -423,12 +536,29 @@ export default function JadwalGuruTab() {
         <div className="sk">
             {/* Toolbar */}
             <div className="sk__bar">
-                <div className="sk__filters">
+                <div className="sk__cell">
                     <div className="sk__search">
                         <i className="bi bi-search" aria-hidden="true"></i>
                         <input type="text" placeholder="Cari Guru / Mapel..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
-
+                </div>
+                <div className="sk__cell">
+                    <select value={filterHari} onChange={e => setFilterHari(e.target.value)}>
+                        <option value="Semua">Semua Hari</option>
+                        {Object.keys(dayOrder).map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                </div>
+                <div className="sk__cell">
+                    <div className="sk__buttonRow">
+                        <button className="sk__btn sk__btnImport" onClick={() => setShowImport(true)} title="Import Excel">
+                            <i className="bi bi-upload" /> <span>Import</span>
+                        </button>
+                        <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Excel">
+                            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
+                        </button>
+                    </div>
+                </div>
+                <div className="sk__cell">
                     <div className="sk__filterGroup">
                         <label className="sk__labelSm">Tgl Berlaku:</label>
                         <input
@@ -438,27 +568,22 @@ export default function JadwalGuruTab() {
                             onChange={(e) => setFilterValidDate(e.target.value)}
                         />
                     </div>
-
-                    <select value={filterHari} onChange={e => setFilterHari(e.target.value)}>
-                        <option value="Semua">Semua Hari</option>
-                        {Object.keys(dayOrder).map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                </div>
+                <div className="sk__cell">
                     <select value={filterKelas} onChange={e => setFilterKelas(e.target.value)}>
                         <option value="Semua">Semua Kelas</option>
                         {masterKelas.map(k => <option key={k.id} value={k.nama}>{k.nama}</option>)}
                     </select>
                 </div>
-
-                <div className="sk__actions" aria-label="Aksi">
-                    <button className="sk__btn sk__btnImport" onClick={() => setShowImport(true)} title="Import Excel">
-                        <i className="bi bi-upload" /> <span>Import</span>
-                    </button>
-                    <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Excel">
-                        <i className="bi bi-file-earmark-excel" /> <span>Export</span>
-                    </button>
-                    <button className="sk__btn sk__btnPrimary" onClick={openAdd}>
-                        <i className="bi bi-plus-lg" /> <span>Tambah</span>
-                    </button>
+                <div className="sk__cell">
+                    <div className="sk__buttonRow">
+                        <button className="sk__btn sk__btnGenerate" onClick={() => setShowGenerateModal(true)} title="Generate dari Excel">
+                            <i className="bi bi-gear-fill" /> <span>Generate</span>
+                        </button>
+                        <button className="sk__btn sk__btnPrimary" onClick={openAdd}>
+                            <i className="bi bi-plus-lg" /> <span>Tambah</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -468,6 +593,7 @@ export default function JadwalGuruTab() {
                     <thead>
                         <tr>
                             <th className="cNo">No</th>
+                            <th>NIP</th>
                             <th>Guru</th>
                             <th>Mapel</th>
                             <th>Hari</th>
@@ -478,11 +604,12 @@ export default function JadwalGuruTab() {
                         </tr>
                     </thead>
                     <tbody>
-                        {loading ? <tr><td colSpan={8} className="sk__empty">Memuat...</td></tr> :
-                            groupedList.length === 0 ? <tr><td colSpan={8} className="sk__empty sk__muted">Tidak ada jadwal.</td></tr> :
-                                groupedList.map((item, idx) => (
+                        {loading ? <tr><td colSpan={9} className="sk__empty">Memuat...</td></tr> :
+                            groupedList.length === 0 ? <tr><td colSpan={9} className="sk__empty sk__muted">Tidak ada jadwal.</td></tr> :
+                                groupedList.map((item: any, idx: number) => (
                                     <tr key={idx}>
-                                        <td className="tCenter">{idx + 1}</td>
+                                        <td className="tCenter">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                                        <td className="tMono">{item.nip}</td>
                                         <td className="font-medium">{item.nama_guru}</td>
                                         <td>{item.mapel}</td>
                                         <td><span className={`sk__day ${item.hari.toLowerCase()}`}>{item.hari}</span></td>
@@ -502,11 +629,24 @@ export default function JadwalGuruTab() {
                 </table>
             </div>
 
+            {/* Pagination */}
+            {totalItems > itemsPerPage && (
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={Math.ceil(totalItems / itemsPerPage)}
+                    limit={itemsPerPage}
+                    totalItems={totalItems}
+                    onPageChange={setCurrentPage}
+                    onLimitChange={(newLimit) => {
+                        setItemsPerPage(newLimit);
+                        setCurrentPage(1); // Reset to first page when limit changes
+                    }}
+                />
+            )}
+
             {/* Mobile Cards */}
             <div className="sk__cards">
                 {
-                    /* Note: Mobile cards also need grouping or just show raw list? 
-                       Let's show grouped list for consistency. */
                     Object.entries(
                         groupedList.reduce((groups, item) => {
                             const guru = item.nama_guru
@@ -578,18 +718,87 @@ export default function JadwalGuruTab() {
                 </div>
             )}
 
+            {/* Generate Modal */}
+            {showGenerateModal && (
+                <div className="sk__modalOverlay">
+                    <div className="sk__modal">
+                        <div className="sk__modalHead">
+                            <div className="sk__modalTitle">
+                                <h2>Generate Jadwal dari Excel</h2>
+                                <p>Upload file dengan format ACCA_GenerateJadwal</p>
+                            </div>
+                            <button onClick={() => setShowGenerateModal(false)} className="sk__close"><i className="bi bi-x-lg"></i></button>
+                        </div>
+                        <div className="sk__modalBody">
+                            <div className="sk__generateInfo">
+                                <div className="sk__infoItem">
+                                    <i className="bi bi-info-circle"></i>
+                                    <span>File Excel harus memiliki struktur: Baris 1 = Header, Baris 2 = Nama Kelas</span>
+                                </div>
+                                <div className="sk__infoItem">
+                                    <i className="bi bi-info-circle"></i>
+                                    <span>Format cell: "KODE_MAPEL KODE_GURU" (contoh: "MAT3 MAT")</span>
+                                </div>
+                                <div className="sk__infoItem">
+                                    <i className="bi bi-info-circle"></i>
+                                    <span>Sistem akan mencocokkan dengan data GuruMapel yang sudah ada</span>
+                                </div>
+                            </div>
+
+                            <div className="sk__field">
+                                <label>Tanggal Mulai Berlaku</label>
+                                <input
+                                    type="date"
+                                    value={generateTanggalMulai}
+                                    onChange={e => setGenerateTanggalMulai(e.target.value)}
+                                    className="sk__dateInput"
+                                />
+                            </div>
+
+                            <div className="sk__field">
+                                <label>Pilih File Excel</label>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".xlsx,.xls"
+                                    onChange={handleGenerateFileSelect}
+                                    className="sk__fileInput"
+                                />
+                                {generateFile && (
+                                    <div className="sk__fileName">
+                                        <i className="bi bi-file-earmark-excel"></i>
+                                        <span>{generateFile.name}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="sk__modalFoot">
+                            <button type="button" className="sk__btn sk__btnGhost" onClick={() => setShowGenerateModal(false)}>Batal</button>
+                            <button 
+                                type="button" 
+                                className="sk__btn sk__btnPrimary" 
+                                onClick={handleGenerateProcess}
+                                disabled={generating || !generateFile}
+                            >
+                                {generating ? 'Memproses...' : 'Generate Jadwal'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Import Modal */}
             <ImportModal
                 isOpen={showImport}
                 onClose={() => setShowImport(false)}
                 onImportSuccess={() => { fetchJadwal(); }}
-                templateColumns={['No', 'Guru', 'Mapel', 'Hari', 'Kelas', 'Jam', 'Berlaku_Mulai', 'Aktif']}
+                templateColumns={['No', 'NIP', 'Guru', 'Mapel', 'Hari', 'Kelas', 'Jam', 'Berlaku_Mulai', 'Aktif']}
                 templateName='Template_Import_Jadwal.xlsx'
                 apiEndpoint='/api/settings/jadwal-guru/import'
                 mapRowData={mapJadwalData}
             />
 
-            {/* Modal */}
+            {/* Modal Add/Edit */}
             {showModal && (
                 <div className="sk__modalOverlay">
                     <div className="sk__modal">
@@ -601,7 +810,6 @@ export default function JadwalGuruTab() {
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="sk__modalBody">
-                                {/* Grid for Guru & Date */}
                                 <div className="sk__grid2">
                                     <div className="sk__field">
                                         <label>Guru</label>
@@ -646,7 +854,7 @@ export default function JadwalGuruTab() {
                                         <label>Kelas</label>
                                         <select required value={formKelas} onChange={e => {
                                             setFormKelas(e.target.value)
-                                            setFormJams([]) // Reset jams when class changes because program might differ
+                                            setFormJams([])
                                         }}>
                                             <option value="">-- Pilih Kelas --</option>
                                             {masterKelas.map(k => <option key={k.id} value={k.nama}>{k.nama}</option>)}
@@ -693,16 +901,26 @@ export default function JadwalGuruTab() {
 
                 .sk { width: 100%; display: flex; flex-direction: column; gap: 10px; font-size: var(--sk-fs); padding: 16px; background: #f5f7fb; border-radius: 16px; padding-bottom: calc(16px + var(--sk-safe-b)); }
 
-                .sk__bar { display: flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
-                .sk__filters { flex: 1 1 500px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px; border-radius: var(--sk-radius); background: rgba(255,255,255,0.72); border: 1px solid var(--sk-line); box-shadow: var(--sk-shadow2); }
+                .sk__bar { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; align-items: center; }
+                .sk__col1 { display: flex; flex-direction: column; gap: 8px; }
+                .sk__col2 { display: flex; flex-direction: column; gap: 8px; }
+                .sk__col3 { display: flex; flex-direction: column; gap: 8px; }
+                .sk__buttonGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+                .sk__buttonGrid .sk__btn { width: 100%; }
+                .sk__filters { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px; border-radius: var(--sk-radius); background: rgba(255,255,255,0.72); border: 1px solid var(--sk-line); box-shadow: var(--sk-shadow2); }
                 .sk__search { position: relative; flex: 1 1 200px; }
-                .sk__search i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: rgba(100, 116, 139, 0.9); pointer-events: none; font-size: 0.9rem; }
-                .sk__search input, select, .sk__dateInput { width: 100%; padding: 8px 10px 8px 10px; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 12px; background: rgba(255, 255, 255, 0.92); font-weight: 500; font-size: var(--sk-fs-sm); }
-                .sk__search input { padding-left: 30px; }
+                .sk__search i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: rgba(100, 116, 139, 0.9); pointer-events: none; font-size: 0.9rem; z-index: 1; }
+                .sk__search input, select, .sk__dateInput { width: 100%; padding: 8px 10px 8px 30px; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 12px; background: rgba(255, 255, 255, 0.92); font-weight: 500; font-size: var(--sk-fs-sm); }
                 select { cursor: pointer; }
                 
                 .sk__filterGroup { display: flex; align-items: center; gap: 6px; }
                 .sk__labelSm { font-size: 0.75rem; font-weight: 600; color: #64748b; white-space: nowrap; }
+
+                .sk__filterRow { display: flex; gap: 8px; align-items: flex-start; }
+
+                .sk__buttonRows { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+                .sk__buttonRow { display: flex; gap: 8px; justify-content: flex-start; }
+                .sk__buttonRow .sk__btn { flex: 1; min-width: 0; }
 
                 .sk__actions { display: flex; gap: 8px; flex-wrap: wrap; }
                 @media (max-width: 768px) {
@@ -727,6 +945,7 @@ export default function JadwalGuruTab() {
                 .sk__btn {
                     display: inline-flex;
                     align-items: center;
+                    justify-content: center;
                     gap: 8px;
                     height: 38px;
                     padding: 8px 12px;
@@ -746,13 +965,14 @@ export default function JadwalGuruTab() {
                 .sk__btn i { font-size: 1rem; }
 
                 .sk__btn:hover {
-                    background: rgba(255, 255, 255, 0.92);
-                    border-color: rgba(58, 166, 255, 0.24);
-                    box-shadow: var(--sk-shadow2);
-                    transform: translateY(-1px);
+                    border-color: rgba(58, 166, 255, 0.25);
+                    box-shadow: 0 4px 12px rgba(58, 166, 255, 0.2);
+                    transform: translateY(-2px);
+                    filter: brightness(1.1);
                 }
 
                 .sk__btn:active { transform: translateY(0); }
+                .sk__btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
                 .sk__btnPrimary {
                   background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
@@ -771,6 +991,16 @@ export default function JadwalGuruTab() {
                   background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
                   border-color: rgba(245, 158, 11, 0.28);
                   color: #fff;
+                }
+
+                .sk__btnGenerate {
+                  background: linear-gradient(135deg, rgba(139, 92, 246, 0.92), rgba(15, 42, 86, 0.86));
+                  border-color: rgba(139, 92, 246, 0.28);
+                  color: #fff;
+                }
+
+                .sk__btnGhost {
+                  background: rgba(255, 255, 255, 0.78);
                 }
 
                 .sk__tableWrap { border-radius: var(--sk-radius); overflow: hidden; border: 1px solid var(--sk-line); box-shadow: var(--sk-shadow); background: var(--sk-card); }
@@ -801,11 +1031,12 @@ export default function JadwalGuruTab() {
                 .jam-time { font-size: 0.65rem; color: #64748b; }
                 .sk__jamItem.selected .jam-time { color: #3b82f6; }
                 .sk__hint { font-size: 0.8rem; color: #64748b; margin-top: 4px; font-style: italic; }
-                .sk__hintWarn { border-color: rgba(245, 158, 11, 0.22); background: rgba(245, 158, 11, 0.1); color: rgba(180, 83, 9, 1); }
+                .sk__hintWarn { border-color: rgba(245, 158, 11, 0.22); background: rgba(245, 158, 11, 0.1); color: rgba(180, 83, 9, 1); padding: 12px; border-radius: 8px; }
 
                 .sk__empty { padding: 20px; text-align: center; color: rgba(100, 116, 139, 0.8); font-weight: 500; }
                 .sk__muted { color: rgba(148, 163, 184, 0.8); }
                 .tCenter { text-align: center; }
+                .tMono { font-family: monospace; }
                 .font-medium { font-weight: 500; }
                 .font-bold { font-weight: 700; }
                 .cNo { width: 60px; text-align: center; }
@@ -835,15 +1066,24 @@ export default function JadwalGuruTab() {
                 .sk__status.isOn { background: rgba(34, 197, 94, 0.12); border-color: rgba(34, 197, 94, 0.18); color: rgba(22, 163, 74, 1); }
                 .sk__status.isOff { background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.16); color: rgba(220, 38, 38, 1); }
 
-                @media (max-width: 768px) { 
-                    .sk__tableWrap { display: none; } 
+                @media (max-width: 768px) {
+                    .sk__bar { grid-template-columns: 1fr; grid-template-rows: auto; gap: 8px; }
+                    .sk__tableWrap { display: none; }
                     .sk__cards { display: flex; }
                     .sk {
                         padding: 0;
                         padding-bottom: calc(16px + var(--sk-safe-b));
                         background: transparent;
                         border-radius: 0;
-                    } 
+                    }
+
+                    /* Mobile order: hari, kelas, search, tanggal, import export, generate tambah */
+                    .sk__cell:nth-child(1) { order: 3; } /* search */
+                    .sk__cell:nth-child(2) { order: 1; } /* hari */
+                    .sk__cell:nth-child(3) { order: 5; } /* import export */
+                    .sk__cell:nth-child(4) { order: 4; } /* tanggal */
+                    .sk__cell:nth-child(5) { order: 2; } /* kelas */
+                    .sk__cell:nth-child(6) { order: 6; } /* generate tambah */
                 }
 
                 /* Modal */
@@ -858,9 +1098,15 @@ export default function JadwalGuruTab() {
                 .sk__field label { display: block; font-size: var(--sk-fs-xs); font-weight: 650; color: rgba(7, 22, 46, 0.88); margin-bottom: 7px; }
                 .sk__field input, .sk__field select { width: 100%; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.35); background: rgba(248, 250, 252, 0.9); color: rgba(15, 23, 42, 0.92); font-weight: 500; outline: none; font-size: var(--sk-fs-sm); }
                 .sk__field input:focus, .sk__field select:focus { border-color: rgba(58, 166, 255, 0.55); box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14); }
-                .sk__hint { margin-top: 7px; font-size: var(--sk-fs-xs); font-weight: 500; padding: 9px 10px; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.2); background: rgba(248, 250, 252, 0.92); color: rgba(100, 116, 139, 0.95); }
-                .sk__hintWarn { border-color: rgba(245, 158, 11, 0.22); background: rgba(245, 158, 11, 0.1); color: rgba(180, 83, 9, 1); }
                 .sk__modalFoot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 14px; border-top: 1px solid rgba(148, 163, 184, 0.18); background: rgba(255, 255, 255, 0.92); }
+
+                /* Generate Modal Specific Styles */
+                .sk__generateInfo { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: 12px; margin-bottom: 10px; }
+                .sk__infoItem { display: flex; align-items: flex-start; gap: 8px; font-size: var(--sk-fs-sm); color: rgba(30, 64, 175, 0.9); }
+                .sk__infoItem i { flex-shrink: 0; margin-top: 2px; color: rgba(59, 130, 246, 0.8); }
+                .sk__fileInput { padding: 10px !important; cursor: pointer; }
+                .sk__fileName { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 10px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 10px; color: rgba(6, 95, 70, 0.95); font-size: var(--sk-fs-sm); font-weight: 600; }
+                .sk__fileName i { font-size: 1.1rem; color: rgba(16, 185, 129, 0.9); }
 
                 /* Sheet */
                 .sk__sheetOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; align-items: flex-end; }
@@ -869,9 +1115,9 @@ export default function JadwalGuruTab() {
                 .sk__sheetTitle { text-align: center; margin-bottom: 24px; }
                 .sk__sheetName { font-weight: 800; font-size: 1.2rem; color: #0f172a; }
                 .sk__sheetActions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
-                .sk__sheetBtn { background: #f8fafc; border: none; padding: 14px; border-radius: 12px; font-weight: 600; color: #334155; display: flex; align-items: center; justify-content: center; gap: 8px; }
+                .sk__sheetBtn { background: #f8fafc; border: none; padding: 14px; border-radius: 12px; font-weight: 600; color: #334155; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
                 .sk__sheetBtn.danger { color: #ef4444; background: #fef2f2; }
-                .sk__sheetCancel { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #e2e8f0; background: white; font-weight: 700; color: #0f172a; }
+                .sk__sheetCancel { width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #e2e8f0; background: white; font-weight: 700; color: #0f172a; cursor: pointer; }
 
                 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
             `}</style>

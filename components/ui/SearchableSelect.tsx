@@ -10,12 +10,13 @@ interface Option {
 
 interface SearchableSelectProps {
   options: Option[]
-  value: string | number
-  onChange: (value: string) => void
+  value: string | number | (string | number)[]
+  onChange: (value: string | (string | number)[]) => void
   placeholder?: string
   label?: string
   className?: string
   disabled?: boolean
+  multiple?: boolean
 }
 
 export default function SearchableSelect({
@@ -25,7 +26,8 @@ export default function SearchableSelect({
   placeholder = 'Pilih...',
   label,
   className = '',
-  disabled = false
+  disabled = false,
+  multiple = false
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -58,7 +60,14 @@ export default function SearchableSelect({
     }
   }, [isOpen])
 
-  const selectedOption = useMemo(() => options.find((opt) => opt.value === value), [options, value])
+  const selectedOptions = useMemo(() => {
+    if (multiple) {
+      const values = Array.isArray(value) ? value : []
+      return options.filter((opt) => values.includes(opt.value))
+    } else {
+      return options.find((opt) => opt.value === value) ? [options.find((opt) => opt.value === value)!] : []
+    }
+  }, [options, value, multiple])
 
   const filteredOptions = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -75,8 +84,23 @@ export default function SearchableSelect({
   }
 
   const pick = (opt: Option) => {
-    onChange(String(opt.value))
-    setIsOpen(false)
+    if (multiple) {
+      const currentValues = Array.isArray(value) ? value : []
+      const isSelected = currentValues.includes(opt.value)
+
+      let newValues: (string | number)[]
+      if (isSelected) {
+        newValues = currentValues.filter(v => v !== opt.value)
+      } else {
+        newValues = [...currentValues, opt.value]
+      }
+
+      onChange(newValues)
+      // Don't close dropdown for multiselect
+    } else {
+      onChange(String(opt.value))
+      setIsOpen(false)
+    }
   }
 
   return (
@@ -96,11 +120,23 @@ export default function SearchableSelect({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        {selectedOption ? (
-          <div className="ss__selected">
-            <span className="ss__selectedMain">{selectedOption.label}</span>
-            {selectedOption.subLabel && <span className="ss__selectedSub">{selectedOption.subLabel}</span>}
-          </div>
+        {selectedOptions.length > 0 ? (
+          multiple ? (
+            <div className="ss__selected">
+              <span className="ss__selectedMain">
+                {selectedOptions.length} siswa dipilih
+              </span>
+              <span className="ss__selectedSub">
+                {selectedOptions.slice(0, 2).map(opt => opt.label).join(', ')}
+                {selectedOptions.length > 2 && ` +${selectedOptions.length - 2} lagi`}
+              </span>
+            </div>
+          ) : (
+            <div className="ss__selected">
+              <span className="ss__selectedMain">{selectedOptions[0].label}</span>
+              {selectedOptions[0].subLabel && <span className="ss__selectedSub">{selectedOptions[0].subLabel}</span>}
+            </div>
+          )
         ) : (
           <span className="ss__placeholder">{placeholder}</span>
         )}
@@ -129,7 +165,9 @@ export default function SearchableSelect({
               <div className="ss__empty">Tidak ada data.</div>
             ) : (
               filteredOptions.map((opt) => {
-                const active = opt.value === value
+                const active = multiple
+                  ? (Array.isArray(value) ? value : []).includes(opt.value)
+                  : opt.value === value
                 return (
                   <button
                     type="button"
@@ -254,17 +292,19 @@ export default function SearchableSelect({
 
         .ss__drop {
           position: absolute;
-          z-index: 50;
+          z-index: 10000;
           width: 100%;
           margin-top: 8px;
 
           background: rgba(255, 255, 255, 0.98);
           border: 1px solid rgba(148, 163, 184, 0.22);
           border-radius: 14px;
-          box-shadow: 0 18px 46px rgba(2, 6, 23, 0.16);
+          box-shadow: 0 18px 46px rgba(2, 6, 23, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.05);
 
           overflow: hidden;
           animation: fadeIn 0.12s ease-out;
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
         }
 
         .ss__searchWrap {

@@ -170,45 +170,204 @@ export default function ResetDataPage() {
 
     return (
         <div className="reset-page-container">
-            {/* Changed class from p-8 min-h-screen to fit in dashboard container if needed, or keep standard padding */}
+            <style jsx>{`
+                .reset-page-container {
+                    min-height: 100vh;
+                    background: linear-gradient(135deg, rgba(254, 242, 242, 0.3), rgba(255, 251, 235, 0.2));
+                    padding: 2rem;
+                }
+
+                .reset-header {
+                    background: rgba(255, 255, 255, 0.95);
+                    backdrop-filter: blur(10px);
+                    border: 1px solid rgba(239, 68, 68, 0.1);
+                    border-radius: 16px;
+                    padding: 1.5rem;
+                    margin-bottom: 1.5rem;
+                    box-shadow: 0 10px 25px rgba(239, 68, 68, 0.08);
+                }
+
+                .reset-title {
+                    font-size: 1.5rem;
+                    font-weight: 800;
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.9), rgba(220, 38, 38, 0.9));
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                    margin-bottom: 0.125rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                }
+
+                .reset-subtitle {
+                    color: rgba(107, 114, 128, 0.8);
+                    font-size: 1.1rem;
+                    font-weight: 500;
+                    margin: 0;
+                }
+
+                .lock-button {
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));
+                    border: 1px solid rgba(239, 68, 68, 0.2);
+                    color: rgba(239, 68, 68, 0.8);
+                    padding: 0.75rem 1.5rem;
+                    border-radius: 12px;
+                    font-weight: 600;
+                    font-size: 0.9rem;
+                    transition: all 0.3s ease;
+                    cursor: pointer;
+                }
+
+                .lock-button:hover {
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.1));
+                    border-color: rgba(239, 68, 68, 0.3);
+                    color: rgba(220, 38, 38, 0.9);
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+                }
+
+                .tab-navigation {
+                    background: rgba(255, 255, 255, 0.9);
+                    backdrop-filter: blur(10px);
+                    border: 1px solid rgba(239, 68, 68, 0.1);
+                    border-radius: 12px;
+                    padding: 0.5rem;
+                    margin-bottom: 2rem;
+                    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.06);
+                }
+
+                .tab-button {
+                    padding: 1rem 2rem;
+                    font-weight: 600;
+                    font-size: 0.95rem;
+                    border-radius: 8px;
+                    transition: all 0.3s ease;
+                    position: relative;
+                    color: rgba(107, 114, 128, 0.7);
+                    background: transparent;
+                    border: none;
+                    cursor: pointer;
+                }
+
+                .tab-button:hover {
+                    color: rgba(239, 68, 68, 0.7);
+                    background: rgba(239, 68, 68, 0.05);
+                }
+
+                .tab-button.active {
+                    color: rgba(239, 68, 68, 0.9);
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));
+                    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
+                }
+
+                .tab-button.active::after {
+                    content: '';
+                    position: absolute;
+                    bottom: 0;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 60%;
+                    height: 3px;
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.8), rgba(220, 38, 38, 0.8));
+                    border-radius: 2px;
+                }
+
+                .content-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+                    gap: 1.5rem;
+                    max-width: 1200px;
+                    margin: 0 auto;
+                }
+
+                .warning-banner {
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));
+                    border: 1px solid rgba(239, 68, 68, 0.2);
+                    border-radius: 12px;
+                    padding: 1.5rem;
+                    margin-bottom: 2rem;
+                    text-align: center;
+                }
+
+                .warning-icon {
+                    font-size: 2rem;
+                    color: rgba(239, 68, 68, 0.6);
+                    margin-bottom: 0.5rem;
+                }
+
+                .warning-text {
+                    color: rgba(239, 68, 68, 0.8);
+                    font-weight: 600;
+                    font-size: 1.1rem;
+                    margin: 0;
+                }
+
+                @media (max-width: 768px) {
+                    .reset-page-container {
+                        padding: 1rem;
+                    }
+
+                    .reset-header {
+                        padding: 1.5rem;
+                    }
+
+                    .reset-title {
+                        font-size: 2rem;
+                    }
+
+                    .content-grid {
+                        grid-template-columns: 1fr;
+                        gap: 1rem;
+                    }
+                }
+            `}</style>
 
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                        <i className="bi bi-radioactive text-red-600"></i>
-                        Reset Data Center
-                    </h1>
-                    <p className="text-gray-500 mt-1">Area berbahaya. Hapus dan import ulang data dalam jumlah besar.</p>
+            <div className="reset-header">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 className="reset-title">
+                            <i className="bi bi-radioactive"></i>
+                            Reset Data Center
+                        </h1>
+                        {/* Warning text inline with red icon */}
+                        <p className="warning-text">
+                            ⚠️ Area Kritis - Operasi ini akan menghapus data secara permanen
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => setIsAuthenticated(false)}
+                        className="lock-button"
+                    >
+                        <i className="bi bi-lock-fill mr-2"></i>
+                        Lock Access
+                    </button>
                 </div>
-                <button
-                    onClick={() => setIsAuthenticated(false)}
-                    className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 font-medium transition-colors border border-gray-200 rounded-lg bg-white"
-                >
-                    Lock Access
-                </button>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex gap-2 mb-8 border-b border-gray-200">
-                <button
-                    onClick={() => setActiveTab('master')}
-                    className={`px-6 py-3 font-semibold text-sm transition-colors relative ${activeTab === 'master' ? 'text-red-600' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    Master Data
-                    {activeTab === 'master' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-red-600"></div>}
-                </button>
-                <button
-                    onClick={() => setActiveTab('settings')}
-                    className={`px-6 py-3 font-semibold text-sm transition-colors relative ${activeTab === 'settings' ? 'text-red-600' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                    Pengaturan Data
-                    {activeTab === 'settings' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-red-600"></div>}
-                </button>
+            <div className="tab-navigation">
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setActiveTab('master')}
+                        className={`tab-button ${activeTab === 'master' ? 'active' : ''}`}
+                    >
+                        <i className="bi bi-database mr-2"></i>
+                        Master Data
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('settings')}
+                        className={`tab-button ${activeTab === 'settings' ? 'active' : ''}`}
+                    >
+                        <i className="bi bi-gear mr-2"></i>
+                        Pengaturan Data
+                    </button>
+                </div>
             </div>
 
             {/* Content */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="content-grid">
 
                 {activeTab === 'master' && (
                     <>

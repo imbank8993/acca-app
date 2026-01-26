@@ -12,6 +12,7 @@ interface ImportModalProps {
   templateName: string
   apiEndpoint: string
   mapRowData: (row: any) => any | any[] | null
+  requiredColumns?: string[]
 }
 
 export default function ImportModal({
@@ -70,8 +71,8 @@ export default function ImportModal({
         const fileHeaders = Object.keys(row).map((k) => k.toLowerCase().replace(/[^a-z0-9]/g, ''))
         const expectedHeaders = templateColumns
           .map((c) => c.toLowerCase().replace(/[^a-z0-9]/g, ''))
-          // Relaxed validation: No, Status, and Semester are optional
-          .filter((c) => c !== 'no' && c !== 'status' && c !== 'semester')
+          // Only No, NISN, and Nama Lengkap are required
+          .filter((c) => c === 'no' || c === 'nisn' || c === 'namalengkap')
 
         const missing = expectedHeaders.filter((h) => !fileHeaders.includes(h))
 
@@ -172,544 +173,329 @@ export default function ImportModal({
         {/* Header */}
         <div className="im-header">
           <div className="im-titleWrap">
-            <div className="im-icon" aria-hidden="true">
-              <span className="im-dot" />
-            </div>
-            <div className="im-titles">
-              <h3 className="im-title">
-                <i className="bi bi-file-earmark-spreadsheet im-titleIcon" aria-hidden="true"></i>
-                Import Data Excel
-              </h3>
-              <p className="im-sub">
-                Gunakan template agar struktur kolom sesuai. Import berjalan otomatis setelah file dipilih.
-              </p>
-            </div>
+            <i className="bi bi-file-earmark-spreadsheet im-headerIcon"></i>
+            <h3 className="im-title">Import Data Excel</h3>
           </div>
-
           <button onClick={onClose} className="im-close" aria-label="Tutup">
-            &times;
+            <i className="bi bi-x-lg"></i>
           </button>
         </div>
 
         {/* Body */}
         <div className="im-body">
           {/* Step 1 */}
-          <div className="im-step im-step--primary">
+          <div className="im-step">
             <div className="im-stepHead">
               <span className="im-stepNo">1</span>
-              <div className="im-stepText">
-                <p className="im-stepTitle">Unduh Template</p>
-                <p className="im-stepDesc">
-                  Unduh template untuk melihat format kolom yang benar. Jangan ubah nama kolom header.
-                </p>
-              </div>
+              <h4 className="im-stepTitle">Download Template</h4>
             </div>
-
-            <div className="im-stepAction">
-              <button onClick={handleDownloadTemplate} className="im-btn im-btn--ghost">
-                <i className="bi bi-download" aria-hidden="true"></i>
-                Download Template
-              </button>
-              <div className="im-meta">
-                <span className="im-chip">Template: {templateName}</span>
-              </div>
-            </div>
+            <button onClick={handleDownloadTemplate} className="im-btn im-btn--download">
+              <i className="bi bi-download"></i>
+              <span>Download Template</span>
+            </button>
           </div>
 
           {/* Step 2 */}
-          <div className="im-step im-step--excel">
+          <div className="im-step">
             <div className="im-stepHead">
-              <span className="im-stepNo im-stepNo--excel">2</span>
-              <div className="im-stepText">
-                <p className="im-stepTitle">Upload File Excel</p>
-                <p className="im-stepDesc">
-                  Pilih file .xlsx atau .xls yang sudah diisi. Sistem memproses dan menampilkan ringkasan hasil.
-                </p>
-              </div>
+              <span className="im-stepNo im-stepNo--green">2</span>
+              <h4 className="im-stepTitle">Upload File Excel</h4>
             </div>
-
-            <div className="im-stepAction">
-              <label className={`im-file ${loading ? 'is-disabled' : ''}`}>
-                <input type="file" onChange={handleFileChange} disabled={loading} />
-                <span className="im-fileInner">
-                  <span className="im-fileIcon" aria-hidden="true">
-                    <i className="bi bi-cloud-arrow-up"></i>
-                  </span>
-                  <span className="im-fileText">
-                    <b>Pilih File Excel</b>
-                    <small>Format: .xlsx / .xls</small>
-                  </span>
-                  <span className="im-fileBtn">Browse</span>
-                </span>
-              </label>
-
-              <div className="im-help">
-                <i className="bi bi-shield-check" aria-hidden="true"></i>
-                <span>Header divalidasi otomatis. Jika tidak sesuai, import dibatalkan.</span>
+            
+            <label className={`im-fileUpload ${loading ? 'is-disabled' : ''}`}>
+              <input type="file" onChange={handleFileChange} disabled={loading} accept=".xlsx,.xls" />
+              <div className="im-fileInner">
+                <i className="bi bi-cloud-arrow-up im-uploadIcon"></i>
+                <div className="im-fileText">
+                  <span className="im-fileLabel">Pilih File Excel</span>
+                  <span className="im-fileFormat">.xlsx / .xls</span>
+                </div>
               </div>
-            </div>
+            </label>
           </div>
 
           {loading && (
-            <div className="im-loading" aria-live="polite">
-              <span className="im-spinner" aria-hidden="true"></span>
-              <span>Sedang memproses data import...</span>
+            <div className="im-loading">
+              <div className="im-spinner"></div>
+              <span>Memproses...</span>
             </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="im-footer">
-          <button onClick={onClose} className="im-btn im-btn--secondary">
+          <button onClick={onClose} className="im-btn im-btn--close">
             Tutup
-          </button>
-          <button
-            onClick={onClose}
-            className="im-btn im-btn--primary"
-            disabled={loading}
-            aria-disabled={loading}
-            title={loading ? 'Sedang memproses…' : 'Tutup modal'}
-          >
-            Selesai
           </button>
         </div>
       </div>
 
       <style jsx>{`
-        /* ===========================================
-          IMPORT MODAL — SMOOTH / SMALL / NOT BOLD
-          FULL REPLACE: fokus tampilan saja
-        =========================================== */
-
-        :global(:root) {
-          /* palette navy smooth */
-          --im-navy-950: #071426;
-          --im-navy-900: #0b1f3a;
-          --im-navy-800: #102a4f;
-
-          /* surfaces */
-          --im-bg: #f7f9fd;
-          --im-panel: #ffffff;
-          --im-line: rgba(15, 23, 42, 0.10);
-          --im-muted: rgba(15, 23, 42, 0.62);
-
-          /* accents (soft) */
-          --im-blue: #2b6cff;
-          --im-blue2: #1f4fae;
-
-          --im-green: #22c55e; /* softer than before */
-          --im-green2: #16a34a;
-          --im-green-soft: rgba(34, 197, 94, 0.10);
-          --im-green-soft2: rgba(34, 197, 94, 0.05);
-
-          /* sizing (smaller) */
-          --im-radius-xl: 16px;
-          --im-radius-lg: 12px;
-          --im-radius-md: 10px;
-
-          /* lighter shadows */
-          --im-shadow-xl: 0 22px 64px rgba(2, 8, 23, 0.18);
-          --im-shadow-lg: 0 14px 40px rgba(2, 8, 23, 0.14);
-          --im-shadow-md: 0 10px 26px rgba(2, 8, 23, 0.10);
-
-          --im-ring: 0 0 0 3px rgba(43, 108, 255, 0.18);
-          --im-ring-green: 0 0 0 3px rgba(34, 197, 94, 0.16);
-        }
+        /* ========================================
+           IMPORT MODAL - Navy Premium Design
+        ======================================== */
 
         .im-overlay {
           position: fixed;
           inset: 0;
-          display: grid;
-          place-items: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           z-index: 9000;
-          padding: 14px;
-          background: rgba(3, 8, 20, 0.52); /* less dramatic */
-          backdrop-filter: blur(6px);
-          -webkit-backdrop-filter: blur(6px);
+          padding: 16px;
+          background: rgba(15, 23, 42, 0.7);
+          backdrop-filter: blur(10px);
+          animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
 
         .im-modal {
-          width: min(520px, 100%); /* smaller */
-          background: var(--im-panel);
-          border-radius: var(--im-radius-xl);
-          box-shadow: var(--im-shadow-xl);
+          width: 100%;
+          max-width: 380px;
+          background: #ffffff;
+          border-radius: 14px;
+          box-shadow: 0 24px 64px rgba(15, 23, 42, 0.3), 
+                      0 0 0 1px rgba(30, 58, 138, 0.1);
           overflow: hidden;
-          border: 1px solid rgba(15, 23, 42, 0.08);
-          display: flex;
-          flex-direction: column;
+          animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
         /* Header */
         .im-header {
           display: flex;
-          align-items: flex-start;
+          align-items: center;
           justify-content: space-between;
-          gap: 12px;
-          padding: 14px 16px; /* smaller */
-          background: linear-gradient(180deg, rgba(247, 250, 255, 1), rgba(255, 255, 255, 1));
-          border-bottom: 1px solid var(--im-line);
+          padding: 18px 20px;
+          border-bottom: 1px solid #e0e7ff;
+          background: linear-gradient(to bottom, #f8faff, #ffffff);
         }
 
         .im-titleWrap {
           display: flex;
-          align-items: flex-start;
+          align-items: center;
           gap: 10px;
-          min-width: 0;
         }
 
-        .im-icon {
-          width: 36px;
-          height: 36px;
-          border-radius: 12px;
-          background: radial-gradient(
-            120% 120% at 20% 20%,
-            rgba(43, 108, 255, 0.16),
-            rgba(11, 31, 58, 0.04)
-          );
-          border: 1px solid rgba(16, 42, 79, 0.10);
-          display: grid;
-          place-items: center;
-          box-shadow: 0 8px 18px rgba(2, 8, 23, 0.08);
-          flex: 0 0 auto;
-        }
-
-        .im-dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 999px;
-          background: linear-gradient(180deg, rgba(43, 108, 255, 0.85), rgba(31, 79, 174, 0.85));
-          box-shadow: 0 0 0 3px rgba(43, 108, 255, 0.12);
-        }
-
-        .im-titles {
-          min-width: 0;
+        .im-headerIcon {
+          font-size: 20px;
+          color: #1e3a8a;
         }
 
         .im-title {
           margin: 0;
-          font-size: 0.98rem; /* smaller */
-          line-height: 1.2;
-          color: rgba(11, 31, 58, 0.92);
-          letter-spacing: -0.01em;
-          font-weight: 650; /* not bold */
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-
-        .im-titleIcon {
-          color: rgba(31, 79, 174, 0.85);
-          font-size: 1.05rem;
-        }
-
-        .im-sub {
-          margin: 6px 0 0;
-          color: var(--im-muted);
-          font-size: 0.88rem; /* smaller */
-          line-height: 1.35;
-          font-weight: 450; /* softer */
+          font-size: 16px;
+          font-weight: 600;
+          color: #1e293b;
+          letter-spacing: -0.02em;
         }
 
         .im-close {
           appearance: none;
-          border: 1px solid rgba(16, 42, 79, 0.10);
-          background: rgba(255, 255, 255, 0.88);
-          width: 36px;
-          height: 36px;
-          border-radius: 11px;
+          border: none;
+          background: transparent;
+          width: 30px;
+          height: 30px;
+          border-radius: 8px;
           cursor: pointer;
-          color: rgba(11, 31, 58, 0.62);
-          font-size: 1.6rem;
-          line-height: 1;
-          display: grid;
-          place-items: center;
-          transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, background 0.12s ease;
-          flex: 0 0 auto;
+          color: #64748b;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
         }
+
         .im-close:hover {
-          transform: translateY(-1px);
-          border-color: rgba(43, 108, 255, 0.18);
-          box-shadow: var(--im-shadow-md);
-          color: rgba(11, 31, 58, 0.78);
-        }
-        .im-close:focus-visible {
-          outline: none;
-          box-shadow: var(--im-ring);
+          background: #f1f5f9;
+          color: #1e293b;
         }
 
         /* Body */
         .im-body {
-          padding: 14px 16px 10px; /* smaller */
-          background: linear-gradient(180deg, var(--im-bg), #ffffff);
-          display: grid;
-          gap: 10px;
+          padding: 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          background: linear-gradient(to bottom, #fafbff, #ffffff);
         }
 
         .im-step {
-          background: rgba(255, 255, 255, 0.96);
-          border: 1px solid rgba(16, 42, 79, 0.10);
-          border-radius: var(--im-radius-xl);
-          box-shadow: var(--im-shadow-md);
-          padding: 12px; /* smaller */
-          display: grid;
-          gap: 10px;
+          background: #ffffff;
+          border: 1px solid #e0e7ff;
+          border-radius: 10px;
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          transition: all 0.2s ease;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
         }
 
-        .im-step--primary {
-          background: linear-gradient(180deg, rgba(43, 108, 255, 0.045), rgba(255, 255, 255, 1));
-          border-color: rgba(43, 108, 255, 0.12);
-        }
-
-        .im-step--excel {
-          background: linear-gradient(180deg, var(--im-green-soft2), rgba(255, 255, 255, 1));
-          border-color: rgba(34, 197, 94, 0.14);
+        .im-step:hover {
+          border-color: #c7d2fe;
+          box-shadow: 0 4px 12px rgba(30, 58, 138, 0.08);
         }
 
         .im-stepHead {
-          display: grid;
-          grid-template-columns: 28px 1fr;
+          display: flex;
+          align-items: center;
           gap: 10px;
-          align-items: start;
         }
 
         .im-stepNo {
           width: 26px;
           height: 26px;
-          border-radius: 999px;
-          background: linear-gradient(135deg, rgba(43, 108, 255, 0.85), rgba(31, 79, 174, 0.85));
-          color: #fff;
-          font-weight: 650; /* not bold */
-          font-size: 0.78rem;
-          display: grid;
-          place-items: center;
-          box-shadow: 0 8px 18px rgba(31, 79, 174, 0.16);
+          border-radius: 50%;
+          background: linear-gradient(135deg, #1e3a8a, #1e40af);
+          color: #ffffff;
+          font-weight: 600;
+          font-size: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          box-shadow: 0 4px 12px rgba(30, 58, 138, 0.35),
+                      inset 0 1px 0 rgba(255, 255, 255, 0.2);
         }
 
-        .im-stepNo--excel {
-          background: linear-gradient(135deg, rgba(34, 197, 94, 0.85), rgba(22, 163, 74, 0.85));
-          box-shadow: 0 8px 18px rgba(34, 197, 94, 0.16);
+        .im-stepNo--green {
+          background: linear-gradient(135deg, #15803d, #16a34a);
+          box-shadow: 0 4px 12px rgba(21, 128, 61, 0.35),
+                      inset 0 1px 0 rgba(255, 255, 255, 0.2);
         }
 
         .im-stepTitle {
           margin: 0;
-          color: rgba(11, 31, 58, 0.92);
-          font-weight: 600; /* not too bold */
-          font-size: 0.92rem;
+          font-size: 14px;
+          font-weight: 600;
+          color: #1e293b;
           letter-spacing: -0.01em;
-        }
-
-        .im-stepDesc {
-          margin: 4px 0 0;
-          color: rgba(15, 23, 42, 0.66);
-          font-size: 0.86rem;
-          line-height: 1.35;
-          font-weight: 420;
-        }
-
-        .im-stepAction {
-          display: grid;
-          gap: 10px;
-          padding-left: 36px;
-        }
-
-        .im-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-
-        .im-chip {
-          display: inline-flex;
-          align-items: center;
-          padding: 5px 9px;
-          border-radius: 999px;
-          background: rgba(16, 42, 79, 0.05);
-          border: 1px solid rgba(16, 42, 79, 0.10);
-          color: rgba(11, 31, 58, 0.72);
-          font-size: 0.80rem;
-          font-weight: 520; /* not bold */
-          max-width: 100%;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
         }
 
         /* Buttons */
         .im-btn {
           appearance: none;
-          border: 1px solid transparent;
-          border-radius: 11px;
-          padding: 9px 11px; /* smaller */
-          font-weight: 600; /* not bold */
+          border: none;
+          border-radius: 9px;
+          padding: 11px 18px;
+          font-size: 13px;
+          font-weight: 600;
           cursor: pointer;
-          transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, border-color 0.12s ease,
-            opacity 0.12s ease;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
+          gap: 7px;
+          transition: all 0.2s ease;
           user-select: none;
-          white-space: nowrap;
         }
-        .im-btn:focus-visible {
-          outline: none;
-          box-shadow: var(--im-ring);
-        }
+
         .im-btn:disabled {
-          opacity: 0.55;
+          opacity: 0.5;
           cursor: not-allowed;
-          transform: none;
         }
 
-        .im-btn--ghost {
-          background: rgba(255, 255, 255, 0.92);
-          border-color: rgba(43, 108, 255, 0.16);
-          color: rgba(11, 31, 58, 0.78);
-          box-shadow: 0 10px 20px rgba(2, 8, 23, 0.08);
-        }
-        .im-btn--ghost:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 14px 26px rgba(2, 8, 23, 0.10);
-          border-color: rgba(43, 108, 255, 0.22);
-        }
-
-        .im-btn--secondary {
-          background: rgba(255, 255, 255, 0.92);
-          border-color: rgba(16, 42, 79, 0.12);
-          color: rgba(11, 31, 58, 0.76);
-          box-shadow: 0 10px 20px rgba(2, 8, 23, 0.08);
-        }
-        .im-btn--secondary:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 14px 26px rgba(2, 8, 23, 0.10);
-          border-color: rgba(43, 108, 255, 0.16);
-        }
-
-        .im-btn--primary {
-          background: linear-gradient(135deg, rgba(43, 108, 255, 0.78), rgba(31, 79, 174, 0.78));
+        .im-btn--download {
+          background: linear-gradient(135deg, #1e3a8a, #1e40af);
           color: #ffffff;
-          box-shadow: 0 12px 22px rgba(31, 79, 174, 0.18);
-        }
-        .im-btn--primary:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 16px 28px rgba(31, 79, 174, 0.22);
+          box-shadow: 0 4px 14px rgba(30, 58, 138, 0.3),
+                      inset 0 1px 0 rgba(255, 255, 255, 0.2);
         }
 
-        /* File input tile */
-        .im-file {
+        .im-btn--download:hover:not(:disabled) {
+          box-shadow: 0 6px 18px rgba(30, 58, 138, 0.4),
+                      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+          transform: translateY(-1px);
+        }
+
+        .im-btn--download:active:not(:disabled) {
+          transform: translateY(0);
+          box-shadow: 0 2px 8px rgba(30, 58, 138, 0.3);
+        }
+
+        .im-btn--close {
+          background: #f1f5f9;
+          color: #475569;
+        }
+
+        .im-btn--close:hover {
+          background: #e2e8f0;
+          color: #1e293b;
+        }
+
+        /* File Upload */
+        .im-fileUpload {
           display: block;
-          border-radius: var(--im-radius-xl);
-          border: 1px solid rgba(16, 42, 79, 0.10);
-          background: rgba(255, 255, 255, 0.90);
-          box-shadow: 0 10px 20px rgba(2, 8, 23, 0.08);
+          position: relative;
           cursor: pointer;
-          overflow: hidden;
-          transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, background 0.12s ease;
-        }
-        .im-file:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 14px 26px rgba(2, 8, 23, 0.10);
-          border-color: rgba(43, 108, 255, 0.16);
-        }
-        .im-step--excel .im-file:hover {
-          border-color: rgba(34, 197, 94, 0.18);
-          box-shadow: 0 14px 26px rgba(34, 197, 94, 0.10);
         }
 
-        .im-file.is-disabled {
-          opacity: 0.7;
+        .im-fileUpload.is-disabled {
+          opacity: 0.6;
           cursor: not-allowed;
         }
 
-        .im-file input {
-          display: none;
+        .im-fileUpload input {
+          position: absolute;
+          opacity: 0;
+          width: 0;
+          height: 0;
         }
 
         .im-fileInner {
-          display: grid;
-          grid-template-columns: 40px 1fr auto;
-          gap: 10px;
+          background: #fafbff;
+          border: 2px dashed #cbd5e1;
+          border-radius: 9px;
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
           align-items: center;
-          padding: 11px 11px; /* smaller */
+          gap: 8px;
+          transition: all 0.25s ease;
         }
 
-        .im-fileIcon {
-          width: 40px;
-          height: 40px;
-          border-radius: 13px;
-          background: radial-gradient(
-            120% 120% at 20% 20%,
-            rgba(43, 108, 255, 0.14),
-            rgba(11, 31, 58, 0.04)
-          );
-          border: 1px solid rgba(16, 42, 79, 0.10);
-          display: grid;
-          place-items: center;
-          color: rgba(31, 79, 174, 0.82);
-          font-size: 1.05rem;
+        .im-fileUpload:hover:not(.is-disabled) .im-fileInner {
+          border-color: #16a34a;
+          background: #f0fdf4;
+          box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.05);
         }
 
-        .im-step--excel .im-fileIcon {
-          color: rgba(22, 163, 74, 0.82);
-          background: radial-gradient(
-            120% 120% at 20% 20%,
-            rgba(34, 197, 94, 0.14),
-            rgba(11, 31, 58, 0.04)
-          );
-          border-color: rgba(34, 197, 94, 0.14);
+        .im-uploadIcon {
+          font-size: 28px;
+          color: #16a34a;
+          filter: drop-shadow(0 2px 4px rgba(22, 163, 74, 0.2));
         }
 
         .im-fileText {
-          display: grid;
-          gap: 2px;
-          min-width: 0;
-        }
-        .im-fileText b {
-          color: rgba(11, 31, 58, 0.84);
-          font-size: 0.90rem;
-          letter-spacing: -0.01em;
-          font-weight: 600; /* not bold */
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .im-fileText small {
-          color: rgba(15, 23, 42, 0.60);
-          font-size: 0.82rem;
-          font-weight: 420;
-        }
-
-        .im-fileBtn {
-          padding: 7px 10px;
-          border-radius: 999px;
-          background: rgba(43, 108, 255, 0.10);
-          border: 1px solid rgba(43, 108, 255, 0.14);
-          color: rgba(11, 31, 58, 0.74);
-          font-weight: 600; /* not bold */
-          font-size: 0.83rem;
-        }
-
-        .im-step--excel .im-fileBtn {
-          background: rgba(34, 197, 94, 0.10);
-          border-color: rgba(34, 197, 94, 0.14);
-        }
-
-        .im-help {
           display: flex;
-          align-items: flex-start;
-          gap: 8px;
-          color: rgba(15, 23, 42, 0.62);
-          font-size: 0.86rem;
-          line-height: 1.3;
-          font-weight: 420;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
         }
-        .im-help i {
-          color: rgba(31, 79, 174, 0.76);
-          margin-top: 2px;
+
+        .im-fileLabel {
+          font-size: 13px;
+          font-weight: 600;
+          color: #1e293b;
         }
-        .im-step--excel .im-help i {
-          color: rgba(22, 163, 74, 0.76);
+
+        .im-fileFormat {
+          font-size: 11px;
+          color: #64748b;
         }
 
         /* Loading */
@@ -718,72 +504,79 @@ export default function ImportModal({
           align-items: center;
           justify-content: center;
           gap: 10px;
-          padding: 8px 0 0;
-          color: rgba(31, 79, 174, 0.78);
-          font-weight: 600; /* not bold */
-          font-size: 0.88rem;
+          padding: 12px;
+          background: linear-gradient(135deg, #dbeafe, #eff6ff);
+          border: 1px solid #bfdbfe;
+          border-radius: 9px;
+          color: #1e3a8a;
+          font-size: 13px;
+          font-weight: 600;
         }
+
         .im-spinner {
-          width: 16px;
-          height: 16px;
-          border-radius: 999px;
-          border: 2px solid rgba(31, 79, 174, 0.42);
-          border-top-color: transparent;
-          animation: imspin 0.8s linear infinite;
+          width: 18px;
+          height: 18px;
+          border: 3px solid #bfdbfe;
+          border-top-color: #1e3a8a;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
         }
-        @keyframes imspin {
-          to {
-            transform: rotate(360deg);
-          }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
 
         /* Footer */
         .im-footer {
+          padding: 14px 18px;
+          border-top: 1px solid #e0e7ff;
+          background: linear-gradient(to bottom, #fafbff, #ffffff);
           display: flex;
-          align-items: center;
           justify-content: flex-end;
-          gap: 10px;
-          padding: 12px 16px; /* smaller */
-          border-top: 1px solid var(--im-line);
-          background: rgba(255, 255, 255, 0.90);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
         }
 
         /* Responsive */
-        @media (max-width: 520px) {
+        @media (max-width: 640px) {
           .im-overlay {
-            padding: 10px;
+            padding: 12px;
           }
+
+          .im-modal {
+            max-width: 100%;
+          }
+
           .im-header {
-            padding: 12px 12px;
+            padding: 16px 18px;
           }
-          .im-body {
-            padding: 12px 12px 10px;
-          }
-          .im-footer {
-            padding: 10px 12px;
-            flex-direction: column;
-            align-items: stretch;
-          }
-          .im-footer .im-btn {
-            width: 100%;
-          }
+
           .im-title {
-            font-size: 0.96rem;
+            font-size: 15px;
           }
-          .im-sub {
-            font-size: 0.86rem;
+
+          .im-body {
+            padding: 16px;
           }
-          .im-stepAction {
-            padding-left: 0;
+
+          .im-step {
+            padding: 12px;
+          }
+
+          .im-footer {
+            padding: 12px 16px;
+          }
+
+          .im-btn {
+            width: 100%;
           }
         }
 
         @media (prefers-reduced-motion: reduce) {
+          .im-overlay,
+          .im-modal,
           .im-btn,
-          .im-file,
+          .im-fileInner,
           .im-close {
+            animation: none;
             transition: none;
           }
           .im-spinner {

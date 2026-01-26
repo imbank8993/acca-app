@@ -5,6 +5,7 @@ import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '../ui/ImportModal'
 import SearchableSelect from '../ui/SearchableSelect'
 import Pagination from '../ui/Pagination'
+import { getCurrentAcademicYear } from '@/lib/date-utils'
 
 interface GuruAsuh {
   id?: number
@@ -19,7 +20,7 @@ interface GuruAsuh {
 
 export default function GuruAsuhTab() {
   // Local Filter State
-  const [tahunAjaran, setTahunAjaran] = useState('2025/2026')
+  const [tahunAjaran, setTahunAjaran] = useState(getCurrentAcademicYear())
 
   const [list, setList] = useState<GuruAsuh[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,7 +75,7 @@ export default function GuruAsuhTab() {
   const fetchStudents = async () => {
     try {
       const res = await fetch(
-        `/api/settings/siswa-kelas?tahun_ajaran=${tahunAjaran === 'Semua' ? '2025/2026' : tahunAjaran}&limit=2000`
+        `/api/settings/siswa-kelas?tahun_ajaran=${tahunAjaran === 'Semua' ? getCurrentAcademicYear() : tahunAjaran}&limit=2000`
       )
       const json = await res.json()
       if (json.ok) {
@@ -537,7 +538,7 @@ export default function GuruAsuhTab() {
       {/* ===== Modal Add/Edit ===== */}
       {showModal && (
         <div className="ga__modalOverlay" role="dialog" aria-modal="true">
-          <div className="ga__modal ga__modalLarge">
+          <div className="ga__modal">
             <div className="ga__modalHead">
               <div className="ga__modalTitle">
                 <h2>{editId ? 'Edit Guru Asuh' : 'Tambah Guru Asuh'}</h2>
@@ -559,7 +560,7 @@ export default function GuruAsuhTab() {
                       subLabel: g.nip,
                     }))}
                     value={selectedNip}
-                    onChange={(val) => setSelectedNip(val)}
+                    onChange={(val) => setSelectedNip(val as string)}
                     placeholder="Cari Guru..."
                   />
                 </div>
@@ -694,7 +695,7 @@ export default function GuruAsuhTab() {
         /* ========= TOOLBAR ========= */
         .ga__bar {
           display: flex;
-          align-items: flex-start;
+          align-items: center;
           justify-content: space-between;
           gap: 10px;
           flex-wrap: wrap;
@@ -703,7 +704,7 @@ export default function GuruAsuhTab() {
         }
 
         .ga__filters {
-          flex: 1 1 640px;
+          flex: 1 1 auto;
           min-width: 0;
           display: flex;
           align-items: center;
@@ -797,10 +798,11 @@ export default function GuruAsuhTab() {
         }
 
         .ga__btn:hover {
-          background: rgba(255, 255, 255, 0.92);
-          border-color: rgba(58, 166, 255, 0.24);
-          box-shadow: var(--ga-shadow2);
-          transform: translateY(-1px);
+          /* background: rgba(255, 255, 255, 0.92); removed */
+          border-color: rgba(58, 166, 255, 0.25);
+          box-shadow: 0 4px 12px rgba(58, 166, 255, 0.2);
+          transform: translateY(-2px);
+          filter: brightness(1.1);
         }
 
         .ga__btn:active {
@@ -811,24 +813,54 @@ export default function GuruAsuhTab() {
           background: rgba(255, 255, 255, 0.78);
         }
 
-        .ga__btnPrimary {
-          background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
-          border-color: rgba(58, 166, 255, 0.32);
-          color: #fff;
-          font-weight: 700;
-        }
+.ga__btnPrimary {
+  background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
+  border-color: rgba(58, 166, 255, 0.32);
+  color: #fff;
+  font-weight: 700;
+}
 
-        .ga__btnExport {
-          background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
-          border-color: rgba(16, 185, 129, 0.28);
-          color: #fff;
-        }
+.ga__btnPrimary:hover {
+  background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
+  color: #fff;
+}
 
-        .ga__btnImport {
-          background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
-          border-color: rgba(245, 158, 11, 0.28);
-          color: #fff;
-        }
+.ga__btnPrimary:active {
+  background: linear-gradient(135deg, rgba(58, 166, 255, 1), rgba(15, 42, 86, 1));
+  color: #fff;
+}
+
+.ga__btnExport {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #fff;
+}
+
+.ga__btnExport:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
+  color: #fff;
+}
+
+.ga__btnExport:active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 1), rgba(15, 42, 86, 1));
+  color: #fff;
+}
+
+.ga__btnImport {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
+  border-color: rgba(245, 158, 11, 0.28);
+  color: #fff;
+}
+
+.ga__btnImport:hover {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
+  color: #fff;
+}
+
+.ga__btnImport:active {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 1), rgba(15, 42, 86, 1));
+  color: #fff;
+}
 
         /* ========= TABLE ========= */
         .ga__tableWrap {
@@ -1423,7 +1455,7 @@ export default function GuruAsuhTab() {
         .ga__pickName {
           font-weight: 800;
           color: rgba(11, 31, 58, 0.96);
-          font-size: 0.92rem;
+          font-size: 0.8rem;
           line-height: 1.2;
           white-space: nowrap;
           overflow: hidden;

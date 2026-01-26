@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '../ui/ImportModal'
 import SearchableSelect from '../ui/SearchableSelect'
+import Pagination from '../ui/Pagination'
+import { getCurrentAcademicYear } from '@/lib/date-utils'
 
 interface WaliKelas {
   id?: number
@@ -17,8 +19,8 @@ interface WaliKelas {
 
 export default function WaliKelasTab() {
   // Local Filter State
-  const [tahunAjaran, setTahunAjaran] = useState('2025/2026')
-  const [semester, setSemester] = useState('Ganjil')
+  const [tahunAjaran, setTahunAjaran] = useState(getCurrentAcademicYear())
+  const [semester, setSemester] = useState('Semua')
 
   const [list, setList] = useState<WaliKelas[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,6 +29,11 @@ export default function WaliKelasTab() {
   const [showImportModal, setShowImportModal] = useState(false)
   const [formData, setFormData] = useState<Partial<WaliKelas>>({ aktif: true })
   const [saving, setSaving] = useState(false)
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [totalItems, setTotalItems] = useState(0)
 
   // Selection States
   const [selectedClass, setSelectedClass] = useState('')
@@ -60,17 +67,27 @@ export default function WaliKelasTab() {
 
   const fetchData = async () => {
     setLoading(true)
+    const params = new URLSearchParams({
+      q: searchTerm,
+      tahun_ajaran: tahunAjaran === 'Semua' ? '' : tahunAjaran,
+      semester: semester === 'Semua' ? '' : semester,
+      page: currentPage.toString(),
+      limit: pageSize.toString(),
+    })
     try {
-      const res = await fetch(
-        `/api/settings/wali-kelas?q=${encodeURIComponent(searchTerm)}&tahun_ajaran=${tahunAjaran === 'Semua' ? '' : encodeURIComponent(tahunAjaran)
-        }&semester=${semester === 'Semua' ? '' : encodeURIComponent(semester)}`
-      )
+      const res = await fetch(`/api/settings/wali-kelas?${params}`)
       const json = await res.json()
-      if (json.ok) setList(json.data)
-      else setList([])
+      if (json.ok) {
+        setList(json.data || [])
+        setTotalItems(json.total || 0)
+      } else {
+        setList([])
+        setTotalItems(0)
+      }
     } catch (err) {
       console.error(err)
       setList([])
+      setTotalItems(0)
     } finally {
       setLoading(false)
     }
@@ -376,6 +393,21 @@ export default function WaliKelasTab() {
         )}
       </div>
 
+      {/* ===== Pagination ===== */}
+      {totalItems > pageSize && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(totalItems / pageSize)}
+          limit={pageSize}
+          totalItems={totalItems}
+          onPageChange={setCurrentPage}
+          onLimitChange={(newLimit) => {
+            setCurrentPage(1)
+            setPageSize(newLimit)
+          }}
+        />
+      )}
+
       {/* ===== Modal Add/Edit ===== */}
       {showModal && (
         <div className="wk__modalOverlay">
@@ -509,7 +541,7 @@ export default function WaliKelasTab() {
         /* ========= TOOLBAR ========= */
         .wk__bar {
           display: flex;
-          align-items: flex-start;
+          align-items: center;
           justify-content: space-between;
           gap: 10px;
           flex-wrap: wrap;
@@ -518,7 +550,7 @@ export default function WaliKelasTab() {
         }
 
         .wk__filters {
-          flex: 1 1 640px;
+          flex: 1 1 auto;
           min-width: 0;
           display: flex;
           align-items: center;
@@ -610,10 +642,11 @@ export default function WaliKelasTab() {
         }
 
         .wk__btn:hover {
-          background: rgba(255, 255, 255, 0.92);
+          /* background: rgba(255, 255, 255, 0.92); removed to keep gradient */
           border-color: rgba(58, 166, 255, 0.24);
-          box-shadow: var(--wk-shadow2);
-          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(58, 166, 255, 0.2);
+          transform: translateY(-2px);
+          filter: brightness(1.1);
         }
 
         .wk__btn:active {

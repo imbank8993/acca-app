@@ -1,17 +1,19 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useMemo } from 'react'
 import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '../ui/ImportModal'
 import SearchableSelect from '../ui/SearchableSelect'
 import Pagination from '../ui/Pagination'
+import { getCurrentAcademicYear } from '@/lib/date-utils'
 
 interface GuruMapel {
     id?: number;
     nip: string;
     nama_guru: string;
+    kode_guru?: string;
     nama_mapel: string; // Display
-    mapel_id?: number; // Optional reference
+    kode_mapel?: string;
     tahun_ajaran: string;
     semester: string;
     aktif?: boolean;
@@ -19,8 +21,8 @@ interface GuruMapel {
 
 export default function GuruMapelTab() {
     // Local Filter State
-    const [tahunAjaran, setTahunAjaran] = useState('2025/2026')
-    const [semester, setSemester] = useState('Ganjil')
+    const [tahunAjaran, setTahunAjaran] = useState(getCurrentAcademicYear())
+    const [semester, setSemester] = useState('Semua')
 
     const [list, setList] = useState<GuruMapel[]>([])
     const [loading, setLoading] = useState(true)
@@ -42,10 +44,40 @@ export default function GuruMapelTab() {
     const [selectedMapels, setSelectedMapels] = useState<string[]>([])
     const [formTahunAjaran, setFormTahunAjaran] = useState('2025/2026')
     const [formSemester, setFormSemester] = useState('Ganjil')
+    const [mapelSearchTerm, setMapelSearchTerm] = useState('')
 
     // Master data
     const [masterGuru, setMasterGuru] = useState<any[]>([])
     const [masterMapel, setMasterMapel] = useState<any[]>([])
+    const [masterKodeGuru, setMasterKodeGuru] = useState<any[]>([])
+
+    // Auto-filled kode guru dan kode mapel
+    const [autoKodeGuru, setAutoKodeGuru] = useState('')
+    const [autoKodeMapel, setAutoKodeMapel] = useState<{ [key: string]: string }>({})
+
+    // Filtered mapel list based on search
+
+    // Filtered Guru: exclude gurus who already have data for selected tahun_ajaran & semester (only in add mode)
+    const availableGurus = useMemo(() => {
+        if (editId) return masterGuru // In edit mode, show all gurus
+        
+        const targetSemesters = formSemester === 'Semua' ? ['Ganjil', 'Genap'] : [formSemester]
+        
+        return masterGuru.filter(guru => {
+            // Check if this guru already has data for the selected period
+            const hasData = list.some(item => 
+                item.nip === guru.nip && 
+                item.tahun_ajaran === formTahunAjaran &&
+                targetSemesters.includes(item.semester)
+            )
+            return !hasData
+        })
+    }, [masterGuru, list, formTahunAjaran, formSemester, editId])
+
+    const filteredMapel = useMemo(() => {
+        if (!mapelSearchTerm.trim()) return masterMapel
+        return masterMapel.filter(m => m.nama.toLowerCase().includes(mapelSearchTerm.toLowerCase()))
+    }, [masterMapel, mapelSearchTerm])
 
     useEffect(() => {
         fetchMasterData()
@@ -60,18 +92,41 @@ export default function GuruMapelTab() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tahunAjaran, semester, searchTerm])
 
+    // Auto-fill kode_guru when guru selected
+    useEffect(() => {
+        if (selectedNip) {
+            const kodeGuruData = masterKodeGuru.find(kg => kg.nip === selectedNip)
+            setAutoKodeGuru(kodeGuruData?.kode_guru || '')
+        } else {
+            setAutoKodeGuru('')
+        }
+    }, [selectedNip, masterKodeGuru])
+
+    // Auto-fill kode_mapel for each selected mapel
+    useEffect(() => {
+        const kodeMap: { [key: string]: string } = {}
+        selectedMapels.forEach(mapelName => {
+            const mapelData = masterMapel.find(m => m.nama === mapelName)
+            kodeMap[mapelName] = mapelData?.kode || ''
+        })
+        setAutoKodeMapel(kodeMap)
+    }, [selectedMapels, masterMapel])
+
     const fetchMasterData = async () => {
         try {
-            const [resGuru, resMapel] = await Promise.all([
-                fetch('/api/master/guru'),
-                fetch('/api/master/mapel')
+            const [resGuru, resMapel, resKodeGuru] = await Promise.all([
+                fetch('/api/master/guru?limit=10000'),
+                fetch('/api/master/mapel?limit=10000'),
+                fetch('/api/master/kode-guru?limit=10000')
             ])
-            const [jsonGuru, jsonMapel] = await Promise.all([
+            const [jsonGuru, jsonMapel, jsonKodeGuru] = await Promise.all([
                 resGuru.json(),
-                resMapel.json()
+                resMapel.json(),
+                resKodeGuru.json()
             ])
             if (jsonGuru.ok) setMasterGuru(jsonGuru.data)
             if (jsonMapel.ok) setMasterMapel(jsonMapel.data)
+            if (jsonKodeGuru.ok) setMasterKodeGuru(jsonKodeGuru.data)
         } catch (err) {
             console.error('Error fetching master data:', err)
         }
@@ -125,6 +180,8 @@ export default function GuruMapelTab() {
                 }
 
                 const mapelName = selectedMapels[0] // Only 1 mapel for edit usually
+                const kodeMapel = autoKodeMapel[mapelName] || ''
+                
                 const res = await fetch('/api/settings/guru-mapel', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -132,7 +189,9 @@ export default function GuruMapelTab() {
                         id: editId,
                         nip: selectedNip,
                         nama_guru: guru?.nama_lengkap || '',
+                        kode_guru: autoKodeGuru,
                         nama_mapel: mapelName,
+                        kode_mapel: kodeMapel,
                         tahun_ajaran: formTahunAjaran,
                         semester: formSemester,
                         aktif: true
@@ -146,6 +205,7 @@ export default function GuruMapelTab() {
                 const promises = []
                 for (const sem of targetSemesters) {
                     for (const mapelName of selectedMapels) {
+                        const kodeMapel = autoKodeMapel[mapelName] || ''
                         promises.push(
                             fetch('/api/settings/guru-mapel', {
                                 method: 'POST',
@@ -153,7 +213,9 @@ export default function GuruMapelTab() {
                                 body: JSON.stringify({
                                     nip: selectedNip,
                                     nama_guru: guru?.nama_lengkap || '',
+                                    kode_guru: autoKodeGuru,
                                     nama_mapel: mapelName,
+                                    kode_mapel: kodeMapel,
                                     tahun_ajaran: formTahunAjaran,
                                     semester: sem,
                                     aktif: true
@@ -181,6 +243,8 @@ export default function GuruMapelTab() {
         setEditId(null)
         setSelectedNip('')
         setSelectedMapels([])
+        setAutoKodeGuru('')
+        setAutoKodeMapel({})
     }
 
     const handleEdit = (item: GuruMapel) => {
@@ -205,6 +269,8 @@ export default function GuruMapelTab() {
             No: index + 1,
             NIP: item.nip,
             Nama_Guru: item.nama_guru,
+            Kode_Guru: item.kode_guru || '',
+            Kode_Mapel: item.kode_mapel || '',
             Nama_Mapel: item.nama_mapel,
             Tahun_Ajaran: item.tahun_ajaran,
             Semester: item.semester,
@@ -214,18 +280,24 @@ export default function GuruMapelTab() {
     }
 
     const mapImportRow = (row: any) => {
+        const no = row['No'] || row['no']
+        const kodeGuru = row['Kode_Guru'] || row['kode_guru'] || ''
         const nip = row['NIP'] || row['nip']
-        const mapel = row['Nama_Mapel'] || row['Nama Mapel'] || row['nama_mapel']
-        const nama = row['Nama_Guru'] || row['nama_guru'] || ''
+        const namaGuru = row['Nama_Guru'] || row['nama_guru']
+        const kodeMapel = row['Kode_Mapel'] || row['kode_mapel'] || ''
+        const namaMapel = row['Nama_Mapel'] || row['Nama Mapel'] || row['nama_mapel']
         const ta = row['Tahun_Ajaran'] || row['tahun_ajaran']
         let sem = row['Semester'] || row['semester'] || ''
 
-        if (!nip || !mapel || !ta) return null;
+        // Validasi wajib: no, kode_guru, nama_guru, nip, kode_mapel, nama_mapel, tahun_ajaran
+        if (!no || !namaGuru || !nip || !namaMapel || !ta) return null;
 
         const baseObj = {
+            kode_guru: String(kodeGuru),
             nip: String(nip),
-            nama_guru: String(nama),
-            nama_mapel: String(mapel),
+            nama_guru: String(namaGuru),
+            kode_mapel: String(kodeMapel),
+            nama_mapel: String(namaMapel),
             tahun_ajaran: String(ta),
             aktif: true
         }
@@ -251,8 +323,10 @@ export default function GuruMapelTab() {
         setEditId(null)
         setSelectedNip('')
         setSelectedMapels([])
-        setFormTahunAjaran(tahunAjaran === 'Semua' ? '2025/2026' : tahunAjaran)
+        setFormTahunAjaran(tahunAjaran === 'Semua' ? getCurrentAcademicYear() : tahunAjaran)
         setFormSemester(semester === 'Semua' ? 'Ganjil' : semester)
+        setAutoKodeGuru('')
+        setAutoKodeMapel({})
         setShowModal(true)
     }
 
@@ -316,8 +390,10 @@ export default function GuruMapelTab() {
                     <thead>
                         <tr>
                             <th className="cNo">No</th>
+                            <th className="cNip">NIP</th>
                             <th>Nama Guru</th>
-                            <th className="cNip">NIP/ID</th>
+                            <th>Kode Guru</th>
+                            <th>Kode Mapel</th>
                             <th>Mata Pelajaran</th>
                             <th className="cSemester">Semester</th>
                             <th className="cStatus">Status</th>
@@ -328,13 +404,13 @@ export default function GuruMapelTab() {
                     <tbody>
                         {loading ? (
                             <tr>
-                                <td colSpan={7} className="gm__empty">
+                                <td colSpan={9} className="gm__empty">
                                     Memuat data...
                                 </td>
                             </tr>
                         ) : list.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="gm__empty gm__muted">
+                                <td colSpan={9} className="gm__empty gm__muted">
                                     Tidak ada data.
                                 </td>
                             </tr>
@@ -342,8 +418,10 @@ export default function GuruMapelTab() {
                             list.map((item, index) => (
                                 <tr key={item.id ?? `${item.nip}-${item.nama_mapel}-${index}`}>
                                     <td className="tCenter">{(currentPage - 1) * pageSize + index + 1}</td>
-                                    <td className="tPlain">{item.nama_guru}</td>
                                     <td className="tMono">{item.nip}</td>
+                                    <td className="tPlain">{item.nama_guru}</td>
+                                    <td className="tPlain">{item.kode_guru || '-'}</td>
+                                    <td className="tPlain">{item.kode_mapel || '-'}</td>
                                     <td className="tPlain">{item.nama_mapel}</td>
                                     <td>
                                         <span className={`gm__pill ${item.semester === 'Ganjil' ? 'isGanjil' : 'isGenap'}`}>
@@ -465,7 +543,7 @@ export default function GuruMapelTab() {
             {/* ===== Modal Add/Edit ===== */}
             {showModal && (
                 <div className="gm__modalOverlay" role="dialog" aria-modal="true">
-                    <div className="gm__modal gm__modalLarge">
+                    <div className="gm__modal">
                         <div className="gm__modalHead">
                             <div className="gm__modalTitle">
                                 <h2>{editId ? 'Edit Guru Mapel' : 'Tambah Guru Mapel'}</h2>
@@ -481,16 +559,24 @@ export default function GuruMapelTab() {
                                 <div className="gm__field gm__z">
                                     <SearchableSelect
                                         label="Pilih Guru"
-                                        options={masterGuru.map((g) => ({
+                                        options={availableGurus.map((g) => ({
                                             value: g.nip,
                                             label: g.nama_lengkap,
                                             subLabel: g.nip,
                                         }))}
                                         value={selectedNip}
-                                        onChange={(val) => setSelectedNip(val)}
+                                        onChange={(val) => setSelectedNip(val as string)}
                                         placeholder="Cari Guru..."
                                     />
                                 </div>
+
+                                {/* Display Auto-filled Kode Guru */}
+                                {selectedNip && (
+                                    <div className="gm__autoFill">
+                                        <i className="bi bi-info-circle"></i>
+                                        <span>Kode Guru: <strong>{autoKodeGuru || 'Belum ada kode'}</strong></span>
+                                    </div>
+                                )}
 
                                 <div className="gm__grid2">
                                     <div className="gm__field">
@@ -515,28 +601,46 @@ export default function GuruMapelTab() {
                                 <div className="gm__field">
                                     <label>Pilih Mata Pelajaran {editId ? '(Ganti Mapel)' : '(Bisa lebih dari satu)'}</label>
 
+                                    <div className="gm__searchMapel">
+                                        <i className="bi bi-search" aria-hidden="true" />
+                                        <input
+                                            type="text"
+                                            placeholder="Cari mata pelajaran..."
+                                            value={mapelSearchTerm}
+                                            onChange={(e) => setMapelSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+
                                     <div className="gm__multi">
                                         {masterMapel.length === 0 ? (
                                             <div className="gm__hint gm__muted">Tidak ada mata pelajaran tersedia.</div>
                                         ) : (
-                                            masterMapel.map((m) => (
-                                                <button
-                                                    type="button"
-                                                    key={m.nama ?? m.id}
-                                                    className={`gm__pick ${selectedMapels.includes(m.nama) ? 'isOn' : ''}`}
-                                                    onClick={() => toggleMapel(m.nama)}
-                                                >
-                                                    <span className="gm__check" aria-hidden="true">
-                                                        {selectedMapels.includes(m.nama) ? <i className="bi bi-check-lg" /> : null}
-                                                    </span>
-
-                                                    <span className="gm__pickInfo">
-                                                        <span className="gm__pickName" title={m.nama}>
-                                                            {m.nama}
+                                            filteredMapel.map((m) => {
+                                                const isSelected = selectedMapels.includes(m.nama)
+                                                const kodeMapel = m.kode || ''
+                                                
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        key={m.nama ?? m.id}
+                                                        className={`gm__pick ${isSelected ? 'isOn' : ''}`}
+                                                        onClick={() => toggleMapel(m.nama)}
+                                                    >
+                                                        <span className="gm__check" aria-hidden="true">
+                                                            {isSelected ? <i className="bi bi-check-lg" /> : null}
                                                         </span>
-                                                    </span>
-                                                </button>
-                                            ))
+
+                                                        <span className="gm__pickInfo">
+                                                            <span className="gm__pickName" title={m.nama}>
+                                                                {m.nama}
+                                                            </span>
+                                                            {kodeMapel && (
+                                                                <span className="gm__pickCode">Kode: {kodeMapel}</span>
+                                                            )}
+                                                        </span>
+                                                    </button>
+                                                )
+                                            })
                                         )}
                                     </div>
 
@@ -562,7 +666,7 @@ export default function GuruMapelTab() {
                 isOpen={showImportModal}
                 onClose={() => setShowImportModal(false)}
                 onImportSuccess={fetchData}
-                templateColumns={['No', 'NIP', 'Nama_Guru', 'Nama_Mapel', 'Tahun_Ajaran', 'Semester', 'Status']}
+                templateColumns={['No', 'NIP', 'Nama_Guru', 'Kode_Guru', 'Kode_Mapel', 'Nama_Mapel', 'Tahun_Ajaran', 'Semester', 'Status']}
                 templateName="Template_GuruMapel"
                 apiEndpoint="/api/settings/guru-mapel"
                 mapRowData={mapImportRow}
@@ -597,7 +701,7 @@ export default function GuruMapelTab() {
 
                 .gm__bar {
                     display: flex;
-                    align-items: flex-start;
+                    align-items: center;
                     justify-content: space-between;
                     gap: 10px;
                     flex-wrap: wrap;
@@ -606,7 +710,7 @@ export default function GuruMapelTab() {
                 }
 
                 .gm__filters {
-                    flex: 1 1 640px;
+                    flex: 1 1 auto;
                     min-width: 0;
                     display: flex;
                     align-items: center;
@@ -698,10 +802,10 @@ export default function GuruMapelTab() {
                 }
 
                 .gm__btn:hover {
-                    background: rgba(255, 255, 255, 0.92);
-                    border-color: rgba(58, 166, 255, 0.24);
-                    box-shadow: var(--gm-shadow2);
-                    transform: translateY(-1px);
+                    border-color: rgba(58, 166, 255, 0.25);
+                    box-shadow: 0 4px 12px rgba(58, 166, 255, 0.2);
+                    transform: translateY(-2px);
+                    filter: brightness(1.1);
                 }
 
                 .gm__btn:active {
@@ -1062,7 +1166,7 @@ export default function GuruMapelTab() {
                 }
 
                 .gm__modal {
-                    width: min(680px, 100%);
+                    width: min(550px, 100%);
                     background: rgba(255, 255, 255, 0.96);
                     border: 1px solid rgba(148, 163, 184, 0.22);
                     border-radius: 16px;
@@ -1167,6 +1271,62 @@ export default function GuruMapelTab() {
                     z-index: 50;
                 }
 
+                /* Auto Fill Info Box */
+                .gm__autoFill {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 12px;
+                    background: rgba(59, 130, 246, 0.08);
+                    border: 1px solid rgba(59, 130, 246, 0.2);
+                    border-radius: 10px;
+                    font-size: var(--gm-fs-sm);
+                    color: rgba(30, 64, 175, 0.95);
+                }
+
+                .gm__autoFill i {
+                    color: rgba(59, 130, 246, 0.8);
+                    font-size: 1rem;
+                }
+
+                .gm__autoFill strong {
+                    color: rgba(30, 64, 175, 1);
+                    font-weight: 700;
+                }
+
+                .gm__searchMapel {
+                    position: relative;
+                    margin-bottom: 10px;
+                }
+
+                .gm__searchMapel i {
+                    position: absolute;
+                    left: 10px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    color: rgba(100, 116, 139, 0.9);
+                    pointer-events: none;
+                    font-size: 0.9rem;
+                }
+
+                .gm__searchMapel input {
+                    width: 100%;
+                    padding: 8px 10px 8px 30px;
+                    border: 1px solid rgba(148, 163, 184, 0.35);
+                    border-radius: 12px;
+                    background: rgba(255, 255, 255, 0.92);
+                    font-weight: 500;
+                    color: rgba(15, 23, 42, 0.92);
+                    outline: none;
+                    font-size: var(--gm-fs-sm);
+                    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+                }
+
+                .gm__searchMapel input:focus {
+                    border-color: rgba(58, 166, 255, 0.55);
+                    box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+                }
+
                 .gm__multi {
                     border: 1px solid rgba(148, 163, 184, 0.22);
                     background: rgba(15, 42, 86, 0.02);
@@ -1241,6 +1401,12 @@ export default function GuruMapelTab() {
                     white-space: nowrap;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                }
+
+                .gm__pickCode {
+                    font-size: 0.75rem;
+                    color: rgba(100, 116, 139, 0.85);
+                    font-weight: 600;
                 }
 
                 .gm__hint {
@@ -1318,3 +1484,4 @@ export default function GuruMapelTab() {
         </div>
     )
 }
+

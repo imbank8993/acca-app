@@ -3,20 +3,20 @@
 import { useState, useEffect, useMemo } from 'react'
 import { exportToExcel } from '@/lib/excel-utils'
 import Pagination from '@/components/ui/Pagination'
-import ImportModal from '@/components/ui/ImportModal'
 import Swal from 'sweetalert2'
+import ImportModal from '@/components/ui/ImportModal'
 
-interface Mapel {
-  id: number;
-  kode: string;
-  nama: string;
-  kelompok: string;
+interface KodeGuru {
+  id?: number;
+  nip: string;
+  nama_guru: string;
+  kode_guru: string;
   aktif: boolean;
 }
 
-export default function MapelTab() {
+export default function KodeGuruTab() {
   const [searchTerm, setSearchTerm] = useState('')
-  const [allData, setAllData] = useState<Mapel[]>([])
+  const [allData, setAllData] = useState<KodeGuru[]>([])
   const [loading, setLoading] = useState(true)
 
   // Pagination State
@@ -25,7 +25,7 @@ export default function MapelTab() {
   const [totalItems, setTotalItems] = useState(0)
 
   // Computed paginated list
-  const mapelList = useMemo(() => {
+  const kodeGuruList = useMemo(() => {
     const start = (currentPage - 1) * pageSize
     const end = start + pageSize
     return allData.slice(start, end)
@@ -36,31 +36,47 @@ export default function MapelTab() {
   const [isEditMode, setIsEditMode] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  // Import State
+  // Import Modal
   const [showImportModal, setShowImportModal] = useState(false)
 
-  const [formData, setFormData] = useState<Partial<Mapel>>({
-    kode: '',
-    nama: '',
-    kelompok: 'A',
+  const [formData, setFormData] = useState<Partial<KodeGuru>>({
+    nip: '',
+    nama_guru: '',
+    kode_guru: '',
     aktif: true
   })
 
+  // Master Data Guru untuk dropdown
+  const [masterGuru, setMasterGuru] = useState<any[]>([])
+
   useEffect(() => {
-    fetchMapel()
+    fetchMasterGuru()
+    fetchKodeGuru()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, pageSize])
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setCurrentPage(1)
-      fetchMapel()
+      fetchKodeGuru()
     }, 500)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm])
 
-  const fetchMapel = async () => {
+  const fetchMasterGuru = async () => {
+    try {
+      const res = await fetch('/api/master/guru?limit=10000')
+      const json = await res.json()
+      if (json.ok) {
+        setMasterGuru(json.data || [])
+      }
+    } catch (err) {
+      console.error('Error fetching master guru:', err)
+    }
+  }
+
+  const fetchKodeGuru = async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams({
@@ -69,7 +85,7 @@ export default function MapelTab() {
         limit: '10000'
       })
 
-      const res = await fetch(`/api/master/mapel?${params}`)
+      const res = await fetch(`/api/master/kode-guru?${params}`)
       const json = await res.json()
 
       if (json.ok) {
@@ -77,7 +93,7 @@ export default function MapelTab() {
         setTotalItems(json.data?.length || 0)
       }
     } catch (err) {
-      console.error('Error fetching mapel:', err)
+      console.error('Error fetching kode guru:', err)
       setAllData([])
       setTotalItems(0)
     } finally {
@@ -86,20 +102,72 @@ export default function MapelTab() {
   }
 
   const handleAddNew = () => {
-    setFormData({ kode: '', nama: '', kelompok: 'A', aktif: true })
+    setFormData({ nip: '', nama_guru: '', kode_guru: '', aktif: true })
     setIsEditMode(false)
     setShowModal(true)
   }
 
-  const handleEdit = (mapel: Mapel) => {
-    setFormData({ ...mapel })
+  const handleEdit = (item: KodeGuru) => {
+    setFormData({ ...item })
     setIsEditMode(true)
     setShowModal(true)
   }
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleGuruSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nip = e.target.value
+    const guru = masterGuru.find(g => g.nip === nip)
+    if (guru) {
+      setFormData(prev => ({
+        ...prev,
+        nip: guru.nip,
+        nama_guru: guru.nama_lengkap
+      }))
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+
+    try {
+      if (!formData.nip || !formData.nama_guru || !formData.kode_guru) {
+        throw new Error('NIP, Nama Guru, dan Kode Guru wajib diisi')
+      }
+
+      const method = isEditMode ? 'PUT' : 'POST'
+      const url = '/api/master/kode-guru'
+
+      const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      })
+
+      const json = await res.json()
+      if (!json.ok) {
+        throw new Error(json.error)
+      }
+
+      setShowModal(false)
+      fetchKodeGuru()
+      alert(`Data kode guru berhasil ${isEditMode ? 'diperbarui' : 'disimpan'}`)
+
+    } catch (err: any) {
+      console.error('Error saving kode guru:', err)
+      alert(err.message || 'Terjadi kesalahan saat menyimpan data')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleDelete = async (id: number) => {
     const result = await Swal.fire({
-      title: 'Hapus Mapel?',
+      title: 'Hapus Kode Guru?',
       text: "Data yang dihapus tidak dapat dikembalikan!",
       icon: 'warning',
       showCancelButton: true,
@@ -112,122 +180,84 @@ export default function MapelTab() {
     if (!result.isConfirmed) return
 
     try {
-      const res = await fetch(`/api/master/mapel?id=${id}`, {
-        method: 'DELETE'
+      setLoading(true)
+      const res = await fetch(`/api/master/kode-guru?id=${id}`, {
+        method: 'DELETE',
       })
       const json = await res.json()
+
       if (json.ok) {
-        Swal.fire('Terhapus!', 'Data mapel berhasil dihapus.', 'success')
-        fetchMapel()
+        Swal.fire('Terhapus!', 'Data kode guru berhasil dihapus.', 'success')
+        fetchKodeGuru()
       } else {
-        alert('Gagal menghapus: ' + json.error)
+        throw new Error(json.error || 'Gagal menghapus data')
       }
-    } catch (err) {
-      console.error('Error deleting mapel:', err)
-      alert('Terjadi kesalahan saat menghapus data')
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-
-    try {
-      await saveMapel(formData as Mapel, isEditMode);
-      setShowModal(false)
-      fetchMapel()
-      alert(`Data mapel berhasil ${isEditMode ? 'diperbarui' : 'disimpan'}`)
     } catch (err: any) {
-      console.error('Error saving mapel:', err)
-      alert(err.message || 'Terjadi kesalahan saat menyimpan data')
+      console.error('Error deleting kode guru:', err)
+      alert(err.message)
     } finally {
-      setSaving(false)
+      setLoading(false)
     }
-  }
-
-  const saveMapel = async (data: Mapel, isUpdate: boolean, upsert: boolean = false) => {
-    if (!data.kode || !data.nama) {
-      throw new Error('Kode dan Nama Mapel wajib diisi')
-    }
-
-    const method = isUpdate ? 'PUT' : 'POST'
-    let url = '/api/master/mapel'
-    if (upsert) url += '?upsert=true'
-
-    const res = await fetch(url, {
-      method: method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-
-    const json = await res.json()
-    if (!json.ok) {
-      throw new Error(json.error)
-    }
-    return json;
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
   }
 
   const handleExport = () => {
-    const dataToExport = mapelList.map((m, index) => ({
+    const dataToExport = kodeGuruList.map((item, index) => ({
       'No': (currentPage - 1) * pageSize + index + 1,
-      'Kode Mapel': m.kode || '',
-      'Nama Mapel': m.nama || '',
-      'Kelompok': m.kelompok || '',
-      'Status Aktif': m.aktif ? 'TRUE' : 'FALSE'
+      'NIP': item.nip || '',
+      'Nama Guru': item.nama_guru || '',
+      'Kode Guru': item.kode_guru || '',
+      'Status': item.aktif ? 'Aktif' : 'Non-Aktif'
     }))
-    exportToExcel(dataToExport, 'Data_Mapel_ACCA', 'Mapel');
+
+    exportToExcel(dataToExport, 'Data_Kode_Guru', 'Kode Guru')
   }
 
   const mapImportRow = (row: any) => {
     const getVal = (targetKeys: string[]) => {
-      const normalizedTargets = targetKeys.map(k => k.toLowerCase().trim());
+      const normalizedTargets = targetKeys.map(k => k.toLowerCase().trim())
       const foundKey = Object.keys(row).find(k =>
         normalizedTargets.includes(k.toLowerCase().trim())
-      );
-      if (foundKey) return row[foundKey];
-      return undefined;
-    };
-
-    const kodeRaw = getVal(['Kode Mapel', 'kode', 'Kode']);
-    const namaRaw = getVal(['Nama Mapel', 'nama']);
-
-    // Validasi: Kode Mapel dan Nama Mapel wajib diisi
-    if (!kodeRaw || String(kodeRaw).trim() === '' || !namaRaw || String(namaRaw).trim() === '') {
-      return null; // Tolak data jika Kode Mapel atau Nama Mapel kosong
+      )
+      if (foundKey) return row[foundKey]
+      return undefined
     }
 
+    const nipRaw = getVal(['NIP', 'nip'])
+    const namaRaw = getVal(['Nama Guru', 'nama_guru', 'Nama'])
+    const kodeRaw = getVal(['Kode Guru', 'kode_guru', 'Kode'])
+
+    if (!nipRaw || !namaRaw || !kodeRaw) return null
+
+    const statusRaw = getVal(['Status', 'status', 'Aktif', 'aktif'])
+    const aktif = String(statusRaw).toUpperCase() !== 'NON-AKTIF' && String(statusRaw).toUpperCase() !== 'FALSE'
+
     return {
-      kode: String(kodeRaw).trim(),
-      nama: String(namaRaw).trim(),
-      kelompok: getVal(['Kelompok', 'kelompok']) || 'A',
-      aktif: String(getVal(['Status Aktif', 'aktif', 'Status'])).toUpperCase() !== 'FALSE' && String(getVal(['Status Aktif', 'aktif', 'Status'])).toUpperCase() !== 'NON-AKTIF'
-    };
+      nip: String(nipRaw).trim(),
+      nama_guru: String(namaRaw).trim(),
+      kode_guru: String(kodeRaw).trim(),
+      aktif: aktif
+    }
   }
 
-  // Group for mobile: by kelompok
+  // Group for mobile: by status aktif
   const groupedMobile = useMemo(() => {
-    const map = new Map<string, Mapel[]>()
-      ; (mapelList || []).forEach((it) => {
-        const key = it.kelompok || 'A'
+    const map = new Map<string, KodeGuru[]>()
+      ; (kodeGuruList || []).forEach((it) => {
+        const key = it.aktif ? 'Aktif' : 'Non-Aktif'
         if (!map.has(key)) map.set(key, [])
         map.get(key)!.push(it)
       })
-    const entries = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'id'))
+    const entries = Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0], 'id'))
     entries.forEach(([k, arr]) => {
       arr.sort((x, y) => {
-        const nx = String(x.nama || '').toLowerCase()
-        const ny = String(y.nama || '').toLowerCase()
+        const nx = String(x.nama_guru || '').toLowerCase()
+        const ny = String(y.nama_guru || '').toLowerCase()
         if (nx !== ny) return nx.localeCompare(ny, 'id')
-        return String(x.kode || '').localeCompare(String(y.kode || ''), 'id')
+        return String(x.kode_guru || '').localeCompare(String(y.kode_guru || ''), 'id')
       })
     })
     return entries
-  }, [mapelList])
+  }, [kodeGuruList])
 
   return (
     <div className="sk">
@@ -238,7 +268,7 @@ export default function MapelTab() {
             <i className="bi bi-search" aria-hidden="true" />
             <input
               type="text"
-              placeholder="Cari Mapel..."
+              placeholder="Cari Nama Guru / NIP / Kode..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -266,9 +296,9 @@ export default function MapelTab() {
           <thead>
             <tr>
               <th className="cNo">No</th>
-              <th className="cKode">Kode Mapel</th>
-              <th>Nama Mapel</th>
-              <th className="cKelompok">Kelompok</th>
+              <th className="cNip">NIP</th>
+              <th>Nama Guru</th>
+              <th className="cKode">Kode Guru</th>
               <th className="cStatus">Status</th>
               <th className="cAksi">Aksi</th>
             </tr>
@@ -280,34 +310,34 @@ export default function MapelTab() {
                   Memuat data...
                 </td>
               </tr>
-            ) : mapelList.length === 0 ? (
+            ) : kodeGuruList.length === 0 ? (
               <tr>
                 <td colSpan={6} className="sk__empty sk__muted">
-                  Tidak ada data mapel.
+                  Tidak ada data kode guru.
                 </td>
               </tr>
             ) : (
-              mapelList.map((mapel, index) => (
-                <tr key={mapel.id}>
+              kodeGuruList.map((item, index) => (
+                <tr key={item.id || `${item.nip}-${index}`}>
                   <td className="tCenter">{(currentPage - 1) * pageSize + index + 1}</td>
-                  <td className="tMono">{mapel.kode}</td>
-                  <td className="tPlain">{mapel.nama}</td>
-                  <td>
-                    <span className="sk__kelompokBadge">{mapel.kelompok}</span>
+                  <td className="tMono">{item.nip}</td>
+                  <td className="tPlain">{item.nama_guru}</td>
+                  <td className="tCenter">
+                    <span className="sk__kodeBadge">{item.kode_guru}</span>
                   </td>
                   <td>
-                    <span className={`sk__status ${mapel.aktif ? 'isOn' : 'isOff'}`}>
-                      {mapel.aktif ? 'Aktif' : 'Non-Aktif'}
+                    <span className={`sk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
+                      {item.aktif ? 'Aktif' : 'Non-Aktif'}
                     </span>
                   </td>
                   <td>
                     <div className="sk__rowActions">
-                      <button className="sk__iconBtn" onClick={() => handleEdit(mapel)} title="Edit">
+                      <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
                         <i className="bi bi-pencil" />
                       </button>
                       <button
                         className="sk__iconBtn danger"
-                        onClick={() => handleDelete(mapel.id)}
+                        onClick={() => item.id && handleDelete(item.id)}
                         title="Hapus"
                       >
                         <i className="bi bi-trash" />
@@ -321,8 +351,8 @@ export default function MapelTab() {
         </table>
       </div>
 
-      {/* ===== Mobile Grouped Cards (by Kelompok) ===== */}
-      <div className="sk__cards" aria-label="Daftar Mapel versi mobile">
+      {/* ===== Mobile Cards ===== */}
+      <div className="sk__cards" aria-label="Daftar Kode Guru versi mobile">
         {loading ? (
           <div className="sk__card">
             <div className="sk__cardHead">
@@ -331,52 +361,47 @@ export default function MapelTab() {
                 <div className="sk__cardSub">Mohon tunggu</div>
               </div>
             </div>
-            <div className="sk__cardBody">
-              <div className="sk__kv">
-                <div className="sk__k">Status</div>
-                <div className="sk__v">Loading</div>
-              </div>
-            </div>
           </div>
-        ) : mapelList.length === 0 ? (
+        ) : kodeGuruList.length === 0 ? (
           <div className="sk__card">
             <div className="sk__cardHead">
               <div className="sk__cardTitle">
                 <div className="sk__cardName">Tidak ada data</div>
-                <div className="sk__cardSub">Belum ada mapel</div>
-              </div>
-            </div>
-            <div className="sk__cardBody">
-              <div className="sk__kv">
-                <div className="sk__k">Info</div>
-                <div className="sk__v">Kosong</div>
+                <div className="sk__cardSub">Coba ubah pencarian</div>
               </div>
             </div>
           </div>
         ) : (
-          mapelList.map((mapel, idx) => (
-            <div className="sk__card sk__cardRow" key={`m-${mapel.id}-${idx}`}>
+          kodeGuruList.map((item, idx) => (
+            <div className="sk__card" key={`m-${item.id || idx}`}>
               <div className="sk__cardHead">
                 <div className="sk__cardTitle">
-                  <div className="sk__cardName">{mapel.nama || '-'}</div>
-                  <div className="sk__cardSub">{mapel.kode}</div>
+                  <div className="sk__cardName">{item.nama_guru || '-'}</div>
+                  <div className="sk__cardSub">NIP: {item.nip}</div>
                 </div>
               </div>
 
               <div className="sk__cardBody">
+                <div className="sk__kv">
+                  <div className="sk__k">Kode Guru</div>
+                  <div className="sk__v">
+                    <span className="sk__kodeBadge">{item.kode_guru}</span>
+                  </div>
+                </div>
+
                 <div className="sk__statusRow">
                   <div className="sk__statusLeft">
-                    <span className={`sk__status ${mapel.aktif ? 'isOn' : 'isOff'}`}>
-                      {mapel.aktif ? 'Aktif' : 'Non-Aktif'}
+                    <span className={`sk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
+                      {item.aktif ? 'Aktif' : 'Non-Aktif'}
                     </span>
                   </div>
                   <div className="sk__actionsRight">
-                    <button className="sk__iconBtn" onClick={() => handleEdit(mapel)} title="Edit">
+                    <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
                       <i className="bi bi-pencil" />
                     </button>
                     <button
                       className="sk__iconBtn danger"
-                      onClick={() => handleDelete(mapel.id)}
+                      onClick={() => item.id && handleDelete(item.id)}
                       title="Hapus"
                     >
                       <i className="bi bi-trash" />
@@ -404,13 +429,13 @@ export default function MapelTab() {
         />
       )}
 
-      {/* Form Modal */}
+      {/* Form Modal (Add/Edit) */}
       {showModal && (
         <div className="sk__modalOverlay" role="dialog" aria-modal="true">
           <div className="sk__modal">
             <div className="sk__modalHead">
               <div className="sk__modalTitle">
-                <h2>{isEditMode ? 'Edit Mata Pelajaran' : 'Tambah Mapel Baru'}</h2>
+                <h2>{isEditMode ? 'Edit Kode Guru' : 'Tambah Kode Guru'}</h2>
               </div>
               <button className="sk__close" onClick={() => setShowModal(false)} aria-label="Tutup">
                 <i className="bi bi-x-lg" />
@@ -419,51 +444,61 @@ export default function MapelTab() {
             <form onSubmit={handleSubmit}>
               <div className="sk__modalBody">
                 <div className="sk__field">
-                  <label>Kode Mapel <span className="required">*</span></label>
-                  <input
-                    type="text"
-                    name="kode"
+                  <label>Pilih Guru <span className="required">*</span></label>
+                  <select
+                    value={formData.nip || ''}
+                    onChange={handleGuruSelect}
                     required
-                    value={formData.kode || ''}
-                    onChange={handleInputChange}
-                    placeholder="Contoh: MM, BIND, BIG"
-                  />
-                </div>
-
-                <div className="sk__field">
-                  <label>Nama Mapel <span className="required">*</span></label>
-                  <input
-                    type="text"
-                    name="nama"
-                    required
-                    value={formData.nama || ''}
-                    onChange={handleInputChange}
-                    placeholder="Contoh: Matematika"
-                  />
-                </div>
-
-                <div className="sk__field">
-                  <label>Kelompok</label>
-                  <select name="kelompok" value={formData.kelompok || 'A'} onChange={handleInputChange}>
-                    <option value="A">A - Wajib</option>
-                    <option value="B">B - Peminatan</option>
-                    <option value="C">C - Lintas Minat</option>
+                    disabled={isEditMode}
+                    className={isEditMode ? 'bg-gray-100' : ''}
+                  >
+                    <option value="">-- Pilih Guru --</option>
+                    {masterGuru.map(guru => (
+                      <option key={guru.nip} value={guru.nip}>
+                        {guru.nip} - {guru.nama_lengkap}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                {isEditMode && (
-                  <div className="sk__field">
-                    <label>Status</label>
-                    <select
-                      name="aktif"
-                      value={formData.aktif ? 'true' : 'false'}
-                      onChange={(e) => setFormData(prev => ({ ...prev, aktif: e.target.value === 'true' }))}
-                    >
-                      <option value="true">Aktif</option>
-                      <option value="false">Non-Aktif</option>
-                    </select>
-                  </div>
-                )}
+                <div className="sk__field">
+                  <label>Nama Guru <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    name="nama_guru"
+                    required
+                    value={formData.nama_guru || ''}
+                    onChange={handleInputChange}
+                    readOnly
+                    className="bg-gray-100"
+                  />
+                </div>
+
+                <div className="sk__field">
+                  <label>Kode Guru <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    name="kode_guru"
+                    required
+                    value={formData.kode_guru || ''}
+                    onChange={handleInputChange}
+                    placeholder="Contoh: MATH, BIO, ENG"
+                    style={{ textTransform: 'uppercase' }}
+                  />
+                  <div className="sk__hint">Gunakan kode singkat untuk identifikasi guru (2-4 karakter)</div>
+                </div>
+
+                <div className="sk__field">
+                  <label>Status</label>
+                  <select 
+                    name="aktif" 
+                    value={formData.aktif ? 'true' : 'false'} 
+                    onChange={(e) => setFormData(prev => ({ ...prev, aktif: e.target.value === 'true' }))}
+                  >
+                    <option value="true">Aktif</option>
+                    <option value="false">Non-Aktif</option>
+                  </select>
+                </div>
               </div>
               <div className="sk__modalFoot">
                 <button type="button" className="sk__btn sk__btnGhost" onClick={() => setShowModal(false)}>Batal</button>
@@ -476,17 +511,17 @@ export default function MapelTab() {
         </div>
       )}
 
-      {/* Standardized Import Modal */}
+      {/* Import Modal */}
       <ImportModal
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         onImportSuccess={() => {
-          fetchMapel();
-          setShowImportModal(false);
+          fetchKodeGuru()
+          setShowImportModal(false)
         }}
-        templateColumns={['No', 'Kode Mapel', 'Nama Mapel', 'Kelompok', 'Status Aktif']}
-        templateName="Template_Mapel"
-        apiEndpoint="/api/master/mapel?upsert=true"
+        templateColumns={['No', 'NIP', 'Nama Guru', 'Kode Guru', 'Status']}
+        templateName="Template_Kode_Guru"
+        apiEndpoint="/api/master/kode-guru?upsert=true"
         mapRowData={mapImportRow}
       />
 
@@ -494,16 +529,12 @@ export default function MapelTab() {
 :global(:root) {
   --sk-line: rgba(148, 163, 184, 0.22);
   --sk-card: rgba(255, 255, 255, 0.92);
-
   --sk-shadow: 0 14px 34px rgba(2, 6, 23, 0.08);
   --sk-shadow2: 0 10px 22px rgba(2, 6, 23, 0.08);
-
   --sk-radius: 16px;
-
   --sk-fs: 0.88rem;
   --sk-fs-sm: 0.82rem;
   --sk-fs-xs: 0.78rem;
-
   --sk-safe-b: env(safe-area-inset-bottom, 0px);
   --sk-safe-t: env(safe-area-inset-top, 0px);
 }
@@ -634,11 +665,6 @@ export default function MapelTab() {
   color: #fff;
 }
 
-.sk__btnPrimary:active {
-  background: linear-gradient(135deg, rgba(58, 166, 255, 1), rgba(15, 42, 86, 1));
-  color: #fff;
-}
-
 .sk__btnExport {
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
   border-color: rgba(16, 185, 129, 0.28);
@@ -650,11 +676,6 @@ export default function MapelTab() {
   color: #fff;
 }
 
-.sk__btnExport:active {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 1), rgba(15, 42, 86, 1));
-  color: #fff;
-}
-
 .sk__btnImport {
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
   border-color: rgba(245, 158, 11, 0.28);
@@ -663,11 +684,6 @@ export default function MapelTab() {
 
 .sk__btnImport:hover {
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
-  color: #fff;
-}
-
-.sk__btnImport:active {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 1), rgba(15, 42, 86, 1));
   color: #fff;
 }
 
@@ -741,10 +757,10 @@ export default function MapelTab() {
 }
 
 .cNo { width: 56px; }
-.cKode { width: 150px; }
-.cKelompok { width: 150px; }
+.cNip { width: 160px; }
+.cKode { width: 130px; }
 .cStatus { width: 110px; }
-.cAksi { width: 110px; text-align: right; }
+.cAksi { width: 120px; text-align: right; }
 
 .tCenter { text-align: center; }
 
@@ -756,16 +772,18 @@ export default function MapelTab() {
 
 .tPlain { font-weight: 400; }
 
-.sk__kelompokBadge {
+.sk__kodeBadge {
   display: inline-flex;
   align-items: center;
-  padding: 5px 8px;
-  border-radius: 999px;
-  background: rgba(15, 42, 86, 0.08);
-  border: 1px solid rgba(15, 42, 86, 0.12);
-  color: rgba(7, 22, 46, 0.92);
-  font-weight: 500;
-  font-size: var(--sk-fs-xs);
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: rgba(139, 92, 246, 0.10);
+  border: 1px solid rgba(139, 92, 246, 0.22);
+  color: rgba(76, 29, 149, 1);
+  font-weight: 800;
+  font-size: 0.85rem;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.5px;
   white-space: nowrap;
 }
 
@@ -779,8 +797,6 @@ export default function MapelTab() {
   border: 1px solid transparent;
   white-space: nowrap;
 }
-
-.sk__status::before { display: none !important; content: none !important; }
 
 .sk__status.isOn {
   background: rgba(34, 197, 94, 0.12);
@@ -831,52 +847,6 @@ export default function MapelTab() {
   display: none;
   flex-direction: column;
   gap: 12px;
-}
-
-.sk__group {
-  border: 1px solid rgba(15, 42, 86, 0.10);
-  border-radius: 16px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.06);
-}
-
-.sk__groupHead {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  padding: 12px 14px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
-  border-bottom: 1px solid rgba(15, 42, 86, 0.10);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.sk__groupLeft {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.sk__groupTitle {
-  margin: 0;
-  font-size: 0.92rem;
-  font-weight: 800;
-  color: rgba(11, 31, 58, 0.95);
-}
-
-.sk__groupMeta {
-  font-size: 0.78rem;
-  font-weight: 650;
-  color: rgba(100, 116, 139, 0.92);
-  white-space: nowrap;
-}
-
-.sk__groupList {
-  padding: 12px 12px 2px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .sk__card {
@@ -931,6 +901,8 @@ export default function MapelTab() {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(15, 42, 86, 0.10);
 }
 
 .sk__statusLeft {
@@ -981,7 +953,7 @@ export default function MapelTab() {
 }
 
 .sk__modal {
-  width: min(520px, 100%);
+  width: min(550px, 100%);
   max-height: 90vh;
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.96);
@@ -1024,7 +996,7 @@ export default function MapelTab() {
   padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .sk__field {
@@ -1061,6 +1033,24 @@ export default function MapelTab() {
 .sk__field select:focus {
   border-color: rgba(58, 166, 255, 0.55);
   box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
+}
+
+.sk__field input:disabled,
+.sk__field input[readonly] {
+  background-color: rgba(0, 0, 0, 0.03);
+  color: #888;
+  cursor: not-allowed;
+}
+
+.bg-gray-100 {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+.sk__hint {
+  font-size: 0.75rem;
+  color: rgba(100, 116, 139, 0.85);
+  font-style: italic;
+  margin-top: 4px;
 }
 
 .sk__modalFoot {
@@ -1137,6 +1127,14 @@ export default function MapelTab() {
 @media (max-width: 420px) {
   .sk__filters {
     width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .sk__search {
+    grid-column: 1 / -1;
+    min-width: 0;
   }
 }
 
@@ -1154,5 +1152,3 @@ export default function MapelTab() {
     </div>
   )
 }
-
-

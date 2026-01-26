@@ -5,6 +5,7 @@ import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '../ui/ImportModal'
 import SearchableSelect from '../ui/SearchableSelect'
 import Pagination from '../ui/Pagination'
+import { getCurrentAcademicYear } from '@/lib/date-utils'
 
 interface SiswaKelas {
   id?: number
@@ -18,8 +19,8 @@ interface SiswaKelas {
 
 export default function SiswaKelasTab() {
   // Local Filter State
-  const [tahunAjaran, setTahunAjaran] = useState('2025/2026')
-  const [semester, setSemester] = useState('Ganjil')
+  const [tahunAjaran, setTahunAjaran] = useState(getCurrentAcademicYear())
+  const [semester, setSemester] = useState('Semua')
   const [filterKelas, setFilterKelas] = useState('Semua')
 
   const [allData, setAllData] = useState<SiswaKelas[]>([])
@@ -41,9 +42,24 @@ export default function SiswaKelasTab() {
   }, [allData, currentPage, pageSize])
 
   const [selectedClass, setSelectedClass] = useState('')
-  const [selectedStudent, setSelectedStudent] = useState('')
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([])
+  const [studentSearchTerm, setStudentSearchTerm] = useState('')
   const [saving, setSaving] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
+
+  const toggleStudent = (nisn: string) => {
+    if (editId) {
+      if (selectedStudents.includes(nisn)) setSelectedStudents([])
+      else setSelectedStudents([nisn])
+      return
+    }
+
+    if (selectedStudents.includes(nisn)) {
+      setSelectedStudents(selectedStudents.filter((id) => id !== nisn))
+    } else {
+      setSelectedStudents([...selectedStudents, nisn])
+    }
+  }
 
   // Master data for selection
   const [masterSiswa, setMasterSiswa] = useState<any[]>([])
@@ -137,13 +153,13 @@ export default function SiswaKelasTab() {
   const closeModal = () => {
     setShowModal(false)
     setEditId(null)
-    setSelectedStudent('')
+    setSelectedStudents([])
     setSelectedClass('')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedClass || !selectedStudent) {
+    if (!selectedClass || selectedStudents.length === 0) {
       alert('Pilih kelas dan siswa!')
       return
     }
@@ -155,10 +171,11 @@ export default function SiswaKelasTab() {
     setSaving(true)
     try {
       const targetSemesters = semester === 'Semua' ? ['Ganjil', 'Genap'] : [semester]
-      const nisn = selectedStudent
-      const siswa = masterSiswa.find((s) => s.nisn === nisn)
 
       if (editId) {
+        // For edit mode, only handle single student
+        const nisn = selectedStudents[0]
+        const siswa = masterSiswa.find((s) => s.nisn === nisn)
         const res = await fetch('/api/settings/siswa-kelas', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -175,22 +192,30 @@ export default function SiswaKelasTab() {
         const json = await res.json()
         if (!json.ok) throw new Error(json.error || 'Gagal mengubah data')
       } else {
-        const promises = targetSemesters.map((sem) =>
-          fetch('/api/settings/siswa-kelas', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              nisn,
-              nama_siswa: siswa?.nama_lengkap || '',
-              kelas: selectedClass,
-              tahun_ajaran: tahunAjaran,
-              semester: sem,
-              aktif: true,
-            }),
-          })
-        )
+        // For add mode, handle multiple students
+        const allPromises: Promise<Response>[] = []
 
-        const results = await Promise.all(promises)
+        selectedStudents.forEach((nisn) => {
+          const siswa = masterSiswa.find((s) => s.nisn === nisn)
+          targetSemesters.forEach((sem) => {
+            allPromises.push(
+              fetch('/api/settings/siswa-kelas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  nisn,
+                  nama_siswa: siswa?.nama_lengkap || '',
+                  kelas: selectedClass,
+                  tahun_ajaran: tahunAjaran,
+                  semester: sem,
+                  aktif: true,
+                }),
+              })
+            )
+          })
+        })
+
+        const results = await Promise.all(allPromises)
         const payloads = await Promise.all(results.map((r) => r.json()))
         const anyFailed = payloads.some((j) => !j.ok)
         if (anyFailed) throw new Error('Sebagian data gagal disimpan.')
@@ -209,7 +234,7 @@ export default function SiswaKelasTab() {
   const handleEdit = (item: SiswaKelas) => {
     setEditId(item.id!)
     setSelectedClass(item.kelas)
-    setSelectedStudent(item.nisn)
+    setSelectedStudents([item.nisn])
     setShowModal(true)
   }
 
@@ -282,7 +307,7 @@ export default function SiswaKelasTab() {
 
     return masterSiswa
       .filter((student) => {
-        if (editId && student.nisn === selectedStudent) return true
+        if (editId && selectedStudents.includes(student.nisn)) return true
 
         const enrollments = allEnrollments.filter((e) => e.nisn === student.nisn)
         if (enrollments.length === 0) return true
@@ -306,7 +331,17 @@ export default function SiswaKelasTab() {
         subLabel: s.nisn,
       }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [masterSiswa, masterKelas, selectedClass, allEnrollments, editId, selectedStudent])
+  }, [masterSiswa, masterKelas, selectedClass, allEnrollments, editId, selectedStudents])
+
+  const filteredStudents = siswaOptions.filter((s) => {
+    if (studentSearchTerm) {
+      const term = studentSearchTerm.toLowerCase()
+      const matchName = String(s.label || '').toLowerCase().includes(term)
+      const matchNisn = String(s.subLabel || '').includes(term)
+      if (!matchName && !matchNisn) return false
+    }
+    return true
+  })
 
   const openAdd = () => {
     if (tahunAjaran === 'Semua') {
@@ -314,7 +349,7 @@ export default function SiswaKelasTab() {
       return
     }
     setSelectedClass('')
-    setSelectedStudent('')
+    setSelectedStudents([])
     setEditId(null)
     setShowModal(true)
   }
@@ -582,6 +617,12 @@ export default function SiswaKelasTab() {
                 <p>
                   Periode: {tahunAjaran} • {semester === 'Semua' ? 'Ganjil & Genap' : semester}
                 </p>
+                {selectedStudents.length > 0 && (
+                  <div className="sk__selectedStudent">
+                    <i className="bi bi-person-circle"></i>
+                    <span>{selectedStudents.length} siswa dipilih</span>
+                  </div>
+                )}
               </div>
               <button className="sk__close" onClick={closeModal} aria-label="Tutup">
                 <i className="bi bi-x-lg" />
@@ -603,33 +644,71 @@ export default function SiswaKelasTab() {
 
                 <div className="sk__field">
                   <label>Pilih Kelas</label>
-                  <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} required>
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    required
+                    className="sk__select"
+                  >
                     <option value="">— Pilih Kelas —</option>
                     {masterKelas.map((k) => (
                       <option key={k.id} value={k.nama}>
-                        {k.nama}
+                        {k.nama} ({k.program})
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div className="sk__field">
-                  <label>Pilih Siswa</label>
-                  <div className="sk__selectWrap">
-                    <SearchableSelect
-                      options={siswaOptions}
-                      value={selectedStudent}
-                      onChange={setSelectedStudent}
-                      placeholder={selectedClass ? 'Cari Nama Siswa atau NISN...' : 'Pilih kelas terlebih dahulu'}
-                      disabled={!selectedClass}
+                  <label>Pilih Siswa {editId ? '(Ganti Siswa)' : '(Bisa lebih dari satu)'}</label>
+
+                  <div className="sk__studentSearch">
+                    <i className="bi bi-search" aria-hidden="true" />
+                    <input
+                      type="text"
+                      placeholder="Cari nama siswa atau NISN..."
+                      value={studentSearchTerm}
+                      onChange={(e) => setStudentSearchTerm(e.target.value)}
                     />
                   </div>
 
-                  {selectedClass && siswaOptions.length === 0 && (
-                    <div className="sk__hint sk__hintWarn">
-                      Semua siswa sudah terdaftar (atau tidak memenuhi syarat program).
-                    </div>
-                  )}
+                  <div className="sk__multi">
+                    {filteredStudents.length === 0 ? (
+                      <div className="sk__hint sk__muted">
+                        {selectedClass && allEnrollments.length > 0
+                          ? 'Semua siswa di kelas ini sudah terdaftar.'
+                          : 'Tidak ada siswa tersedia.'}
+                      </div>
+                    ) : (
+                      filteredStudents.map((s) => (
+                        <button
+                          type="button"
+                          key={s.value}
+                          className={`sk__pick ${selectedStudents.includes(s.value) ? 'isOn' : ''}`}
+                          onClick={() => toggleStudent(s.value)}
+                        >
+                          <span className="sk__check" aria-hidden="true">
+                            {selectedStudents.includes(s.value) ? <i className="bi bi-check-lg" /> : null}
+                          </span>
+
+                          <span className="sk__pickInfo">
+                            <span className="sk__pickName" title={s.label}>
+                              {s.label}
+                            </span>
+                            <span className="sk__pickMeta">
+                              <span className="sk__mono">{s.subLabel}</span>
+                              <span className="sk__dot" aria-hidden="true">
+                                •
+                              </span>
+                              <span className="sk__pillKelas">{selectedClass}</span>
+                            </span>
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="sk__selectedCount">{selectedStudents.length} siswa dipilih</div>
                 </div>
               </div>
 
@@ -697,7 +776,7 @@ export default function SiswaKelasTab() {
 /* ========= TOOLBAR ========= */
 .sk__bar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
@@ -706,7 +785,7 @@ export default function SiswaKelasTab() {
 }
 
 .sk__filters {
-  flex: 1 1 640px;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -806,10 +885,11 @@ export default function SiswaKelasTab() {
 }
 
 .sk__btn:hover {
-  background: rgba(255, 255, 255, 0.92);
-  border-color: rgba(58, 166, 255, 0.24);
-  box-shadow: var(--sk-shadow2);
-  transform: translateY(-1px);
+  /* background: rgba(255, 255, 255, 0.92); removed */
+  border-color: rgba(58, 166, 255, 0.25);
+  box-shadow: 0 4px 12px rgba(58, 166, 255, 0.2);
+  transform: translateY(-2px);
+  filter: brightness(1.1);
 }
 
 .sk__btn:active {
@@ -1221,6 +1301,25 @@ export default function SiswaKelasTab() {
   color: rgba(100, 116, 139, 0.95);
 }
 
+.sk__selectedStudent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba(58, 166, 255, 0.08), rgba(15, 42, 86, 0.04));
+  border: 1px solid rgba(58, 166, 255, 0.2);
+  border-radius: 10px;
+  font-size: var(--sk-fs-sm);
+  font-weight: 600;
+  color: rgba(15, 42, 86, 0.9);
+}
+
+.sk__selectedStudent i {
+  font-size: 1.1rem;
+  color: rgba(58, 166, 255, 0.8);
+}
+
 .sk__close {
   width: 38px;
   height: 38px;
@@ -1350,14 +1449,151 @@ export default function SiswaKelasTab() {
 /* ========= MOBILE kecil (iPhone 13 / Oppo A-series) ========= */
 
 
+.sk__studentSearch {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.sk__studentSearch i {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(100, 116, 139, 0.9);
+  pointer-events: none;
+}
+
+.sk__studentSearch input {
+  width: 100%;
+  padding: 9px 10px 9px 30px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.92);
+  font-weight: 500;
+  font-size: var(--sk-fs-sm);
+  outline: none;
+}
+
+.sk__multi {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 42, 86, 0.02);
+  border-radius: 16px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  max-height: 340px;
+  overflow: auto;
+}
+
+.sk__pick {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 14px;
+  padding: 10px 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.12s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.sk__pick:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.1);
+  border-color: rgba(58, 166, 255, 0.24);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.sk__pick.isOn {
+  border-color: rgba(58, 166, 255, 0.42);
+  background: linear-gradient(135deg, rgba(58, 166, 255, 0.11), rgba(255, 255, 255, 0.98));
+  box-shadow: 0 14px 22px rgba(58, 166, 255, 0.12);
+}
+
+.sk__check {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 2px solid rgba(148, 163, 184, 0.55);
+  background: #fff;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.sk__pick.isOn .sk__check {
+  border-color: rgba(58, 166, 255, 0.72);
+  background: rgba(58, 166, 255, 1);
+}
+
+.sk__pickInfo {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 auto;
+}
+
+.sk__pickName {
+  font-weight: 800;
+  color: rgba(11, 31, 58, 0.96);
+  font-size: 0.8rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sk__pickMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  color: rgba(100, 116, 139, 0.95);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.sk__dot {
+  opacity: 0.65;
+}
+
+.sk__pillKelas {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 42, 86, 0.12);
+  background: rgba(15, 42, 86, 0.06);
+  color: rgba(7, 22, 46, 0.9);
+  font-weight: 650;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.sk__selectedCount {
+  margin-top: 10px;
+  font-size: var(--sk-fs-xs);
+  color: rgba(100, 116, 139, 0.95);
+  font-weight: 600;
+}
+
 /* ========= Reduced motion ========= */
 @media (prefers-reduced-motion: reduce) {
   .sk__btn,
-  .sk__iconBtn {
+  .sk__iconBtn,
+  .sk__pick {
     transition: none;
   }
   .sk__btn:hover,
-  .sk__iconBtn:hover {
+  .sk__iconBtn:hover,
+  .sk__pick:hover {
     transform: none;
   }
 }

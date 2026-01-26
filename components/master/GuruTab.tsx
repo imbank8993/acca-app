@@ -819,7 +819,7 @@ export default function GuruTab() {
 /* ========= TOOLBAR ========= */
 .sk__bar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
@@ -828,7 +828,7 @@ export default function GuruTab() {
 }
 
 .sk__filters {
-  flex: 1 1 640px;
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -924,15 +924,45 @@ export default function GuruTab() {
   font-weight: 650;
 }
 
+.sk__btnPrimary:hover {
+  background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
+  color: #fff;
+}
+
+.sk__btnPrimary:active {
+  background: linear-gradient(135deg, rgba(58, 166, 255, 1), rgba(15, 42, 86, 1));
+  color: #fff;
+}
+
 .sk__btnExport {
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
   border-color: rgba(16, 185, 129, 0.28);
   color: #fff;
 }
 
+.sk__btnExport:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.92), rgba(15, 42, 86, 0.86));
+  color: #fff;
+}
+
+.sk__btnExport:active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 1), rgba(15, 42, 86, 1));
+  color: #fff;
+}
+
 .sk__btnImport {
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
   border-color: rgba(245, 158, 11, 0.28);
+  color: #fff;
+}
+
+.sk__btnImport:hover {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.92), rgba(15, 42, 86, 0.86));
+  color: #fff;
+}
+
+.sk__btnImport:active {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 1), rgba(15, 42, 86, 1));
   color: #fff;
 }
 

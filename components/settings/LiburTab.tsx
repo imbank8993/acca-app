@@ -44,6 +44,8 @@ export default function LiburTab() {
     fetchMasterWaktu()
   }, [])
 
+
+
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       fetchData()
@@ -232,7 +234,7 @@ export default function LiburTab() {
     <div className="lb">
       {/* ===== Toolbar ===== */}
       <div className="lb__bar">
-        <div className="lb__filters">
+        <div className="lb__row1">
           <div className="lb__search">
             <i className="bi bi-search" aria-hidden="true" />
             <input
@@ -252,7 +254,7 @@ export default function LiburTab() {
           </select>
         </div>
 
-        <div className="lb__actions" aria-label="Aksi">
+        <div className="lb__row2">
           <button className="lb__btn lb__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
             <i className="bi bi-upload" /> <span>Import</span>
           </button>
@@ -384,10 +386,12 @@ export default function LiburTab() {
 
                 <div className="lb__field">
                   <label>Berlaku untuk Jam</label>
-                  <select value={jamKe} onChange={e => setJamKe(e.target.value)}>
-                    <option value="Semua">Semua Jam</option>
-                    {masterWaktu.map(w => (
-                      <option key={w.id} value={w.jam_ke}>Jam Ke-{w.jam_ke} ({w.waktu_mulai}-{w.waktu_selesai})</option>
+                  <select value={jamKe} onChange={e => setJamKe(e.target.value)} style={{ width: '100%', maxWidth: '300px' }}>
+                    <option value="Semua">Semua</option>
+                    {[...new Set(masterWaktu.map(w => w.jam_ke))].sort((a, b) => parseInt(a) - parseInt(b)).map(jam => (
+                      <option key={jam} value={jam}>
+                        {jam}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -427,30 +431,42 @@ export default function LiburTab() {
             padding: 16px; background: #f5f7fb; border-radius: 16px; padding-bottom: calc(16px + var(--lb-safe-b));
         }
 
-        .lb__bar { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-        .lb__filters { flex: 1 1 400px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px; background: rgba(255,255,255,0.72); border-radius: 16px; border: 1px solid var(--lb-line); box-shadow: var(--lb-shadow2); }
-        .lb__search { position: relative; flex: 1 1 200px; }
+        .lb__bar { display: flex; gap: 10px; flex-wrap: nowrap; align-items: center; }
+        .lb__row1 { display: flex; gap: 10px; align-items: center; flex: 1; }
+        .lb__row2 { display: flex; gap: 10px; align-items: center; }
+        .lb__search { position: relative; flex: 2 1 300px; }
         .lb__search i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #64748b; pointer-events: none; }
-        .lb__search input, select { width: 100%; padding: 8px 10px 8px 30px; border: 1px solid #cbd5e1; border-radius: 12px; background: white; font-weight: 500; font-size: 0.9rem; }
-        select { padding-left: 10px; cursor: pointer; }
-
-        .lb__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .lb__search input { width: 100%; padding: 8px 10px 8px 30px; border: 1px solid #cbd5e1; border-radius: 12px; background: white; font-weight: 500; font-size: 0.9rem; }
+        select { width: 120px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 12px; background: white; font-weight: 500; font-size: 0.9rem; cursor: pointer; }
+        .lb__btn { padding: 10px 16px; height: 42px; }
         @media (max-width: 768px) {
-            .lb__actions {
-                width: 100%;
-                display: flex;
-                gap: 6px;
-                margin-bottom: 12px;
+            .lb__bar {
+                flex-direction: column;
+                gap: 12px;
             }
-            .lb__actions .lb__btn {
+            .lb__row1 {
+                flex-direction: row;
+                gap: 8px;
+            }
+            .lb__row2 {
+                flex-direction: row;
+                gap: 6px;
+            }
+            .lb__row2 .lb__btn {
                 flex: 1;
-                height: 40px;
-                padding: 9px 8px;
+                height: 44px;
+                padding: 10px 12px;
                 justify-content: center;
                 min-width: 0;
             }
-            .lb__actions .lb__btn span {
+            .lb__row2 .lb__btn span {
                 font-size: 0.75rem;
+            }
+            .lb__search {
+                flex: 1;
+            }
+            select {
+                width: 100px;
             }
         }
 
@@ -474,10 +490,11 @@ export default function LiburTab() {
             white-space: nowrap;
         }
         .lb__btn:hover {
-            background: rgba(255, 255, 255, 0.92);
-            border-color: rgba(58, 166, 255, 0.24);
-            box-shadow: var(--lb-shadow2);
-            transform: translateY(-1px);
+            /* background: rgba(255, 255, 255, 0.92); removed */
+            border-color: rgba(58, 166, 255, 0.25);
+            box-shadow: 0 4px 12px rgba(58, 166, 255, 0.2);
+            transform: translateY(-2px);
+            filter: brightness(1.1);
         }
         .lb__btn:active { transform: translateY(0); }
 
@@ -501,6 +518,87 @@ export default function LiburTab() {
         }
 
         .lb__btnGhost { background: transparent; color: #64748b; border: 1px solid #cbd5e1; }
+
+        /* Jam Ke Multiselect Filter */
+        .lb__jamFilter { min-width: 200px; }
+        .lb__jamBtn {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #1e293b;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: #f1f5f9;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(30, 41, 59, 0.15);
+        }
+        .lb__jamBtn:hover {
+            background: linear-gradient(135deg, #334155 0%, #475569 100%);
+            box-shadow: 0 4px 12px rgba(30, 41, 59, 0.25);
+            transform: translateY(-1px);
+        }
+        .lb__jamBtn span {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            text-align: left;
+        }
+        .lb__jamBtn i {
+            font-size: 0.8rem;
+            margin-left: 8px;
+            flex-shrink: 0;
+        }
+        .lb__jamDropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #1e293b;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(30, 41, 59, 0.2);
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 4px;
+        }
+        .lb__jamOption {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .lb__jamOption:last-child {
+            border-bottom: none;
+        }
+        .lb__jamOption:hover {
+            background: #f8fafc;
+        }
+        .lb__jamOption input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #1e293b;
+            cursor: pointer;
+        }
+        .lb__jamOption span {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #334155;
+            flex: 1;
+        }
+        .lb__jamOption input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
         /* Table */
         .lb__tableWrap { border-radius: 16px; overflow: hidden; border: 1px solid var(--lb-line); box-shadow: var(--lb-shadow2); background: white; }
@@ -563,18 +661,177 @@ export default function LiburTab() {
         }
 
         /* Modal */
-        .lb__modalOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); padding: 20px; }
-        .lb__modal { background: white; width: 100%; max-width: 500px; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
-        .lb__modalHead { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; }
-        .lb__modalTitle h2 { margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a; }
-        .lb__close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #94a3b8; }
-        .lb__modalBody { padding: 20px; overflow-y: auto; }
-        .lb__modalFoot { padding: 16px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; background: #f8fafc; }
-        
-        .lb__grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .lb__field { margin-bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
-        .lb__field label { font-size: 0.85rem; font-weight: 700; color: #334155; }
-        .lb__field textarea { min-height: 80px; resize: vertical; }
+        .lb__modalOverlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(8px);
+            padding: 20px;
+            animation: fadeIn 0.2s ease-out;
+        }
+        .lb__modal {
+            background: white;
+            width: 100%;
+            max-width: 520px;
+            border-radius: 24px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: 90vh;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+            animation: slideIn 0.3s ease-out;
+        }
+        .lb__modalHead {
+            padding: 24px 28px;
+            border-bottom: 1px solid #e2e8f0;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .lb__modalTitle h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: -0.025em;
+        }
+        .lb__modalTitle p {
+            margin: 4px 0 0 0;
+            font-size: 0.875rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+        .lb__close {
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            cursor: pointer;
+            color: #94a3b8;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .lb__close:hover {
+            background: rgba(148, 163, 184, 0.1);
+            color: #475569;
+        }
+        .lb__modalBody {
+            padding: 28px;
+            overflow-y: auto;
+            background: #ffffff;
+        }
+        .lb__modalFoot {
+            padding: 20px 28px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            background: #f8fafc;
+        }
+
+        .lb__grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .lb__field {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .lb__field label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #374151;
+            letter-spacing: 0.025em;
+            text-transform: uppercase;
+        }
+        .lb__field input,
+        .lb__field select,
+        .lb__field textarea {
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            background: #ffffff;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #111827;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+        .lb__field input:focus,
+        .lb__field select:focus,
+        .lb__field textarea:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .lb__field textarea {
+            min-height: 100px;
+            resize: vertical;
+            line-height: 1.5;
+        }
+        .lb__field select {
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .lb__modalOverlay {
+                padding: 16px;
+                align-items: flex-end;
+            }
+            .lb__modal {
+                max-width: none;
+                border-radius: 20px 20px 0 0;
+                max-height: 85vh;
+            }
+            .lb__modalHead {
+                padding: 20px 24px;
+            }
+            .lb__modalTitle h2 {
+                font-size: 1.125rem;
+            }
+            .lb__modalBody {
+                padding: 24px;
+            }
+            .lb__modalFoot {
+                padding: 16px 24px;
+                flex-direction: column-reverse;
+                gap: 8px;
+            }
+            .lb__modalFoot button {
+                width: 100%;
+                justify-content: center;
+            }
+            .lb__grid2 {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
 
         /* Sheet */
         .lb__sheetOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1001; display: flex; align-items: flex-end; }

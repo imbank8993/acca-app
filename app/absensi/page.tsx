@@ -107,7 +107,7 @@ export default function AbsensiPage() {
 
     async function loadScopes() {
         try {
-            const res = await fetch(`/api/scopes?nip=${nip}`);
+            const res = await fetch(`/api/scopes?guru_id=${nip}`);
             const json = await res.json();
             if (json.ok && json.data) {
                 setScope(json.data);
@@ -146,7 +146,7 @@ export default function AbsensiPage() {
             const sesiRes = await authFetch('/api/absensi/sesi', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nip: nip, kelas, mapel, tanggal, jam_ke: jamKe, nama_guru: namaGuru })
+                body: JSON.stringify({ guru_id: nip, kelas, mapel, tanggal, jam_ke: jamKe, nama_guru: namaGuru })
             });
             const sesiJson = await sesiRes.json();
             if (!sesiJson.ok) throw new Error(sesiJson.error || 'Gagal memuat absensi');

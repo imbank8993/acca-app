@@ -71,35 +71,61 @@ export default function LoginPage() {
           }
         })
 
+        let authUserId: string | null = null
+
         if (signUpError) {
-          setError('Gagal membuat akun: ' + signUpError.message)
-          return
+          // Check if user already exists, try sign in instead
+          if (signUpError.message.toLowerCase().includes('already registered') ||
+              signUpError.message.toLowerCase().includes('already exists') ||
+              signUpError.message.toLowerCase().includes('user already')) {
+            // Try to sign in with existing account
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              email,
+              password
+            })
+
+            if (signInError) {
+              setError('Password salah atau akun sudah ada dengan password berbeda')
+              return
+            }
+
+            if (!signInData.user) {
+              setError('Gagal login: Data user kosong')
+              return
+            }
+
+            authUserId = signInData.user.id
+          } else {
+            setError('Gagal membuat akun: ' + signUpError.message)
+            return
+          }
+        } else {
+          if (!signUpData.user) {
+            setError('Gagal membuat akun: Data user kosong')
+            return
+          }
+
+          // CRITICAL CHECK: If session is null, Email Confirmation is likely enabled.
+          if (!signUpData.session) {
+            setError('Akun berhasil didaftarkan, namun butuh Verifikasi Email. Harap matikan "Confirm Email" di Supabase Dashboard (Auth > Providers > Email) agar bisa login langsung dengan email fiktif.')
+            setLoading(false)
+            return
+          }
+
+          authUserId = signUpData.user.id
         }
 
-        if (!signUpData.user) {
-          setError('Gagal membuat akun: Data user kosong')
-          return
-        }
+        // Update users table with auth_id if we have it
+        if (authUserId) {
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({ auth_id: authUserId })
+            .eq('id', user.id)
 
-        // CRITICAL CHECK: If session is null, Email Confirmation is likely enabled.
-        if (!signUpData.session) {
-          setError('Akun berhasil didaftarkan, namun butuh Verifikasi Email. Harap matikan "Confirm Email" di Supabase Dashboard (Auth > Providers > Email) agar bisa login langsung dengan email fiktif.')
-          setLoading(false)
-          return
-        }
-
-        // Update users table with auth_id
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ auth_id: signUpData.user.id })
-          .eq('id', user.id)
-
-        if (updateError) {
-          console.error('Failed to update auth_id:', updateError)
-          // Continue anyway, next login will try again or work if auth_id matched? 
-          // Actually if we dont save auth_id, next login tries signUp again and fails "User already registered".
-          // So this is critical. 
-          // But allow proceed for now.
+          if (updateError) {
+            console.error('Failed to update auth_id:', updateError)
+            // Continue anyway, as auth is successful
+          }
         }
 
         // Force Token Refresh before navigation?

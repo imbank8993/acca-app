@@ -6,13 +6,14 @@ export async function GET(request: NextRequest) {
         const supabase = await createClient()
         const { searchParams } = new URL(request.url)
         const q = searchParams.get('q')
-
         const tahun_ajaran = searchParams.get('tahun_ajaran')
         const semester = searchParams.get('semester')
+        const page = parseInt(searchParams.get('page') || '1')
+        const limit = parseInt(searchParams.get('limit') || '20')
 
         let query = supabase
             .from('guru_mapel')
-            .select('*')
+            .select('*', { count: 'exact' })
             .eq('aktif', true)
             .order('nama_guru', { ascending: true })
 
@@ -28,10 +29,14 @@ export async function GET(request: NextRequest) {
             query = query.or(`nama_guru.ilike.%${q}%,nama_mapel.ilike.%${q}%,nip.ilike.%${q}%`)
         }
 
-        const { data, error } = await query
+        // Apply pagination
+        const offset = (page - 1) * limit
+        query = query.range(offset, offset + limit - 1)
+
+        const { data, error, count } = await query
 
         if (error) throw error
-        return NextResponse.json({ ok: true, data })
+        return NextResponse.json({ ok: true, data: data || [], total: count || 0 })
     } catch (error: any) {
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
     }
@@ -73,8 +78,6 @@ export async function POST(request: NextRequest) {
             .eq('nama', body.nama_mapel)
             .maybeSingle()
 
-        // If not found by name, maybe body.nama_mapel is a code? Or just strictly name. 
-        // User template says "Nama_Mapel". Let's assume strict name match for now.
         if (mapelError || !mapelData) {
             return NextResponse.json({ ok: false, error: `Mapel "${body.nama_mapel}" tidak ditemukan di Master Mapel.` }, { status: 400 })
         }
@@ -86,7 +89,7 @@ export async function POST(request: NextRequest) {
             .eq('nip', body.nip)
             .eq('nama_mapel', body.nama_mapel)
             .eq('tahun_ajaran', body.tahun_ajaran)
-            .eq('semester', body.semester) // Added Semester check
+            .eq('semester', body.semester)
             .maybeSingle()
 
         if (existing) {
@@ -97,7 +100,9 @@ export async function POST(request: NextRequest) {
             const { data, error } = await supabase
                 .from('guru_mapel')
                 .update({
-                    nama_guru: guruData.nama_lengkap, // Sync name from Master
+                    nama_guru: guruData.nama_lengkap,
+                    kode_guru: body.kode_guru || null,
+                    kode_mapel: body.kode_mapel || null,
                     aktif: true,
                 })
                 .eq('id', existing.id)
@@ -113,7 +118,9 @@ export async function POST(request: NextRequest) {
                 .insert([{
                     nip: body.nip,
                     nama_guru: guruData.nama_lengkap,
+                    kode_guru: body.kode_guru || null,
                     nama_mapel: body.nama_mapel,
+                    kode_mapel: body.kode_mapel || null,
                     tahun_ajaran: body.tahun_ajaran,
                     semester: body.semester,
                     aktif: true,
@@ -142,7 +149,9 @@ export async function PUT(request: NextRequest) {
             .update({
                 nip: body.nip,
                 nama_guru: body.nama_guru,
+                kode_guru: body.kode_guru || null,
                 nama_mapel: body.nama_mapel,
+                kode_mapel: body.kode_mapel || null,
                 tahun_ajaran: body.tahun_ajaran,
                 semester: body.semester,
                 aktif: body.aktif,
