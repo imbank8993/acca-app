@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import StudentSelect from './StudentSelect';
 import Swal from 'sweetalert2';
 
