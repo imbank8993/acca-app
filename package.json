@@ -19,6 +19,7 @@
     "pizzip": "^3.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-select": "^5.10.2",
     "sweetalert2": "^11.26.17",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0"

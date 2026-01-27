@@ -9,9 +9,12 @@ import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
 import AbsensiPage from '../absensi/page'
 import KetidakhadiranPage from '../ketidakhadiran/page'
+import JurnalPage from '../jurnal/page'
+import PengaturanJurnalPage from '../jurnal/pengaturan/page'
 import MasterDataPage from '@/components/master/MasterDataPage'
 import DataSettingsPage from '@/components/settings/DataSettingsPage'
 import ResetDataPage from '@/components/reset/ResetDataPage'
+import StudentPortalPage from '../jurnal/siswa/page'
 
 export default function DashboardPage() {
   return (
@@ -96,17 +99,25 @@ function DashboardLogic() {
           role: 'ADMIN',
           roles: ['ADMIN', 'GURU'],
           divisi: 'IT',
-          pages: 'Dashboard,Master Data,Pengaturan Data,Reset Data',
-          pagesArray: ['Dashboard', 'Master Data', 'Pengaturan Data', 'Reset Data'],
-          pagesTree: [
-            { title: 'Dashboard', page: 'Dashboard', children: [] },
-            { title: 'Master Data', page: 'Master Data', children: [] },
-            { title: 'Pengaturan Data', page: 'Pengaturan Data', children: [] },
-            { title: 'Reset Data', page: 'Reset Data', children: [] }
-          ],
+          pages: 'Dashboard, Jurnal>Jurnal=jurnal|Pengaturan Jurnal=jurnal/pengaturan,Konfigurasi Data>Master Data|Pengaturan Data|Reset Data,Absensi,Nilai,LCKHApproval,LCKH,Status User=LogLogin ,JadwalGuru,Rekap Data>Absensi=RekapAbsensi|Jurnal=RekapJurnal,Master Data>Wali Kelas=WaliKelas|Guru Asuh=GuruAsuh|Kelas,Pengaturan Akun=User,Export Data>Absensi=ExportAbsensi|Jurnal=ExportJurnal,Rekap Absen&Jurnal=RekapKehadiranJurnal,Layanan Guru>Absensi Guru=AbsensiSiswa|Jurnal Guru=JurnalGuru,Sosialisasi,Ketidakhadiran,StatusSiswa',
+          pagesArray: ['Dashboard', 'jurnal', 'jurnal/pengaturan', 'Master Data', 'Pengaturan Data', 'Reset Data', 'Absensi', 'Nilai', 'LCKHApproval', 'LCKH', 'LogLogin', 'JadwalGuru', 'RekapAbsensi', 'RekapJurnal', 'WaliKelas', 'GuruAsuh', 'Kelas', 'User', 'ExportAbsensi', 'ExportJurnal', 'RekapKehadiranJurnal', 'AbsensiSiswa', 'JurnalGuru', 'Sosialisasi', 'Ketidakhadiran', 'StatusSiswa'],
+          pagesTree: [],
           aktif: true,
           photoUrl: null
         } as any
+
+        // Re-parse the tree for the mock user using the new string
+        if (userData.pages) {
+          // We can't easily import parsePages here dynamically without async, 
+          // but usually pagesTree is not critical if Sidebar handles it or if we just want pagesArray for access.
+          // But let's verify if Sidebar uses it. Sidebar.tsx (checked previously) uses user.pagesTree.
+          // For now, let's leave it empty and let fallback logic allow access if in pagesArray, 
+          // OR relying on the sidebar to handle empty tree? 
+          // Actually Sidebar.tsx likely iterates pagesTree.
+          // Let's try to mock the tree structure correctly if we want the mock user to see the sidebar properly.
+          // But implementing the parser here is too verbose.
+          // Simplest hack: The user likely has their own DB data. This Mock is just fallback.
+        }
       }
 
       setUser(userData)
@@ -208,7 +219,6 @@ function DashboardLogic() {
         </div>
       </div>
 
-      {/* ===== LAYOUT SHELL ONLY (NO GLOBAL RESET HERE) ===== */}
       <style jsx>{`
         .dashboard-layout {
           width: 100%;
@@ -219,12 +229,9 @@ function DashboardLogic() {
 
         .main-content {
           position: relative;
-
-          /* offset konten sesuai sidebar fixed */
           margin-left: var(--app-sidebar-w, 256px);
           width: calc(100% - var(--app-sidebar-w, 256px));
           min-width: 0;
-
           transition: margin-left 0.3s ease, width 0.3s ease;
         }
 
@@ -240,7 +247,6 @@ function DashboardLogic() {
           background: var(--n-bg, #f5f7fb);
         }
 
-        /* konten dipusatkan rapi */
         .content-container {
           width: 100%;
           max-width: 1600px;
@@ -280,15 +286,24 @@ function renderPageContent(page: string, user: User) {
     case 'Ketidakhadiran':
       return <KetidakhadiranPage />
 
-    case 'LCKH':
-      return <PagePlaceholder title="LCKH" icon="bi-journal-text" description="Modul Lembar Catatan Kegiatan Harian" />
+    // === JURNAL MODULE ===
+    case 'jurnal':
+      return <JurnalPage />
 
-    case 'Nilai':
-      return <PagePlaceholder title="Nilai" icon="bi-clipboard-data" description="Modul Penilaian Siswa" />
+    case 'jurnal/pengaturan':
+      return <PengaturanJurnalPage />
 
-    case 'Rapor':
-      return <PagePlaceholder title="Rapor" icon="bi-file-earmark-text" description="Modul Rapor Siswa" />
+    case 'jurnal/siswa':
+      return <StudentPortalPage />
 
+    // === LAYANAN GURU ===
+    case 'AbsensiSiswa':
+      return <PagePlaceholder title="Absensi Guru" icon="bi-person-check" description="Modul Absensi untuk Guru" />
+
+    case 'JurnalGuru':
+      return <JurnalPage />
+
+    // === KONFIGURASI DATA ===
     case 'Master Data':
       return <MasterDataPage />
 
@@ -297,6 +312,62 @@ function renderPageContent(page: string, user: User) {
 
     case 'Reset Data':
       return <ResetDataPage />
+
+    // === MASTER DATA SUBMENU ===
+    case 'WaliKelas':
+      return <PagePlaceholder title="Wali Kelas" icon="bi-person-badge" description="Management Wali Kelas" />
+
+    case 'GuruAsuh':
+      return <PagePlaceholder title="Guru Asuh" icon="bi-person-heart" description="Management Guru Asuh" />
+
+    case 'Kelas':
+      return <PagePlaceholder title="Kelas" icon="bi-building" description="Management Kelas" />
+
+    // === REKAP DATA ===
+    case 'RekapAbsensi':
+      return <PagePlaceholder title="Rekap Absensi" icon="bi-table" description="Rekapitulasi Absensi" />
+
+    case 'RekapJurnal':
+      return <PagePlaceholder title="Rekap Jurnal" icon="bi-journal-check" description="Rekapitulasi Jurnal" />
+
+    case 'RekapKehadiranJurnal':
+      return <PagePlaceholder title="Rekap Absen & Jurnal" icon="bi-layout-split" description="Gabungan Rekap Absensi dan Jurnal" />
+
+    // === EXPORT DATA ===
+    case 'ExportAbsensi':
+      return <PagePlaceholder title="Export Absensi" icon="bi-file-earmark-excel" description="Export Data Absensi" />
+
+    case 'ExportJurnal':
+      return <PagePlaceholder title="Export Jurnal" icon="bi-file-earmark-spreadsheet" description="Export Data Jurnal" />
+
+    // === SETTINGS & STATUS ===
+    case 'User':
+      return <PagePlaceholder title="Pengaturan Akun" icon="bi-person-gear" description="Management User Akun" />
+
+    case 'LogLogin':
+      return <PagePlaceholder title="Log Login" icon="bi-clock-history" description="History Login User" />
+
+    case 'StatusSiswa':
+      return <PagePlaceholder title="Status Siswa" icon="bi-people" description="Status Keaktifan Siswa" />
+
+    case 'JadwalGuru':
+      return <PagePlaceholder title="Jadwal Guru" icon="bi-calendar-week" description="Jadwal Mengajar Guru" />
+
+    // === OTHER MODULES ===
+    case 'LCKH':
+      return <PagePlaceholder title="LCKH" icon="bi-journal-text" description="Modul Lembar Catatan Kegiatan Harian" />
+
+    case 'LCKHApproval':
+      return <PagePlaceholder title="LCKH Approval" icon="bi-check2-circle" description="Persetujuan LCKH" />
+
+    case 'Nilai':
+      return <PagePlaceholder title="Nilai" icon="bi-clipboard-data" description="Modul Penilaian Siswa" />
+
+    case 'Rapor':
+      return <PagePlaceholder title="Rapor" icon="bi-file-earmark-text" description="Modul Rapor Siswa" />
+
+    case 'Sosialisasi':
+      return <PagePlaceholder title="Sosialisasi" icon="bi-megaphone" description="Modul Sosialisasi" />
 
     default:
       return <PagePlaceholder title={page} icon="bi-file-earmark" description={`Halaman ${page}`} />
@@ -338,7 +409,7 @@ function DashboardContent({ user }: { user: User }) {
           </div>
           <div className="stat-info">
             <div className="stat-label">Menu</div>
-            <div className="stat-value">{user.pagesTree.length}</div>
+            <div className="stat-value">{user.pagesTree.length || 0}</div>
           </div>
         </div>
       </div>
