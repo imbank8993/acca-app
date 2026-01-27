@@ -11,10 +11,11 @@ import AbsensiPage from '../absensi/page'
 import KetidakhadiranPage from '../ketidakhadiran/page'
 import JurnalPage from '../jurnal/page'
 import PengaturanJurnalPage from '../jurnal/pengaturan/page'
-import MasterDataPage from '@/components/master/MasterDataPage'
-import DataSettingsPage from '@/components/settings/DataSettingsPage'
-import ResetDataPage from '@/components/reset/ResetDataPage'
+import MasterDataPage from './components/master/MasterDataPage'
+import DataSettingsPage from './components/settings/DataSettingsPage'
+import ResetDataPage from './components/reset/ResetDataPage'
 import StudentPortalPage from '../jurnal/siswa/page'
+import UserSettingsPage from '../pengaturan-users/components/UserSettingsPage'
 
 export default function DashboardPage() {
   return (
@@ -107,7 +108,7 @@ function DashboardLogic() {
         } as any
 
         // Re-parse the tree for the mock user using the new string
-        if (userData.pages) {
+        if (userData && userData.pages) {
           // We can't easily import parsePages here dynamically without async, 
           // but usually pagesTree is not critical if Sidebar handles it or if we just want pagesArray for access.
           // But let's verify if Sidebar uses it. Sidebar.tsx (checked previously) uses user.pagesTree.
@@ -120,18 +121,20 @@ function DashboardLogic() {
         }
       }
 
-      setUser(userData)
+      if (userData) {
+        setUser(userData)
 
-      const pageParam = searchParams.get('page')
-      if (pageParam && userData.pagesArray.includes(pageParam)) {
-        setCurrentPage(pageParam)
-      } else {
-        if (userData.pagesTree.length > 0) {
-          const firstPage = userData.pagesTree[0]
-          if (firstPage.page) {
-            setCurrentPage(firstPage.page)
-          } else if (firstPage.children.length > 0 && firstPage.children[0].page) {
-            setCurrentPage(firstPage.children[0].page)
+        const pageParam = searchParams.get('page')
+        if (pageParam && userData.pagesArray.includes(pageParam)) {
+          setCurrentPage(pageParam)
+        } else {
+          if (userData.pagesTree && userData.pagesTree.length > 0) {
+            const firstPage = userData.pagesTree[0]
+            if (firstPage.page) {
+              setCurrentPage(firstPage.page)
+            } else if (firstPage.children && firstPage.children.length > 0 && firstPage.children[0].page) {
+              setCurrentPage(firstPage.children[0].page)
+            }
           }
         }
       }
@@ -288,7 +291,7 @@ function renderPageContent(page: string, user: User) {
 
     // === JURNAL MODULE ===
     case 'jurnal':
-      return <JurnalPage />
+      return <JurnalPage user={user} />
 
     case 'jurnal/pengaturan':
       return <PengaturanJurnalPage />
@@ -301,14 +304,17 @@ function renderPageContent(page: string, user: User) {
       return <PagePlaceholder title="Absensi Guru" icon="bi-person-check" description="Modul Absensi untuk Guru" />
 
     case 'JurnalGuru':
-      return <JurnalPage />
+      return <JurnalPage user={user} />
 
     // === KONFIGURASI DATA ===
     case 'Master Data':
-      return <MasterDataPage />
+      return <MasterDataPage user={user} />
 
     case 'Pengaturan Data':
-      return <DataSettingsPage />
+      return <DataSettingsPage user={user} />
+
+    case 'pengaturan-users':
+      return <UserSettingsPage />
 
     case 'Reset Data':
       return <ResetDataPage />

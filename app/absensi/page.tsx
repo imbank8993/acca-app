@@ -43,7 +43,7 @@ interface AbsensiRow {
 }
 
 export default function AbsensiPage() {
-    const nip = 'G-IC-001';
+    const [nip, setNip] = useState('');
 
     const [namaGuru, setNamaGuru] = useState('');
     const [nipDisplay, setNipDisplay] = useState('');
@@ -59,32 +59,52 @@ export default function AbsensiPage() {
 
     const [loading, setLoading] = useState(false);
 
-    // Export & Role State
+    const [userPermissions, setUserPermissions] = useState<any[]>([]);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-    const [userRole, setUserRole] = useState<string>('GURU'); // Default to GURU
+    const [userRole, setUserRole] = useState<string>('GURU');
 
     useEffect(() => {
         const today = new Date().toISOString().split('T')[0];
         setTanggal(today);
-        fetchUserRole();
+        fetchUserData();
     }, []);
 
-    const fetchUserRole = async () => {
+    const fetchUserData = async () => {
         try {
             const { supabase } = await import('@/lib/supabase');
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user?.id) {
-                const { data } = await supabase
-                    .from('users')
-                    .select('role')
-                    .eq('auth_id', user.id)
-                    .single();
-                if (data?.role) setUserRole(data.role);
+            const { getUserByAuthId } = await import('@/lib/auth');
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+
+            if (!authUser) {
+                console.warn('No authenticated user found');
+                return;
+            }
+
+            const userData = await getUserByAuthId(authUser.id);
+
+            // Set user data if found
+            if (userData) {
+                setUserRole(userData.role || 'GURU');
+                setNip(userData.nip || '');
+                setUserPermissions(userData.permissions || []);
+                setIsAdmin(userData.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false);
+                console.log('User data loaded:', userData.username);
+            } else {
+                console.error('User not found in database');
             }
         } catch (e) {
-            console.error('Error fetching role', e);
+            console.error('Error fetching user data', e);
         }
     };
+
+    const canDo = (resource: string, action: string) => {
+        if (isAdmin) return true;
+        return userPermissions.some(p =>
+            (p.resource === '*' || p.resource === resource) &&
+            (p.action === '*' || p.action === action)
+        );
+    }
 
     useEffect(() => {
         if (nip) loadScopes();
@@ -107,7 +127,7 @@ export default function AbsensiPage() {
 
     async function loadScopes() {
         try {
-            const res = await fetch(`/api/scopes?guru_id=${nip}`);
+            const res = await fetch(`/api/scopes?nip=${nip}`);
             const json = await res.json();
             if (json.ok && json.data) {
                 setScope(json.data);
@@ -146,7 +166,7 @@ export default function AbsensiPage() {
             const sesiRes = await authFetch('/api/absensi/sesi', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ guru_id: nip, kelas, mapel, tanggal, jam_ke: jamKe, nama_guru: namaGuru })
+                body: JSON.stringify({ nip: nip, kelas, mapel, tanggal, jam_ke: jamKe, nama_guru: namaGuru })
             });
             const sesiJson = await sesiRes.json();
             if (!sesiJson.ok) throw new Error(sesiJson.error || 'Gagal memuat absensi');
@@ -459,7 +479,10 @@ export default function AbsensiPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sesi_id: sesiId, details: data })
             });
-            if (!resDetail.ok) throw new Error('Gagal menyimpan detail absensi');
+            if (!resDetail.ok) {
+                const errJson = await resDetail.json().catch(() => ({}));
+                throw new Error(errJson.error || 'Gagal menyimpan detail absensi');
+            }
         };
 
         if (makeFinal) {
@@ -525,7 +548,7 @@ export default function AbsensiPage() {
             {/* PREMIUM HEADER */}
             <div className="absensi-header flex justify-between items-start">
                 <div>
-                    <h1 className="absensi-title">Absensi Guru</h1>
+                    <h1 className="absensi-title">Absensi Guru Mata Pelajaran</h1>
                     <p className="absensi-subtitle">
                         Login: {namaGuru || '...'} · NIP: {nipDisplay || nip}
                     </p>
@@ -607,7 +630,7 @@ export default function AbsensiPage() {
                     <button
                         className="btn btn-outline"
                         onClick={refreshKetidakhadiran}
-                        disabled={!currentSesi || isFinal}
+                        disabled={!currentSesi || isFinal || !canDo('absensi', 'refresh_ketidakhadiran')}
                         title="Ambil data terbaru dari modul ketidakhadiran"
                     >
                         <i className="bi bi-arrow-clockwise"></i>
@@ -615,7 +638,7 @@ export default function AbsensiPage() {
                     </button>
                     <button
                         className="btn btn-success"
-                        disabled={!currentSesi || isFinal}
+                        disabled={!currentSesi || isFinal || !canDo('absensi', 'save_draft')}
                         onClick={() => handleSimpan(false)}
                     >
                         <i className="bi bi-check-circle-fill"></i>
@@ -623,7 +646,7 @@ export default function AbsensiPage() {
                     </button>
                     <button
                         className="btn btn-dark"
-                        disabled={!currentSesi || isFinal}
+                        disabled={!currentSesi || isFinal || !canDo('absensi', 'finalize')}
                         onClick={() => handleSimpan(true)}
                     >
                         <i className="bi bi-lock-fill"></i>
@@ -631,7 +654,8 @@ export default function AbsensiPage() {
                     </button>
                     <button
                         onClick={() => setIsExportModalOpen(true)}
-                        className="btn bg-[#1D6F42] hover:bg-[#155230] text-white shadow-lg shadow-green-900/20 border-none" // Changed style to match theme
+                        disabled={!canDo('absensi', 'export')}
+                        className="btn bg-[#1D6F42] hover:bg-[#155230] text-white shadow-lg shadow-green-900/20 border-none"
                         title="Export Data Absensi ke Excel"
                     >
                         <i className="bi bi-file-earmark-excel-fill"></i>
@@ -745,6 +769,8 @@ export default function AbsensiPage() {
                 onClose={() => setIsExportModalOpen(false)}
                 userRole={userRole}
                 nip={nip}
+                permissions={userPermissions}
+                isAdmin={isAdmin}
             />
         </div >
     );

@@ -87,22 +87,38 @@ export default function KetidakhadiranPage() {
     // Dynamic Classes
     const [availableClasses, setAvailableClasses] = useState<string[]>([]);
 
+    const [userPermissions, setUserPermissions] = useState<any[]>([]);
+    const [isAdmin, setIsAdmin] = useState(false);
+
     useEffect(() => {
         fetchClasses();
-        fetchUserRole();
+        fetchUserData();
     }, []);
 
-    const fetchUserRole = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user?.id) {
-            const { data } = await supabase
-                .from('users')
-                .select('role')
-                .eq('auth_id', user.id)
-                .single();
-            setUserRole(data?.role || null);
+    const fetchUserData = async () => {
+        try {
+            const { supabase } = await import('@/lib/supabase');
+            const { getUserByAuthId } = await import('@/lib/auth');
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+
+            if (!authUser) return;
+
+            const userData = await getUserByAuthId(authUser.id);
+            if (userData) {
+                setUserRole(userData.role || null);
+                setUserPermissions(userData.permissions || []);
+                setIsAdmin(userData.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false);
+            }
+        } catch (e) {
+            console.error('Error fetching user data', e);
         }
     };
+
+    const canDo = (resource: string, action: string) => {
+        // Use the common hasPermission helper
+        const { hasPermission } = require('@/lib/permissions-client');
+        return hasPermission(userPermissions, resource, action, isAdmin);
+    }
 
     const fetchClasses = async () => {
         const { data } = await supabase
@@ -420,18 +436,21 @@ export default function KetidakhadiranPage() {
                 isOpen={isAddModalOpen}
                 onClose={() => setIsAddModalOpen(false)}
                 onSuccess={loadData}
+                canDo={canDo}
             />
             <EditModal
                 isOpen={isEditModalOpen}
                 onClose={() => setIsEditModalOpen(false)}
                 onSuccess={loadData}
                 data={editRow}
+                canDo={canDo}
             />
             <DeleteModal
                 isOpen={isDeleteModalOpen}
                 onClose={() => setIsDeleteModalOpen(false)}
                 onSuccess={loadData}
                 data={deleteRow}
+                canDo={canDo}
             />
             <PrintModal
                 isOpen={isPrintModalOpen}
@@ -452,10 +471,19 @@ export default function KetidakhadiranPage() {
                         <button className="btn-kh-soft" onClick={loadData} title="Refresh Data">
                             <i className="bi bi-arrow-clockwise"></i>
                         </button>
-                        <button className="btn-kh-excel" onClick={handleExport} title="Export to Excel">
+                        <button
+                            className="btn-kh-excel"
+                            onClick={handleExport}
+                            title="Export to Excel"
+                            disabled={!canDo('ketidakhadiran', 'export')}
+                        >
                             <i className="bi bi-file-earmark-excel-fill"></i>Export
                         </button>
-                        <button className="btn-kh-navy" onClick={() => setIsAddModalOpen(true)}>
+                        <button
+                            className="btn-kh-navy"
+                            onClick={() => setIsAddModalOpen(true)}
+                            disabled={!canDo('ketidakhadiran', 'create')}
+                        >
                             + Tambah
                         </button>
                     </div>
@@ -654,6 +682,7 @@ export default function KetidakhadiranPage() {
                                                         className="btn-icon-soft"
                                                         title="Edit"
                                                         onClick={() => openEditModal(row)}
+                                                        disabled={!canDo('ketidakhadiran', 'update')}
                                                     >
                                                         <i className="bi bi-pencil"></i>
                                                     </button>
@@ -661,6 +690,7 @@ export default function KetidakhadiranPage() {
                                                         className="btn-icon-delete"
                                                         title="Hapus"
                                                         onClick={() => openDeleteModal(row)}
+                                                        disabled={!canDo('ketidakhadiran', 'delete')}
                                                     >
                                                         <i className="bi bi-trash"></i>
                                                     </button>

@@ -8,6 +8,8 @@ interface ExportModalProps {
     onClose: () => void;
     userRole: string; // 'GURU' | 'ADMIN'
     nip?: string; // Required if role is GURU
+    permissions?: any[];
+    isAdmin?: boolean;
 }
 
 const MONTHS = [
@@ -25,7 +27,7 @@ const MONTHS = [
     { value: 12, label: 'Desember' }
 ];
 
-export default function ExportModal({ isOpen, onClose, userRole, nip }: ExportModalProps) {
+export default function ExportModal({ isOpen, onClose, userRole, nip, permissions = [], isAdmin = false }: ExportModalProps) {
     const [selectedMonths, setSelectedMonths] = useState<number[]>([new Date().getMonth() + 1]);
     const [year, setYear] = useState(new Date().getFullYear());
     const [exporting, setExporting] = useState(false);
@@ -644,20 +646,22 @@ export default function ExportModal({ isOpen, onClose, userRole, nip }: ExportMo
 
                 <div className="p-6">
                     {/* Mode Selection */}
-                    <div className="mb-6 flex p-1 bg-slate-100 rounded-xl">
-                        <button
-                            onClick={() => handleModeChange('GURU')}
-                            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${exportMode === 'GURU' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Per Mapel
-                        </button>
-                        <button
-                            onClick={() => handleModeChange('WALI')}
-                            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${exportMode === 'WALI' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Wali Kelas (Rekap)
-                        </button>
-                    </div>
+                    {(isAdmin || permissions.some(p => p.resource === 'absensi' && (p.action === '*' || p.action === 'export_all'))) && (
+                        <div className="mb-6 flex p-1 bg-slate-100 rounded-xl">
+                            <button
+                                onClick={() => handleModeChange('GURU')}
+                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${exportMode === 'GURU' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Per Mapel
+                            </button>
+                            <button
+                                onClick={() => handleModeChange('WALI')}
+                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${exportMode === 'WALI' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Wali Kelas (Rekap)
+                            </button>
+                        </div>
+                    )}
 
                     {/* Class Selector for Wali Mode */}
                     {exportMode === 'WALI' && (

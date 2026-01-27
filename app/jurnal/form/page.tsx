@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import FormJurnalSiswa from '@/components/jurnal/FormJurnalSiswa';
+import FormJurnalSiswa from '../components/FormJurnalSiswa';
 
 function FormJurnalContent() {
     const searchParams = useSearchParams();
@@ -63,6 +63,36 @@ function FormJurnalContent() {
         }
     };
 
+    const [userPermissions, setUserPermissions] = useState<any[]>([]);
+    const [isAdmin, setIsAdmin] = useState(false);
+
+    useEffect(() => {
+        fetchUserData();
+    }, []);
+
+    const fetchUserData = async () => {
+        try {
+            const { supabase } = await import('@/lib/supabase');
+            const { getUserByAuthId } = await import('@/lib/auth');
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+
+            if (authUser) {
+                const userData = await getUserByAuthId(authUser.id);
+                if (userData) {
+                    setUserPermissions(userData.permissions || []);
+                    setIsAdmin(userData.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false);
+                }
+            }
+        } catch (e) {
+            console.error('Error fetching user data', e);
+        }
+    };
+
+    const canDo = (resource: string, action: string) => {
+        const { hasPermission } = require('@/lib/permissions-client');
+        return hasPermission(userPermissions, resource, action, isAdmin);
+    }
+
     if (loading) {
         return (
             <div className="container mx-auto px-4 py-8">
@@ -103,6 +133,7 @@ function FormJurnalContent() {
                 jam_ke={jam_ke}
                 kelas={kelas}
                 initialData={journalData}
+                canDo={canDo}
             />
         </div>
     );

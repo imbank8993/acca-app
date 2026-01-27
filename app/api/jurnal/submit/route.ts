@@ -16,8 +16,51 @@ export async function POST(request: NextRequest) {
             guru_pengganti,
             keterangan_terlambat,
             keterangan_tambahan,
-            guru_piket
+            guru_piket,
+            auth_id // Added to check permissions
         } = body;
+
+        // Check Permissions
+        if (auth_id) {
+            const { getUserByAuthId } = await import('@/lib/auth');
+            const { hasPermission } = await import('@/lib/permissions');
+            const user = await getUserByAuthId(auth_id);
+            if (user) {
+                const isAdmin = user.roles.some(r => r.toUpperCase() === 'ADMIN');
+                const allowed = hasPermission(user.permissions || [], 'jurnal', 'update', isAdmin);
+                if (!allowed) {
+                    return NextResponse.json({ error: 'Unauthorized to edit journal' }, { status: 403 });
+                }
+
+                // Check field-level permissions if NOT admin and NOT edit_full
+                if (!isAdmin && !hasPermission(user.permissions || [], 'jurnal', 'edit_full', false)) {
+                    // Check if existing data is being changed for restricted fields
+                    const { data: current } = await supabaseAdmin
+                        .from('jurnal_guru')
+                        .select('*')
+                        .match({ nip, tanggal, jam_ke, kelas })
+                        .single();
+
+                    if (current) {
+                        if (kategori_kehadiran !== undefined && kategori_kehadiran !== current.kategori_kehadiran) {
+                            if (!hasPermission(user.permissions || [], 'jurnal', 'edit_kehadiran', false)) {
+                                return NextResponse.json({ error: 'Unauthorized to change attendance status' }, { status: 403 });
+                            }
+                        }
+                        if (materi !== undefined && materi !== current.materi) {
+                            if (!hasPermission(user.permissions || [], 'jurnal', 'edit_materi', false)) {
+                                return NextResponse.json({ error: 'Unauthorized to change material' }, { status: 403 });
+                            }
+                        }
+                        if (refleksi !== undefined && refleksi !== current.refleksi) {
+                            if (!hasPermission(user.permissions || [], 'jurnal', 'edit_refleksi', false)) {
+                                return NextResponse.json({ error: 'Unauthorized to change reflection' }, { status: 403 });
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // Validate required fields
         if (!nip || !tanggal || !jam_ke || !kelas) {

@@ -39,10 +39,10 @@ export async function GET(
         // Tabel: siswa_kelas (NISN sebagai identifier)
         const { data, error } = await supabase
             .from('siswa_kelas')
-            .select('nama, nisn, kelas, aktif')
+            .select('nama_siswa, nisn, kelas, aktif')
             .eq('kelas', kelas)
             .eq('aktif', true)
-            .order('nama', { ascending: true });
+            .order('nama_siswa', { ascending: true });
 
         console.log('[API /siswa] Query result:', { count: data?.length || 0, error: error?.message });
 
@@ -54,15 +54,22 @@ export async function GET(
             );
         }
 
-        // Map nama → nama_siswa untuk compatibility dengan interface Siswa
-        // Gunakan NISN sebagai siswa_id (primary identifier)
-        const siswaList = (data || []).map(s => ({
-            siswa_id: s.nisn,  // NISN sebagai ID utama
-            nama_siswa: s.nama,
-            nisn: s.nisn,
-            kelas: s.kelas,
-            aktif: s.aktif
-        }));
+        // Map nama_siswa -> nama_siswa for compatibility with Siswa interface
+        // Use NISN as siswa_id (primary identifier)
+        const uniqueSiswa = new Map();
+        (data || []).forEach(s => {
+            if (!uniqueSiswa.has(s.nisn)) {
+                uniqueSiswa.set(s.nisn, {
+                    siswa_id: s.nisn,  // NISN as primary ID
+                    nama_siswa: s.nama_siswa,
+                    nisn: s.nisn,
+                    kelas: s.kelas,
+                    aktif: s.aktif
+                });
+            }
+        });
+
+        const siswaList = Array.from(uniqueSiswa.values());
 
         return NextResponse.json<ApiResponse<Siswa[]>>({
             ok: true,

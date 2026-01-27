@@ -1,0 +1,75 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import UserSettingsPage from './components/UserSettingsPage'
+import type { User } from '@/lib/types'
+
+export default function PengaturanUsersPage() {
+    const router = useRouter()
+    const [user, setUser] = useState<User | null>(null)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        // Check if user is logged in and is admin
+        const checkAuth = async () => {
+            try {
+                const res = await fetch('/api/scopes/my-scopes')
+                const data = await res.json()
+
+                if (!data.ok || !data.guru) {
+                    // Not logged in
+                    router.push('/login')
+                    return
+                }
+
+                // Get user data from session/cookie
+                // For now, we'll assume the user data is available
+                // In production, you might want to fetch this from an API
+                const sessionData = localStorage.getItem('user')
+                if (sessionData) {
+                    const userData: User = JSON.parse(sessionData)
+
+                    // Check if user has ADMIN role (God Mode)
+                    if (!userData.roles.some(r => r.toUpperCase() === 'ADMIN')) {
+                        alert('Akses ditolak! Halaman ini hanya untuk Admin.')
+                        router.push('/dashboard')
+                        return
+                    }
+
+                    setUser(userData)
+                } else {
+                    router.push('/login')
+                }
+            } catch (error) {
+                console.error('Error checking auth:', error)
+                router.push('/login')
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        checkAuth()
+    }, [router])
+
+    if (loading) {
+        return (
+            <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '100vh',
+                fontSize: '1.2rem',
+                color: 'rgba(11, 31, 58, 0.7)'
+            }}>
+                Loading...
+            </div>
+        )
+    }
+
+    if (!user) {
+        return null
+    }
+
+    return <UserSettingsPage />
+}

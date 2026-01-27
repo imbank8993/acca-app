@@ -19,6 +19,22 @@ export function parseRoles(roleStr: string): string[] {
 }
 
 /**
+ * Format role for display (e.g. "ADMIN" -> "Admin", "GURU_ASUH" -> "Guru Asuh")
+ */
+export function formatRoleDisplay(role: string): string {
+    if (!role) return '';
+    const upperRole = role.toUpperCase();
+
+    // Spesifik untuk OP_ABSENSI tampilkan sebagai OP_Absensi
+    if (upperRole === 'OP_ABSENSI') return 'OP_Absensi';
+
+    return role
+        .split(/[_, ]/)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+}
+
+/**
  * Parse pages string into array and tree structure
  * Format: "Dashboard,User,Laporan>ExportJurnal|ExportAbsensi"
  * Also supports legacy format with Unicode checkbox symbols: "☑Page1☐Page2"
@@ -101,9 +117,24 @@ export function parsePages(pagesStr: string): {
 /**
  * Build full user object from database row
  */
-export function buildUserObject(dbUser: any): User {
+export async function buildUserObject(dbUser: any): Promise<User> {
     const roles = parseRoles(dbUser.role || '');
     const { pagesArray, pagesTree } = parsePages(dbUser.pages || '');
+
+    // Fetch permissions for the roles
+    let permissions: any[] = [];
+    try {
+        const { data: permsData } = await supabase
+            .from('role_permissions')
+            .select('*')
+            .in('role_name', roles);
+
+        if (permsData) {
+            permissions = permsData;
+        }
+    } catch (err) {
+        console.error('Error fetching permissions in buildUserObject:', err);
+    }
 
     return {
         id: dbUser.id,
@@ -118,7 +149,8 @@ export function buildUserObject(dbUser: any): User {
         pagesArray,
         pagesTree,
         aktif: dbUser.aktif === true || dbUser.aktif === 'true' || dbUser.aktif === 'ya',
-        photoUrl: dbUser.photoUrl || null
+        photoUrl: dbUser.photoUrl || null,
+        permissions
     };
 }
 
@@ -135,7 +167,7 @@ export async function getUserByUsername(username: string): Promise<User | null> 
 
         if (error || !data) return null;
 
-        return buildUserObject(data);
+        return await buildUserObject(data);
     } catch (e) {
         console.error('getUserByUsername error:', e);
         return null;
@@ -155,7 +187,7 @@ export async function getUserByAuthId(authId: string): Promise<User | null> {
 
         if (error || !data) return null;
 
-        return buildUserObject(data);
+        return await buildUserObject(data);
     } catch (e) {
         console.error('getUserByAuthId error:', e);
         return null;

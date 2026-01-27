@@ -8,9 +8,10 @@ interface EditModalProps {
   onClose: () => void;
   onSuccess: () => void;
   data: any;
+  canDo: (res: string, act: string) => boolean;
 }
 
-export default function EditModal({ isOpen, onClose, onSuccess, data }: EditModalProps) {
+export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: EditModalProps) {
   const [status, setStatus] = useState("");
   const [tglMulai, setTglMulai] = useState("");
   const [tglSelesai, setTglSelesai] = useState("");
@@ -57,6 +58,17 @@ export default function EditModal({ isOpen, onClose, onSuccess, data }: EditModa
         text: "Semua field wajib diisi",
         icon: "warning",
         confirmButtonColor: "#0b1b3a",
+      });
+      return;
+    }
+
+    // [CAPABILITY CHECK]
+    const jenis = String(data.jenis || "").toUpperCase();
+    if (!canDo(`ketidakhadiran:${jenis}`, "update")) {
+      await Swal.fire({
+        title: "Ditolak",
+        text: `Anda tidak punya izin untuk mengubah data ${jenis}`,
+        icon: "error",
       });
       return;
     }

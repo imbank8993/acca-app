@@ -8,22 +8,34 @@ interface AddModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+    canDo: (res: string, act: string) => boolean;
 }
 
-export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) {
+export default function AddModal({ isOpen, onClose, onSuccess, canDo }: AddModalProps) {
     const [jenis, setJenis] = useState<'IZIN' | 'SAKIT'>('IZIN');
     const [status, setStatus] = useState('MADRASAH');
 
-    // IZIN fields
+    // ... rest of state
     const [ketIzin, setKetIzin] = useState('');
-
-    // SAKIT fields
     const [ketSakit, setKetSakit] = useState('');
-
-    // Common fields
     const [tglMulai, setTglMulai] = useState('');
     const [tglSelesai, setTglSelesai] = useState('');
     const [selectedNisns, setSelectedNisns] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (isOpen) {
+            const allowedIzin = canDo('ketidakhadiran:IZIN', 'create');
+            const allowedSakit = canDo('ketidakhadiran:SAKIT', 'create');
+
+            if (allowedIzin) {
+                setJenis('IZIN');
+                setStatus('MADRASAH');
+            } else if (allowedSakit) {
+                setJenis('SAKIT');
+                setStatus('Ringan');
+            }
+        }
+    }, [isOpen]);
 
     const [submitting, setSubmitting] = useState(false);
 
@@ -157,8 +169,8 @@ export default function AddModal({ isOpen, onClose, onSuccess }: AddModalProps) 
                                     }}
                                     className="form-input"
                                 >
-                                    <option value="IZIN">IZIN</option>
-                                    <option value="SAKIT">SAKIT</option>
+                                    {canDo('ketidakhadiran:IZIN', 'create') && <option value="IZIN">IZIN</option>}
+                                    {canDo('ketidakhadiran:SAKIT', 'create') && <option value="SAKIT">SAKIT</option>}
                                 </select>
                                 <i className="bi bi-chevron-down select-icon"></i>
                             </div>

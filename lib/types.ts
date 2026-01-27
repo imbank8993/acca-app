@@ -15,6 +15,7 @@ export interface User {
     pagesTree: PageNode[]; // Hierarchical menu structure
     aktif: boolean;
     photoUrl: string | null;
+    permissions?: Array<{ resource: string, action: string, is_allowed: boolean }>;
 }
 
 export interface PageNode {

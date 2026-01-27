@@ -206,7 +206,22 @@ export async function POST(request: NextRequest) {
                 .order('tanggal', { ascending: true });
 
             // Role-based filtering
-            if (role !== 'ADMIN') {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (!authUser) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+
+            const { data: dbUser } = await createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY! // Need service role to fetch complete user info
+            )
+                .from('users')
+                .select('roles')
+                .eq('auth_id', authUser.id)
+                .single();
+
+            const userRoles = dbUser?.roles || [];
+            const isAdmin = userRoles.some((r: string) => r.toUpperCase() === 'ADMIN');
+
+            if (!isAdmin) {
                 if (!nip) return NextResponse.json<ApiResponse>({ ok: false, error: 'NIP wajib untuk role Guru' }, { status: 400 });
                 query = query.eq('nip', nip);
             }

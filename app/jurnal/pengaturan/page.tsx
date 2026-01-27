@@ -1,6 +1,6 @@
 'use client';
 
-import PengaturanJurnalForm from '@/components/jurnal/PengaturanJurnalForm';
+import PengaturanJurnalForm from '../components/PengaturanJurnalForm';
 
 export default function PengaturanJurnalPage() {
     return (
