@@ -16,7 +16,9 @@ export async function POST(request: NextRequest) {
             guru_pengganti,
             keterangan_terlambat,
             keterangan_tambahan,
-            guru_piket,
+            nama_guru,
+            mata_pelajaran,
+            hari,
             auth_id // Added to check permissions
         } = body;
 
@@ -100,12 +102,31 @@ export async function POST(request: NextRequest) {
             if (error) throw error;
             result = data;
         } else {
-            // Entry doesn't exist - shouldn't happen normally
-            // But we can handle it by creating a new entry
-            return NextResponse.json(
-                { error: 'Journal entry not found. Please contact administrator.' },
-                { status: 404 }
-            );
+            // Entry doesn't exist - Create a new entry
+            const { data, error } = await supabaseAdmin
+                .from('jurnal_guru')
+                .insert({
+                    nip,
+                    nama_guru,
+                    tanggal,
+                    hari,
+                    jam_ke,
+                    kelas,
+                    mata_pelajaran,
+                    materi,
+                    refleksi,
+                    kategori_kehadiran: kategori_kehadiran || 'Sesuai',
+                    guru_pengganti,
+                    keterangan_terlambat,
+                    keterangan_tambahan,
+                    guru_piket,
+                    created_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+            result = data;
         }
 
         return NextResponse.json({

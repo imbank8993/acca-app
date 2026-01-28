@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { submitJurnal, fetchGuru } from '@/utils/jurnalApi';
 
-interface FormJurnalSiswaProps {
+interface JournalEntryFormProps {
     nip: string;
     tanggal: string;
     jam_ke: number;
@@ -23,7 +23,7 @@ interface FormJurnalSiswaProps {
     canDo?: (res: string, act: string) => boolean;
 }
 
-export default function FormJurnalSiswa({ nip, tanggal, jam_ke, kelas, initialData, canDo = () => true }: FormJurnalSiswaProps) {
+export default function JournalEntryForm({ nip, tanggal, jam_ke, kelas, initialData, canDo = () => true }: JournalEntryFormProps) {
     const [formData, setFormData] = useState({
         materi: initialData?.materi || '',
         refleksi: initialData?.refleksi || '',

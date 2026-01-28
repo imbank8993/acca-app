@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
 
     // Protected Routes Pattern
-    const protectedPrefixes = ['/dashboard', '/reset-data', '/settings', '/master', '/academic']
+    const protectedPrefixes = ['/dashboard', '/reset-data', '/settings', '/master']
     const isProtected = protectedPrefixes.some(prefix => url.pathname.startsWith(prefix))
 
     // Auth Routes

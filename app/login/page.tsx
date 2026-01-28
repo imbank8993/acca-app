@@ -163,18 +163,22 @@ export default function LoginPage() {
           <h3>Login ACCA</h3>
 
           <form onSubmit={handleLogin}>
-            <input
-              type="text"
-              id="username"
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              disabled={loading}
-              suppressHydrationWarning
-            />
+            <div className="input-group">
+              <i className="bi bi-person input-icon"></i>
+              <input
+                type="text"
+                id="username"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                disabled={loading}
+                suppressHydrationWarning
+              />
+            </div>
 
-            <div className="position-relative">
+            <div className="input-group">
+              <i className="bi bi-lock input-icon"></i>
               <input
                 type={showPassword ? 'text' : 'password'}
                 id="password"
@@ -202,7 +206,10 @@ export default function LoginPage() {
 
             <button type="submit" id="btnLogin" disabled={loading}>
               {loading ? (
-                'Memproses...'
+                <>
+                  <div className="spinner me-2"></div>
+                  Memproses...
+                </>
               ) : (
                 <>
                   <i className="fa-solid fa-right-to-bracket me-2"></i>
@@ -237,6 +244,18 @@ export default function LoginPage() {
           width: 100%;
           min-height: 100vh;
           background: #f5f7fb;
+          animation: fadeIn 0.8s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
 
         #login-left {
@@ -245,14 +264,28 @@ export default function LoginPage() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          background: radial-gradient(1000px 600px at 20% 20%, rgba(58,166,255,.18), transparent 60%),
-                      radial-gradient(900px 520px at 20% 80%, rgba(0,209,209,.12), transparent 55%),
-                      linear-gradient(135deg, #061126, #0b1b3a, #0f2a56);
+          background: linear-gradient(135deg, #0f2a56, #163b78);
           color: #eaf2ff;
           padding: 60px 40px;
           text-align: center;
           overflow: hidden;
           position: relative;
+          animation: subtleWave 15s ease-in-out infinite;
+        }
+
+        @keyframes subtleWave {
+          0%, 100% {
+            background: linear-gradient(135deg, #0f2a56, #163b78);
+          }
+          25% {
+            background: linear-gradient(135deg, #163b78, #1c4c99);
+          }
+          50% {
+            background: linear-gradient(135deg, #1c4c99, #0f2a56);
+          }
+          75% {
+            background: linear-gradient(135deg, #0f2a56, #163b78);
+          }
         }
 
         #login-left::after {
@@ -327,10 +360,24 @@ export default function LoginPage() {
           font-size: clamp(1.05rem, 3.8vw, 1.35rem);
         }
 
+        .input-group {
+          position: relative;
+          margin-bottom: 20px;
+        }
+
+        .input-icon {
+          position: absolute;
+          left: 18px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #666;
+          font-size: 1.1rem;
+          z-index: 1;
+        }
+
         .login-card input {
           width: 100%;
-          padding: 14px 18px;
-          margin-bottom: 20px;
+          padding: 14px 18px 14px 50px;
           border-radius: 14px;
           border: 1px solid rgba(15,42,86,.18);
           font-size: 1rem;
@@ -349,14 +396,13 @@ export default function LoginPage() {
           cursor: not-allowed;
         }
 
-        .position-relative {
+        .input-group {
           position: relative;
           margin-bottom: 20px;
         }
 
-        .position-relative input {
+        .input-group input {
           padding-right: 60px !important;
-          margin-bottom: 0;
         }
 
         #togglePassword {
@@ -376,6 +422,9 @@ export default function LoginPage() {
           z-index: 10;
           user-select: none;
           transition: color .2s ease;
+          background: transparent;
+          border: none;
+          padding: 0;
         }
 
         #togglePassword i {
@@ -418,6 +467,7 @@ export default function LoginPage() {
           display: flex;
           align-items: center;
           justify-content: center;
+          gap: 8px;
         }
 
         #btnLogin:hover:not(:disabled) {
@@ -431,6 +481,21 @@ export default function LoginPage() {
           cursor: not-allowed;
           transform: none;
         }
+
+        .spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(255,255,255,.3);
+          border-radius: 50%;
+          border-top-color: #fff;
+          animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+
 
         @media (max-width: 992px) {
           .login-container {

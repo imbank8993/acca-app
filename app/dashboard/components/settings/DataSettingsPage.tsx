@@ -7,8 +7,9 @@ import GuruAsuhTab from './GuruAsuhTab'
 import GuruMapelTab from './GuruMapelTab'
 import JadwalGuruTab from './JadwalGuruTab'
 import LiburTab from './LiburTab'
+import TugasTambahanTab from './TugasTambahanTab'
 
-type TabType = 'siswa_kelas' | 'wali_kelas' | 'guru_asuh' | 'guru_mapel' | 'jadwal_guru' | 'libur'
+type TabType = 'siswa_kelas' | 'wali_kelas' | 'guru_asuh' | 'guru_mapel' | 'jadwal_guru' | 'libur' | 'tugas_tambahan'
 
 export default function DataSettingsPage({ user }: { user?: any }) {
   const { hasPermission } = require('@/lib/permissions-client')
@@ -22,6 +23,7 @@ export default function DataSettingsPage({ user }: { user?: any }) {
       { key: 'guru_asuh', label: 'Guru Asuh', icon: 'bi-heart' },
       { key: 'guru_mapel', label: 'Guru Mapel', icon: 'bi-book-half' },
       { key: 'jadwal_guru', label: 'Jadwal Guru', icon: 'bi-calendar-week' },
+      { key: 'tugas_tambahan', label: 'Tugas Tambahan', icon: 'bi-person-badge' },
       { key: 'libur', label: 'Data Libur', icon: 'bi-calendar-event' }
     ],
     []
@@ -71,6 +73,7 @@ export default function DataSettingsPage({ user }: { user?: any }) {
           {activeTab === 'guru_asuh' && <GuruAsuhTab />}
           {activeTab === 'guru_mapel' && <GuruMapelTab />}
           {activeTab === 'jadwal_guru' && <JadwalGuruTab />}
+          {activeTab === 'tugas_tambahan' && <TugasTambahanTab />}
           {activeTab === 'libur' && <LiburTab />}
         </div>
       </div>

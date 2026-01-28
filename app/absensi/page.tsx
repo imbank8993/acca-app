@@ -117,11 +117,38 @@ export default function AbsensiPage() {
         }
     }, [kelas, scope]);
 
+    const formatJamRange = (jams: string[]) => {
+        if (!jams || jams.length === 0) return [];
+        const sorted = [...jams].map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+        if (sorted.length === 0) return jams;
+
+        const ranges = [];
+        let start = sorted[0];
+        let end = sorted[0];
+
+        for (let i = 1; i < sorted.length; i++) {
+            if (sorted[i] === end + 1) {
+                end = sorted[i];
+            } else {
+                ranges.push(start === end ? `${start}` : `${start}-${end}`);
+                start = sorted[i];
+                end = sorted[i];
+            }
+        }
+        ranges.push(start === end ? `${start}` : `${start}-${end}`);
+        return ranges;
+    };
+
     useEffect(() => {
         if (scope && kelas && mapel) {
             const key = `${kelas}||${mapel}`;
             const jamList = scope.jamKeByKelasMapel[key] || ['1'];
-            if (jamList.length > 0 && !jamKe) setJamKe(jamList[0]);
+            const ranges = formatJamRange(jamList);
+            if (ranges.length > 0) {
+                if (!jamKe || !ranges.includes(jamKe)) {
+                    setJamKe(ranges[0]);
+                }
+            }
         }
     }, [kelas, mapel, scope]);
 
@@ -604,7 +631,9 @@ export default function AbsensiPage() {
                                 value={jamKe}
                                 onChange={e => setJamKe(e.target.value)}
                             >
-                                {((scope && scope.jamKeByKelasMapel[`${kelas}||${mapel}`]) || ['1']).map(j => <option key={j} value={j}>{j}</option>)}
+                                {formatJamRange((scope && scope.jamKeByKelasMapel[`${kelas}||${mapel}`]) || ['1']).map(j => (
+                                    <option key={j} value={j}>{j}</option>
+                                ))}
                             </select>
                         </div>
                     </div>

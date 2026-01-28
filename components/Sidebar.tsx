@@ -61,6 +61,9 @@ const getMenuIcon = (name: string): string => {
     'jurnalguru': 'fa-file-lines',
     'pengaturan akun': 'fa-gear',
     'reset data': 'fa-triangle-exclamation',
+    'tugastambahan': 'fa-file-signature',
+    'admintugastambahan': 'fa-user-gear',
+    'tugas tambahan': 'fa-briefcase',
   }
 
 

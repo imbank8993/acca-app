@@ -2,24 +2,20 @@
 
 import { useMemo, useState } from 'react'
 import PageAccessTab from './PageAccessTab'
-import RoleManagementTab from './RoleManagementTab'
 import UserDataTab from './UserDataTab'
-import UserActivationTab from './UserActivationTab'
 import BulkReplaceTab from './BulkReplaceTab'
 import RolePermissionsTab from './RolePermissionsTab'
 
-type TabType = 'page_access' | 'role_management' | 'role_permissions' | 'user_data' | 'user_activation' | 'bulk_replace'
+type TabType = 'page_access' | 'role_permissions' | 'user_data' | 'bulk_replace'
 
 export default function UserSettingsPage() {
   const [activeTab, setActiveTab] = useState<TabType>('page_access')
 
   const tabs = useMemo(
     () => [
-      { key: 'page_access', label: 'Akses Halaman', icon: 'bi-diagram-3' },
-      { key: 'role_management', label: 'Kelola Role', icon: 'bi-shield-check' },
+      { key: 'page_access', label: 'Akses & Role', icon: 'bi-shield-lock' },
       { key: 'role_permissions', label: 'Izin Role (V2)', icon: 'bi-key' },
-      { key: 'user_data', label: 'Edit Data User', icon: 'bi-person-gear' },
-      { key: 'user_activation', label: 'Status User', icon: 'bi-toggle-on' },
+      { key: 'user_data', label: 'Data & Status', icon: 'bi-person-gear' },
       { key: 'bulk_replace', label: 'Ganti Data Massal', icon: 'bi-arrow-repeat' }
     ],
     []
@@ -59,10 +55,8 @@ export default function UserSettingsPage() {
 
         <div className="us__panel" role="tabpanel">
           {activeTab === 'page_access' && <PageAccessTab />}
-          {activeTab === 'role_management' && <RoleManagementTab />}
           {activeTab === 'role_permissions' && <RolePermissionsTab />}
           {activeTab === 'user_data' && <UserDataTab />}
-          {activeTab === 'user_activation' && <UserActivationTab />}
           {activeTab === 'bulk_replace' && <BulkReplaceTab />}
         </div>
       </div>

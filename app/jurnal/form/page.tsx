@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import FormJurnalSiswa from '../components/FormJurnalSiswa';
+import JournalEntryForm from '../components/JournalEntryForm';
 
 function FormJurnalContent() {
     const searchParams = useSearchParams();
@@ -127,7 +127,7 @@ function FormJurnalContent() {
                 <p className="text-gray-600">Isi atau update jurnal pembelajaran</p>
             </div>
 
-            <FormJurnalSiswa
+            <JournalEntryForm
                 nip={nip}
                 tanggal={tanggal}
                 jam_ke={jam_ke}

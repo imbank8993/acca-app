@@ -1,0 +1,363 @@
+.tt-page {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    padding: 24px 30px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(30, 58, 138, 0.08);
+    border: 1px solid rgba(30, 58, 138, 0.05);
+}
+
+.tt-header h1 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #1e3a8a;
+}
+
+.tt-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+}
+
+.tt-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 10px 25px rgba(30, 58, 138, 0.05);
+    border: 1px solid rgba(30, 58, 138, 0.05);
+}
+
+.tt-card h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tt-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tt-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #f1f5f9;
+}
+
+.tt-item-icon {
+    width: 36px;
+    height: 36px;
+    background: #e0e7ff;
+    color: #4338ca;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.tt-item-title {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 0.9rem;
+}
+
+.tt-item-sub {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.tt-table-wrap {
+    overflow-x: auto;
+}
+
+.tt-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.tt-table th {
+    text-align: left;
+    padding: 12px 16px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid #f1f5f9;
+}
+
+.tt-table td {
+    padding: 16px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.9rem;
+    color: #334155;
+}
+
+.badge-tt {
+    padding: 4px 10px;
+    background: #eff6ff;
+    color: #2563eb;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    .tt-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ==========================================================================
+   SHARED STYLES (IMPORTED FROM JURNAL MODULE FOR CONSISTENCY)
+   ========================================================================== */
+
+:root {
+    --jt-navy: #1e3a8a;
+    --jt-navy-light: rgba(30, 58, 138, 0.15);
+    --jt-navy-medium: rgba(30, 58, 138, 0.75);
+    --jt-navy-dark: #0f1b2a;
+    --jt-navy-accent: #1e40af;
+    --jt-navy-bg: linear-gradient(135deg, #1e3a8a, #1e40af);
+    --jt-navy-bg-light: linear-gradient(135deg, rgba(30, 58, 138, 0.2), rgba(30, 64, 175, 0.2));
+    --jt-navy-bg-darker: linear-gradient(135deg, #0f1b2a, #1e3a8a);
+
+    --jt-line: rgba(30, 58, 138, 0.5);
+    --jt-card: rgba(248, 250, 252, 0.98);
+    --jt-shadow: 0 20px 50px rgba(30, 58, 138, 0.25);
+    --jt-shadow2: 0 16px 35px rgba(30, 58, 138, 0.3);
+    --jt-radius: 20px;
+    --jt-fs: 0.9rem;
+    --jt-fs-sm: 0.84rem;
+    --jt-fs-xs: 0.8rem;
+}
+
+.jt__pageHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fff;
+    padding: 24px;
+    border-radius: var(--jt-radius);
+    border: 1px solid var(--jt-line);
+    box-shadow: var(--jt-shadow2);
+    margin-bottom: 8px;
+}
+
+.jt__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.jt__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 8px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--jt-line);
+    background: rgba(255, 255, 255, 0.78);
+    color: var(--jt-navy-dark);
+    font-weight: 600;
+    font-size: var(--jt-fs-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.jt__btnPrimary {
+    background: var(--jt-navy-bg);
+    color: #fff;
+    border: none;
+}
+
+.jt__btnPrimary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+}
+
+.jt__modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.2s ease-out;
+}
+
+.jt__modalContent {
+    background: #fff;
+    border-radius: var(--jt-radius);
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--jt-shadow);
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.jt__modalHeader {
+    padding: 20px;
+    border-bottom: 1px solid var(--jt-line);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8fafc;
+    border-top-left-radius: var(--jt-radius);
+    border-top-right-radius: var(--jt-radius);
+}
+
+.jt__modalHeader h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--jt-navy-dark);
+    font-weight: 700;
+}
+
+.jt__modalClose {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    color: #64748b;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.jt__modalBody {
+    padding: 24px;
+}
+
+.jt__formGroup {
+    margin-bottom: 16px;
+}
+
+.jt__formLabel {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--jt-navy-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    margin-left: 4px;
+}
+
+.jt__formInput {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(30, 58, 138, 0.2);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    background: #fff;
+    outline: none;
+}
+
+.jt__formInput:focus {
+    border-color: var(--jt-navy-accent);
+    box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.1);
+}
+
+.jt__modalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 20px 24px;
+    background-color: #f8fafc;
+    border-top: 1px solid #f1f5f9;
+    border-bottom-left-radius: var(--jt-radius);
+    border-bottom-right-radius: var(--jt-radius);
+}
+
+.jt__iconBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--jt-line);
+    background: #fff;
+    color: var(--jt-navy-medium);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.jt__iconBtn:hover {
+    transform: scale(1.1);
+    background: var(--jt-navy-light);
+}
+
+.jt__iconBtn.danger {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.jt__iconBtn.danger:hover {
+    background: #fef2f2;
+}
+
+/* Custom Scrollbar for Modal */
+.jt__modalContent::-webkit-scrollbar {
+    width: 6px;
+}
+
+.jt__modalContent::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}

@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getUserByAuthId } from '@/lib/auth'
+import { getUserByAuthId, parsePages } from '@/lib/auth'
 import type { User } from '@/lib/types'
 import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
@@ -14,8 +14,10 @@ import PengaturanJurnalPage from '../jurnal/pengaturan/page'
 import MasterDataPage from './components/master/MasterDataPage'
 import DataSettingsPage from './components/settings/DataSettingsPage'
 import ResetDataPage from './components/reset/ResetDataPage'
-import StudentPortalPage from '../jurnal/siswa/page'
 import UserSettingsPage from '../pengaturan-users/components/UserSettingsPage'
+import NilaiPage from '../nilai/page'
+import TugasTambahanPage from '../tugas-tambahan/page'
+import AdminTugasTambahanPage from '../tugas-tambahan/admin/page'
 
 export default function DashboardPage() {
   return (
@@ -107,17 +109,11 @@ function DashboardLogic() {
           photoUrl: null
         } as any
 
-        // Re-parse the tree for the mock user using the new string
+        // Re-parse the tree for the mock user
         if (userData && userData.pages) {
-          // We can't easily import parsePages here dynamically without async, 
-          // but usually pagesTree is not critical if Sidebar handles it or if we just want pagesArray for access.
-          // But let's verify if Sidebar uses it. Sidebar.tsx (checked previously) uses user.pagesTree.
-          // For now, let's leave it empty and let fallback logic allow access if in pagesArray, 
-          // OR relying on the sidebar to handle empty tree? 
-          // Actually Sidebar.tsx likely iterates pagesTree.
-          // Let's try to mock the tree structure correctly if we want the mock user to see the sidebar properly.
-          // But implementing the parser here is too verbose.
-          // Simplest hack: The user likely has their own DB data. This Mock is just fallback.
+          const { pagesTree, pagesArray } = parsePages(userData.pages)
+          userData.pagesTree = pagesTree
+          userData.pagesArray = pagesArray
         }
       }
 
@@ -296,9 +292,6 @@ function renderPageContent(page: string, user: User) {
     case 'jurnal/pengaturan':
       return <PengaturanJurnalPage />
 
-    case 'jurnal/siswa':
-      return <StudentPortalPage />
-
     // === LAYANAN GURU ===
     case 'AbsensiSiswa':
       return <PagePlaceholder title="Absensi Guru" icon="bi-person-check" description="Modul Absensi untuk Guru" />
@@ -367,7 +360,13 @@ function renderPageContent(page: string, user: User) {
       return <PagePlaceholder title="LCKH Approval" icon="bi-check2-circle" description="Persetujuan LCKH" />
 
     case 'Nilai':
-      return <PagePlaceholder title="Nilai" icon="bi-clipboard-data" description="Modul Penilaian Siswa" />
+      return <NilaiPage />
+
+    case 'TugasTambahan':
+      return <TugasTambahanPage />
+
+    case 'AdminTugasTambahan':
+      return <AdminTugasTambahanPage />
 
     case 'Rapor':
       return <PagePlaceholder title="Rapor" icon="bi-file-earmark-text" description="Modul Rapor Siswa" />
