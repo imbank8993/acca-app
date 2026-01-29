@@ -19,7 +19,9 @@ export async function POST(request: NextRequest) {
             nama_guru,
             mata_pelajaran,
             hari,
-            auth_id // Added to check permissions
+            auth_id,
+            guru_piket,
+            status_pengganti
         } = body;
 
         // Check Permissions
@@ -93,6 +95,7 @@ export async function POST(request: NextRequest) {
                     keterangan_terlambat,
                     keterangan_tambahan,
                     guru_piket,
+                    status_pengganti,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', existing.id)
@@ -120,6 +123,7 @@ export async function POST(request: NextRequest) {
                     keterangan_terlambat,
                     keterangan_tambahan,
                     guru_piket,
+                    status_pengganti,
                     created_at: new Date().toISOString()
                 })
                 .select()

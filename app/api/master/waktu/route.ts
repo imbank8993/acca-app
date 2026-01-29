@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
 
         query = query
             .order('program', { ascending: true })
-            .order('hari', { ascending: false }) // Monday usually desired first? 'Senin'. Alphabetical: J, K, M, R, S, S. 'Senin' is late. 'Jumat' is early. 
             // If I sort ascending: Jumat, Kamis, Minggu, Rabu, Sabtu, Selasa, Senin. This is messy. 
             // Better to rely on just program and jam_ke if hari is filtered. 
             // BUT user explicitly asked "short based on Program , Hari, Jam Ke-".

@@ -1,79 +1,75 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
-import SiswaKelasTab from './SiswaKelasTab'
-import WaliKelasTab from './WaliKelasTab'
-import GuruAsuhTab from './GuruAsuhTab'
-import LiburTab from './LiburTab'
-import DropdownTab from './DropdownTab'
+import GuruMapelTab from './GuruMapelTab'
+import JadwalGuruTab from './JadwalGuruTab'
+import TugasTambahanTab from './TugasTambahanTab'
 
-type TabType = 'siswa_kelas' | 'wali_kelas' | 'guru_asuh' | 'libur' | 'dropdown'
+type TabType = 'guru_mapel' | 'jadwal_guru' | 'tugas_tambahan'
 
-export default function DataSettingsPage({ user }: { user?: any }) {
-  const { hasPermission } = require('@/lib/permissions-client')
-  const permissions = user?.permissions || []
-  const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
+export default function TaskSettingsPage({ user }: { user?: any }) {
+    const { hasPermission } = require('@/lib/permissions-client')
+    const permissions = user?.permissions || []
+    const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
 
-  const tabs = useMemo(
-    () => [
-      { key: 'siswa_kelas', label: 'Siswa - Kelas', icon: 'bi-people' },
-      { key: 'wali_kelas', label: 'Wali Kelas', icon: 'bi-person-workspace' },
-      { key: 'guru_asuh', label: 'Guru Asuh', icon: 'bi-heart' },
-      { key: 'dropdown', label: 'Master Dropdown', icon: 'bi-menu-button-wide' },
-      { key: 'libur', label: 'Data Libur', icon: 'bi-calendar-event' }
-    ],
-    []
-  )
+    const tabs = useMemo(
+        () => [
+            { key: 'guru_mapel', label: 'Guru Mapel', icon: 'bi-book-half' },
+            { key: 'jadwal_guru', label: 'Jadwal Guru', icon: 'bi-calendar-week' },
+            { key: 'tugas_tambahan', label: 'Tugas Tambahan', icon: 'bi-person-badge' }
+        ],
+        []
+    )
 
-  const allowedTabs = tabs.filter(tab =>
-    hasPermission(permissions, `pengaturan_data:${tab.key}`, 'read', isAdmin)
-  )
+    // Note: Keeping 'pengaturan_data' prefix for backward compatibility with existing permissions
+    const allowedTabs = tabs.filter(tab =>
+        hasPermission(permissions, `pengaturan_data:${tab.key}`, 'read', isAdmin)
+    )
 
-  const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]?.key as TabType || 'siswa_kelas')
+    // Default to first allowed or generic fallback (though fallback might blank if none allowed)
+    const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]?.key as TabType || 'guru_mapel')
 
-  return (
-    <section className="ds">
-      <header className="ds__head">
-        <div className="ds__headLeft">
-          <h1>Pengaturan Data</h1>
-          <p>Relasi data master dan konfigurasi hari libur.</p>
-        </div>
-      </header>
+    return (
+        <section className="ds">
+            <header className="ds__head">
+                <div className="ds__headLeft">
+                    <h1>Pengaturan Tugas</h1>
+                    <p>Konfigurasi beban kerja, jadwal, dan tugas tambahan guru.</p>
+                </div>
+            </header>
 
-      <div className="ds__card">
-        <div className="ds__tabs" role="tablist" aria-label="Data settings tabs">
-          {allowedTabs.map((tab) => {
-            const isActive = activeTab === tab.key
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                aria-current={isActive ? 'page' : undefined}
-                className={`ds__tab ${isActive ? 'isActive' : ''}`}
-                onClick={() => setActiveTab(tab.key as TabType)}
-              >
-                <span className="ds__tabIcon" aria-hidden="true">
-                  <i className={`bi ${tab.icon}`}></i>
-                </span>
-                <span className="ds__tabLabel">{tab.label}</span>
-              </button>
-            )
-          })}
-        </div>
+            <div className="ds__card">
+                <div className="ds__tabs" role="tablist" aria-label="Task settings tabs">
+                    {allowedTabs.map((tab) => {
+                        const isActive = activeTab === tab.key
+                        return (
+                            <button
+                                key={tab.key}
+                                type="button"
+                                role="tab"
+                                aria-selected={isActive}
+                                aria-current={isActive ? 'page' : undefined}
+                                className={`ds__tab ${isActive ? 'isActive' : ''}`}
+                                onClick={() => setActiveTab(tab.key as TabType)}
+                            >
+                                <span className="ds__tabIcon" aria-hidden="true">
+                                    <i className={`bi ${tab.icon}`}></i>
+                                </span>
+                                <span className="ds__tabLabel">{tab.label}</span>
+                            </button>
+                        )
+                    })}
+                </div>
 
-        <div className="ds__panel" role="tabpanel">
-          {activeTab === 'siswa_kelas' && <SiswaKelasTab />}
-          {activeTab === 'wali_kelas' && <WaliKelasTab />}
-          {activeTab === 'guru_asuh' && <GuruAsuhTab />}
-          {activeTab === 'dropdown' && <DropdownTab />}
-          {activeTab === 'libur' && <LiburTab />}
-        </div>
-      </div>
+                <div className="ds__panel" role="tabpanel">
+                    {activeTab === 'guru_mapel' && <GuruMapelTab />}
+                    {activeTab === 'jadwal_guru' && <JadwalGuruTab />}
+                    {activeTab === 'tugas_tambahan' && <TugasTambahanTab />}
+                </div>
+            </div>
 
-      <style jsx>{`
+            <style jsx>{`
+        /* Reuse DataSettingsPage styles for consistency */
         /* =====================================================
            DATA SETTINGS PAGE — CLEAN NAVY (FULL REPLACE)
            - Mengikuti container dari Dashboard
@@ -284,6 +280,6 @@ export default function DataSettingsPage({ user }: { user?: any }) {
           }
         }
       `}</style>
-    </section>
-  )
+        </section>
+    )
 }

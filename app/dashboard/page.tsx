@@ -13,11 +13,14 @@ import JurnalPage from '../jurnal/page'
 import PengaturanJurnalPage from '../jurnal/pengaturan/page'
 import MasterDataPage from './components/master/MasterDataPage'
 import DataSettingsPage from './components/settings/DataSettingsPage'
+import TaskSettingsPage from './components/settings/TaskSettingsPage'
 import ResetDataPage from './components/reset/ResetDataPage'
 import UserSettingsPage from '../pengaturan-users/components/UserSettingsPage'
 import NilaiPage from '../nilai/page'
 import TugasTambahanPage from '../tugas-tambahan/page'
 import AdminTugasTambahanPage from '../tugas-tambahan/admin/page'
+import LckhPage from '../lckh/page'
+import LckhApprovalPage from '../lckh-approval/page'
 
 export default function DashboardPage() {
   return (
@@ -306,6 +309,9 @@ function renderPageContent(page: string, user: User) {
     case 'Pengaturan Data':
       return <DataSettingsPage user={user} />
 
+    case 'Pengaturan Tugas':
+      return <TaskSettingsPage user={user} />
+
     case 'pengaturan-users':
       return <UserSettingsPage />
 
@@ -354,10 +360,10 @@ function renderPageContent(page: string, user: User) {
 
     // === OTHER MODULES ===
     case 'LCKH':
-      return <PagePlaceholder title="LCKH" icon="bi-journal-text" description="Modul Lembar Catatan Kegiatan Harian" />
+      return <LckhPage />
 
     case 'LCKHApproval':
-      return <PagePlaceholder title="LCKH Approval" icon="bi-check2-circle" description="Persetujuan LCKH" />
+      return <LckhApprovalPage />
 
     case 'Nilai':
       return <NilaiPage />

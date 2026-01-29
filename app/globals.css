@@ -152,27 +152,27 @@ body {
   transition: all 0.2s ease;
 }
 
-.status-radio-item input:checked + .status-radio-label {
+.status-radio-item input:checked+.status-radio-label {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-.status-radio-item input:checked + .status-radio-label[data-status="HADIR"] {
+.status-radio-item input:checked+.status-radio-label[data-status="HADIR"] {
   background-color: white;
   color: #1e293b;
   border: 1px solid #cbd5e1;
 }
 
-.status-radio-item input:checked + .status-radio-label[data-status="IZIN"] {
+.status-radio-item input:checked+.status-radio-label[data-status="IZIN"] {
   background-color: #3b82f6;
   color: white;
 }
 
-.status-radio-item input:checked + .status-radio-label[data-status="SAKIT"] {
+.status-radio-item input:checked+.status-radio-label[data-status="SAKIT"] {
   background-color: #f59e0b;
   color: white;
 }
 
-.status-radio-item input:checked + .status-radio-label[data-status="ALPHA"] {
+.status-radio-item input:checked+.status-radio-label[data-status="ALPHA"] {
   background-color: #ef4444;
   color: white;
 }
@@ -182,11 +182,11 @@ body {
   background-color: #f1f5f9;
 }
 
-.status-radio-item input:checked:hover + .status-radio-label {
+.status-radio-item input:checked:hover+.status-radio-label {
   color: white;
 }
 
-.status-radio-item input:checked:hover + .status-radio-label[data-status="HADIR"] {
+.status-radio-item input:checked:hover+.status-radio-label[data-status="HADIR"] {
   color: #1e293b;
   background-color: white;
 }
@@ -282,4 +282,103 @@ html.dark .user-menu-item {
 html.dark .user-menu-item:hover {
   background: #ef4444 !important;
   color: white !important;
+}
+
+/* =========================================================
+   SWEETALERT2 NAVY THEME (Global)
+========================================================= */
+div:where(.swal2-container) {
+  z-index: 999999 !important;
+}
+
+div:where(.swal2-popup) {
+  border-radius: 24px !important;
+  padding: 2rem !important;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25) !important;
+  border: 1px solid rgba(30, 58, 138, 0.05) !important;
+  font-family: inherit !important;
+}
+
+div:where(.swal2-title) {
+  color: #0f1b2a !important;
+  /* Navy Dark */
+  font-weight: 800 !important;
+  font-size: 1.5rem !important;
+  letter-spacing: -0.025em !important;
+}
+
+div:where(.swal2-html-container) {
+  color: #64748b !important;
+  /* Slate 500 */
+  font-size: 1rem !important;
+  line-height: 1.6 !important;
+}
+
+div:where(.swal2-confirm) {
+  background: linear-gradient(135deg, #1e3a8a, #1e40af) !important;
+  /* Navy Gradient */
+  border-radius: 14px !important;
+  padding: 14px 32px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3) !important;
+  border: none !important;
+}
+
+div:where(.swal2-confirm:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px rgba(30, 58, 138, 0.4) !important;
+}
+
+div:where(.swal2-cancel) {
+  background: #f1f5f9 !important;
+  /* Slate 100 */
+  color: #475569 !important;
+  /* Slate 600 */
+  border-radius: 14px !important;
+  padding: 14px 32px !important;
+  font-weight: 600 !important;
+  border: none !important;
+}
+
+div:where(.swal2-cancel:hover) {
+  background: #e2e8f0 !important;
+  /* Slate 200 */
+  color: #334155 !important;
+}
+
+div:where(.swal2-actions) {
+  gap: 12px !important;
+}
+
+div:where(.swal2-timer-progress-bar) {
+  background: #1e40af !important;
+  /* Navy Accent */
+}
+
+div:where(.swal2-toast) {
+  background: #fff !important;
+  box-shadow: 0 10px 40px -10px rgba(30, 58, 138, 0.15) !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(30, 58, 138, 0.05) !important;
+  padding: 1rem 1.25rem !important;
+}
+
+div:where(.swal2-icon) {
+  border-color: rgba(30, 58, 138, 0.2) !important;
+  color: #1e3a8a !important;
+}
+
+div:where(.swal2-icon.swal2-success) {
+  border-color: #a5dc86 !important;
+  color: #a5dc86 !important;
+}
+
+div:where(.swal2-icon.swal2-error) {
+  border-color: #f27474 !important;
+  color: #f27474 !important;
+}
+
+div:where(.swal2-icon.swal2-warning) {
+  border-color: #f8bb86 !important;
+  color: #f8bb86 !important;
 }

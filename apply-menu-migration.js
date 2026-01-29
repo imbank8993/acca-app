@@ -1,12 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
-const path = require('path');
-const envConfig = fs.readFileSync(path.join(__dirname, '.env.local'), 'utf8');
-envConfig.split('\n').forEach(line => {
-    const [key, value] = line.split('=');
-    if (key && value) {
-        process.env[key.trim()] = value.trim();
-    }
 });
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

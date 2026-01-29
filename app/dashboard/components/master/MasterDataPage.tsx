@@ -7,8 +7,9 @@ import KelasTab from './KelasTab'
 import MapelTab from './MapelTab'
 import WaktuTab from './WaktuTab'
 import KodeGuruTab from './KodeGuruTab'
+import DropdownTab from '../settings/DropdownTab' // Importing from adjacent settings folder
 
-type TabType = 'siswa' | 'guru' | 'kode-guru' | 'mapel' | 'kelas' | 'waktu'
+type TabType = 'siswa' | 'guru' | 'kode-guru' | 'mapel' | 'kelas' | 'waktu' | 'dropdown'
 
 const tabs = [
   { key: 'siswa', label: 'Siswa', icon: 'bi-people' },
@@ -17,6 +18,7 @@ const tabs = [
   { key: 'mapel', label: 'Mapel', icon: 'bi-book' },
   { key: 'kelas', label: 'Kelas', icon: 'bi-door-open' },
   { key: 'waktu', label: 'Waktu', icon: 'bi-clock' },
+  { key: 'dropdown', label: 'Dropdown', icon: 'bi-list-stars' },
 ]
 
 export default function MasterDataPage({ user }: { user?: any }) {
@@ -81,6 +83,7 @@ export default function MasterDataPage({ user }: { user?: any }) {
           {activeTab === 'mapel' && <MapelTab />}
           {activeTab === 'kelas' && <KelasTab />}
           {activeTab === 'waktu' && <WaktuTab />}
+          {activeTab === 'dropdown' && <DropdownTab />}
         </div>
       </div>
 
@@ -339,6 +342,7 @@ export default function MasterDataPage({ user }: { user?: any }) {
         .md-ink--mapel::after { transform: translateX(360%); }
         .md-ink--kelas::after { transform: translateX(480%); }
         .md-ink--waktu::after { transform: translateX(600%); }
+        .md-ink--dropdown::after { transform: translateX(720%); }
 
         /* Body */
         .md-body {
