@@ -48,11 +48,38 @@ export default function GuruAsuhTab() {
 
   // Tracking existing assignments to hide occupied students
   const [allAssignments, setAllAssignments] = useState<GuruAsuh[]>([])
+  const [academicYears, setAcademicYears] = useState<string[]>([])
 
   useEffect(() => {
     fetchMasterData()
+    fetchAcademicYears()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const fetchAcademicYears = async () => {
+    try {
+      const { getActivePeriods, getActiveSettings } = await import('@/lib/settings-client');
+      const periods = await getActivePeriods();
+      const defaultSettings = await getActiveSettings();
+
+      if (periods.length > 0) {
+        const uniqueYears = Array.from(new Set(periods.map(p => p.tahun_ajaran)));
+        setAcademicYears(uniqueYears);
+
+        const currentYearIsValid = uniqueYears.includes(tahunAjaran);
+
+        if (!currentYearIsValid && defaultSettings) {
+          setTahunAjaran(defaultSettings.tahun_ajaran);
+        } else if (!currentYearIsValid && periods.length > 0) {
+          setTahunAjaran(periods[0].tahun_ajaran);
+        }
+      } else {
+        setAcademicYears([]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -363,10 +390,10 @@ export default function GuruAsuhTab() {
           </div>
 
           <select value={tahunAjaran} onChange={(e) => setTahunAjaran(e.target.value)}>
-            <option value="Semua">Semua Tahun</option>
-            <option value="2024/2025">2024/2025</option>
-            <option value="2025/2026">2025/2026</option>
-            <option value="2026/2027">2026/2027</option>
+            {academicYears.length > 1 && <option value="Semua">Semua</option>}
+            {academicYears.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
           </select>
         </div>
 

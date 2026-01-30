@@ -17,8 +17,19 @@ export async function GET(request: NextRequest) {
             .eq('aktif', true)
             .order('nama_kelas', { ascending: true })
 
-        if (tahun_ajaran) {
-            query = query.eq('tahun_ajaran', tahun_ajaran)
+        let targetTahunAjaran = tahun_ajaran;
+        if (!targetTahunAjaran || targetTahunAjaran === 'Semua') {
+            if (targetTahunAjaran !== 'Semua') {
+                const { getActiveAcademicYearServer } = await import('@/lib/settings-server');
+                const active = await getActiveAcademicYearServer();
+                if (active) targetTahunAjaran = active;
+            } else {
+                targetTahunAjaran = null;
+            }
+        }
+
+        if (targetTahunAjaran && targetTahunAjaran !== 'Semua') {
+            query = query.eq('tahun_ajaran', targetTahunAjaran)
         }
 
         if (semester) {

@@ -387,79 +387,91 @@ function renderPageContent(page: string, user: User) {
 
 function DashboardContent({ user }: { user: User }) {
   return (
-    <div className="dashboard-content">
-      <div className="welcome-card">
-        <h1>Selamat Datang, {user.nama}!</h1>
-        <p>Academic Center & Access - MAN Insan Cendekia Gowa</p>
-      </div>
-
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon blue">
-            <i className="bi bi-people"></i>
-          </div>
-          <div className="stat-info">
-            <div className="stat-label">Total Akses</div>
-            <div className="stat-value">{user.pagesArray.length}</div>
-          </div>
+    <div className="db">
+      {/* Welcome Hero Section */}
+      <div className="db__hero">
+        <div className="db__heroContent">
+          <div className="db__heroBadge">MAN Insan Cendekia Gowa</div>
+          <h1 className="db__heroTitle">Selamat Datang, {user.nama}!</h1>
+          <p className="db__heroSub">Portal Academic Center & Access terpadu untuk efisiensi data pendidikan.</p>
         </div>
-
-        <div className="stat-card">
-          <div className="stat-icon green">
-            <i className="bi bi-shield-check"></i>
-          </div>
-          <div className="stat-info">
-            <div className="stat-label">Role</div>
-            <div className="stat-value">{user.roles.length}</div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon purple">
-            <i className="bi bi-grid-3x3"></i>
-          </div>
-          <div className="stat-info">
-            <div className="stat-label">Menu</div>
-            <div className="stat-value">{user.pagesTree.length || 0}</div>
-          </div>
+        <div className="db__heroIcon">
+          <i className="bi bi-rocket-takeoff"></i>
         </div>
       </div>
 
-      <div className="info-grid">
-        <div className="info-card">
-          <div className="info-header">
-            <i className="bi bi-person-badge"></i>
-            <h3>Informasi Akun</h3>
+      {/* Quick Dashboard Stats */}
+      <div className="db__stats">
+        <div className="db__statCard blue">
+          <div className="db__statIcon"><i className="bi bi-shield-lock-fill"></i></div>
+          <div className="db__statInfo">
+            <span className="db__statLabel">Akses Halaman</span>
+            <span className="db__statValue">{user.pagesArray.length}</span>
           </div>
-          <div className="info-content">
-            <div className="info-row">
-              <span className="info-label">Nama</span>
-              <span className="info-value">{user.nama}</span>
+          <div className="db__statDecor"></div>
+        </div>
+
+        <div className="db__statCard green">
+          <div className="db__statIcon"><i className="bi bi-person-check-fill"></i></div>
+          <div className="db__statInfo">
+            <span className="db__statLabel">Otoritas Peran</span>
+            <span className="db__statValue">{user.roles.length}</span>
+          </div>
+          <div className="db__statDecor"></div>
+        </div>
+
+        <div className="db__statCard purple">
+          <div className="db__statIcon"><i className="bi bi-collection-fill"></i></div>
+          <div className="db__statInfo">
+            <span className="db__statLabel">Grup Menu Utama</span>
+            <span className="db__statValue">{user.pagesTree.length || 0}</span>
+          </div>
+          <div className="db__statDecor"></div>
+        </div>
+      </div>
+
+      {/* Information Cards Section */}
+      <div className="db__metaGrid">
+        <div className="db__metaCard">
+          <div className="db__metaHead">
+            <div className="db__metaHeadIcon"><i className="bi bi-fingerprint"></i></div>
+            <div className="db__metaHeadText">
+              <h3>Profil Personil</h3>
+              <span>Informasi kredensial pengguna</span>
             </div>
-            <div className="info-row">
-              <span className="info-label">Username</span>
-              <span className="info-value">{user.username}</span>
+          </div>
+          <div className="db__metaBody">
+            <div className="db__dataRow">
+              <span className="db__dataLabel">Nama Lengkap</span>
+              <span className="db__dataValue">{user.nama}</span>
             </div>
-            <div className="info-row">
-              <span className="info-label">NIP</span>
-              <span className="info-value">{user.nip}</span>
+            <div className="db__dataRow">
+              <span className="db__dataLabel">Identitas Unik (NIP)</span>
+              <span className="db__dataValue">{user.nip}</span>
             </div>
-            <div className="info-row">
-              <span className="info-label">Divisi</span>
-              <span className="info-value">{user.divisi || '-'}</span>
+            <div className="db__dataRow">
+              <span className="db__dataLabel">Unit/Divisi</span>
+              <span className="db__dataValue">{user.divisi || '-'}</span>
+            </div>
+            <div className="db__dataRow">
+              <span className="db__dataLabel">Tingkat Hak Akses</span>
+              <span className="db__dataValue roleBadge">{user.role}</span>
             </div>
           </div>
         </div>
 
-        <div className="info-card">
-          <div className="info-header">
-            <i className="bi bi-grid"></i>
-            <h3>Akses Halaman</h3>
+        <div className="db__metaCard">
+          <div className="db__metaHead">
+            <div className="db__metaHeadIcon"><i className="bi bi-toggles2"></i></div>
+            <div className="db__metaHeadText">
+              <h3>Hak Akses Aktif</h3>
+              <span>Daftar modul yang dapat dikelola</span>
+            </div>
           </div>
-          <div className="info-content">
-            <div className="pages-list">
+          <div className="db__metaBody">
+            <div className="db__pagesWrap">
               {user.pagesArray.map((page) => (
-                <span key={page} className="page-badge">
+                <span key={page} className="db__pageBadge">
                   {page}
                 </span>
               ))}
@@ -469,184 +481,136 @@ function DashboardContent({ user }: { user: User }) {
       </div>
 
       <style jsx>{`
-        .dashboard-content {
+        .db { display: flex; flex-direction: column; gap: 32px; animation: dbFadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes dbFadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* HERO CARD */
+        .db__hero {
+          position: relative;
+          background: linear-gradient(135deg, #0b1b3a 0%, #0f2a56 50%, #163b78 100%);
+          color: white;
+          padding: 48px 40px;
+          border-radius: 24px;
+          box-shadow: 0 20px 50px rgba(11, 27, 58, 0.25);
           display: flex;
-          flex-direction: column;
-          gap: 24px;
-          padding: 0;
-          max-width: none;
+          justify-content: space-between;
+          align-items: center;
+          overflow: hidden;
         }
-
-        .welcome-card {
-          background: linear-gradient(135deg, #0b1b3a, #0f2a56, #163b78);
-          color: #fff;
-          padding: 40px 32px;
-          border-radius: 16px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        .db__hero::after {
+          content: "";
+          position: absolute;
+          top: -50%;
+          right: -10%;
+          width: 500px;
+          height: 500px;
+          background: radial-gradient(circle, rgba(58, 166, 255, 0.15) 0%, transparent 70%);
+          pointer-events: none;
         }
-
-        .welcome-card h1 {
-          font-size: 2rem;
+        .db__heroBadge {
+          display: inline-block;
+          background: rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(8px);
+          padding: 6px 16px;
+          border-radius: 999px;
+          font-size: 0.8rem;
           font-weight: 700;
-          margin-bottom: 8px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          margin-bottom: 20px;
         }
+        .db__heroTitle { font-size: 2.25rem; font-weight: 900; margin: 0 0 12px; letter-spacing: -0.02em; }
+        .db__heroSub { font-size: 1.1rem; opacity: 0.85; max-width: 520px; font-weight: 500; line-height: 1.6; }
+        .db__heroIcon { font-size: 4.5rem; opacity: 0.2; transform: rotate(-15deg); }
 
-        .welcome-card p {
-          font-size: 1.05rem;
-          opacity: 0.9;
-        }
-
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 20px;
-        }
-
-        .stat-card {
-          background: #fff;
-          padding: 24px;
-          border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        /* STATS */
+        .db__stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+        .db__statCard {
+          position: relative;
+          background: white;
+          padding: 28px;
+          border-radius: 20px;
+          border: 1px solid rgba(15, 42, 86, 0.08);
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
           display: flex;
           align-items: center;
-          gap: 16px;
+          gap: 20px;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          overflow: hidden;
         }
-
-        .stat-icon {
+        .db__statCard:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08); }
+        .db__statIcon {
           width: 56px;
           height: 56px;
-          border-radius: 12px;
+          border-radius: 16px;
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 1.8rem;
+          z-index: 1;
+        }
+        .db__statCard.blue .db__statIcon { background: #eff6ff; color: #3b82f6; }
+        .db__statCard.green .db__statIcon { background: #f0fdf4; color: #10b981; }
+        .db__statCard.purple .db__statIcon { background: #f5f3ff; color: #8b5cf6; }
+
+        .db__statLabel { display: block; font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+        .db__statValue { font-size: 1.8rem; font-weight: 900; color: #0f1b2a; }
+
+        .db__statDecor {
+          position: absolute;
+          bottom: -20px;
+          right: -20px;
+          width: 100px;
+          height: 100px;
+          background: currentColor;
+          opacity: 0.03;
+          border-radius: 50%;
         }
 
-        .stat-icon.blue {
-          background: rgba(58, 166, 255, 0.15);
-          color: #3aa6ff;
-        }
-
-        .stat-icon.green {
-          background: rgba(34, 197, 94, 0.15);
-          color: #22c55e;
-        }
-
-        .stat-icon.purple {
-          background: rgba(168, 85, 247, 0.15);
-          color: #a855f7;
-        }
-
-        .stat-info {
-          flex: 1;
-        }
-
-        .stat-label {
-          font-size: 0.9rem;
-          color: #6b7280;
-          margin-bottom: 4px;
-        }
-
-        .stat-value {
-          font-size: 1.8rem;
-          font-weight: 700;
-          color: #0b1b3a;
-        }
-
-        .info-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-          gap: 20px;
-        }
-
-        .info-card {
-          background: #fff;
-          border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-          overflow: hidden;
-        }
-
-        .info-header {
-          background: #f9fafb;
-          padding: 16px 20px;
-          border-bottom: 1px solid #e5e7eb;
+        /* META CARDS */
+        .db__metaGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+        .db__metaCard { background: white; border-radius: 20px; border: 1px solid rgba(15, 42, 86, 0.08); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.03); overflow: hidden; }
+        .db__metaHead {
+          background: #fcfdfe;
+          padding: 20px 24px;
+          border-bottom: 1px solid #f1f5f9;
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 16px;
         }
+        .db__metaHeadIcon { width: 44px; height: 44px; border-radius: 12px; background: white; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; color: #0b1b3a; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
+        .db__metaHeadText h3 { margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f1b2a; }
+        .db__metaHeadText span { font-size: 0.8rem; color: #94a3b8; font-weight: 600; }
 
-        .info-header i {
-          font-size: 1.3rem;
-          color: #3aa6ff;
-        }
+        .db__metaBody { padding: 24px; }
+        .db__dataRow { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #f8fafc; }
+        .db__dataRow:last-child { border-bottom: none; }
+        .db__dataLabel { font-size: 0.88rem; color: #64748b; font-weight: 600; }
+        .db__dataValue { font-size: 0.92rem; font-weight: 700; color: #0f1b2a; }
+        .db__dataValue.roleBadge { background: #0b1b3a; color: white; padding: 4px 12px; border-radius: 8px; font-size: 0.75rem; text-transform: uppercase; }
 
-        .info-header h3 {
-          font-size: 1.05rem;
-          font-weight: 600;
-          color: #0b1b3a;
-          margin: 0;
-        }
-
-        .info-content {
-          padding: 20px;
-        }
-
-        .info-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 12px 0;
-          border-bottom: 1px solid #f3f4f6;
-          gap: 14px;
-        }
-
-        .info-row:last-child {
-          border-bottom: none;
-        }
-
-        .info-label {
-          font-size: 0.9rem;
-          color: #6b7280;
-        }
-
-        .info-value {
-          font-weight: 600;
-          color: #0b1b3a;
-          text-align: right;
-          min-width: 0;
-          word-break: break-word;
-        }
-
-        .pages-list {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-
-        .page-badge {
-          padding: 6px 12px;
-          background: linear-gradient(135deg, #3aa6ff, #1c4c99);
-          color: #fff;
-          border-radius: 8px;
+        .db__pagesWrap { display: flex; flex-wrap: wrap; gap: 10px; }
+        .db__pageBadge {
+          background: #f1f5f9;
+          color: #475569;
+          padding: 8px 16px;
+          border-radius: 12px;
           font-size: 0.85rem;
-          font-weight: 600;
+          font-weight: 700;
+          transition: all 0.2s ease;
+          border: 1px solid transparent;
         }
+        .db__pageBadge:hover { background: #3b82f6; color: white; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); }
 
-        @media (max-width: 768px) {
-          .welcome-card {
-            padding: 26px 18px;
-          }
-
-          .welcome-card h1 {
-            font-size: 1.45rem;
-          }
-
-          .welcome-card p {
-            font-size: 0.95rem;
-          }
-
-          .info-grid {
-            grid-template-columns: 1fr;
-          }
+        @media (max-width: 1024px) {
+          .db__stats { grid-template-columns: 1fr; }
+          .db__metaGrid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 640px) {
+          .db__hero { padding: 32px 24px; flex-direction: column; text-align: center; }
+          .db__heroIcon { display: none; }
+          .db__heroTitle { font-size: 1.75rem; }
         }
       `}</style>
     </div>

@@ -22,12 +22,22 @@ export async function GET(request: NextRequest) {
             );
         }
 
+        // Ambil tahun ajaran aktif
+        const { getActiveAcademicYearServer } = await import('@/lib/settings-server');
+        const activeTA = await getActiveAcademicYearServer();
+
         // Ambil jadwal guru
-        const { data: jadwalList, error } = await supabase
+        let query = supabase
             .from('jadwal_guru')
             .select('*')
             .eq('nip', nip)
             .eq('aktif', true);
+
+        if (activeTA) {
+            query = query.eq('tahun_ajaran', activeTA);
+        }
+
+        const { data: jadwalList, error } = await query;
 
         if (error) {
             console.error('Error fetching jadwal for scopes:', error);

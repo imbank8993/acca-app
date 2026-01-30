@@ -64,14 +64,62 @@ export default function SiswaKelasTab() {
   // Master data for selection
   const [masterSiswa, setMasterSiswa] = useState<any[]>([])
   const [masterKelas, setMasterKelas] = useState<any[]>([])
+  const [academicYears, setAcademicYears] = useState<string[]>([])
+  const [activePeriods, setActivePeriods] = useState<any[]>([])
+
+  const availableSemesters = useMemo(() => {
+    if (tahunAjaran === 'Semua') {
+      const sems = new Set(activePeriods.map(p => p.semester));
+      return Array.from(sems);
+    }
+    const sems = activePeriods
+      .filter(p => p.tahun_ajaran === tahunAjaran)
+      .map(p => p.semester);
+    return Array.from(new Set(sems));
+  }, [activePeriods, tahunAjaran]);
 
   // Global Enrollments for Filtering
   const [allEnrollments, setAllEnrollments] = useState<SiswaKelas[]>([])
 
   useEffect(() => {
     fetchMasterData()
+    fetchAcademicYears()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const fetchAcademicYears = async () => {
+    try {
+      const { getActivePeriods, getActiveSettings } = await import('@/lib/settings-client');
+      // Fetch all active periods
+      const periods = await getActivePeriods();
+      setActivePeriods(periods);
+      // Fetch default active setting (optional, mostly for initial state if needed)
+      const defaultSettings = await getActiveSettings();
+
+      if (periods.length > 0) {
+        // Populate academic years with unique years from active periods
+        const uniqueYears = Array.from(new Set(periods.map(p => p.tahun_ajaran)));
+        setAcademicYears(uniqueYears);
+
+        // If current state is not in active periods, default to the first one (or the specific one from settings)
+        // Check if current tahunAjaran is valid
+        const currentYearIsValid = uniqueYears.includes(tahunAjaran);
+
+        if (!currentYearIsValid && defaultSettings) {
+          setTahunAjaran(defaultSettings.tahun_ajaran);
+          setSemester(defaultSettings.semester);
+        } else if (!currentYearIsValid && periods.length > 0) {
+          setTahunAjaran(periods[0].tahun_ajaran);
+          setSemester(periods[0].semester);
+        }
+      } else {
+        // Fallback if no active periods
+        setAcademicYears([]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -394,16 +442,15 @@ export default function SiswaKelasTab() {
           </div>
 
           <select value={tahunAjaran} onChange={(e) => setTahunAjaran(e.target.value)}>
-            <option value="Semua">Semua Tahun</option>
-            <option value="2024/2025">2024/2025</option>
-            <option value="2025/2026">2025/2026</option>
-            <option value="2026/2027">2026/2027</option>
+            {academicYears.length > 1 && <option value="Semua">Semua</option>}
+            {academicYears.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
           </select>
 
           <select value={semester} onChange={(e) => setSemester(e.target.value)}>
-            <option value="Semua">Semua Sem.</option>
-            <option value="Ganjil">Ganjil</option>
-            <option value="Genap">Genap</option>
+            {availableSemesters.length > 1 && <option value="Semua">Semua</option>}
+            {availableSemesters.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
 
           <select value={filterKelas} onChange={(e) => setFilterKelas(e.target.value)}>

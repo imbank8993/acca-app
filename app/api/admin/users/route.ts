@@ -97,3 +97,94 @@ export async function GET(request: NextRequest) {
         );
     }
 }
+// POST /api/admin/users - Create new user record
+export async function POST(request: NextRequest) {
+    try {
+        // Check if user is admin
+        const cookieStore = await cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+                cookies: {
+                    getAll() {
+                        return cookieStore.getAll()
+                    },
+                    setAll(cookiesToSet) {
+                        try {
+                            cookiesToSet.forEach(({ name, value, options }) =>
+                                cookieStore.set(name, value, options)
+                            )
+                        } catch {
+                            // Ignored
+                        }
+                    },
+                },
+            }
+        );
+
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+
+        if (!authUser) {
+            return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { data: dbUser } = await supabaseAdmin
+            .from('users')
+            .select('role')
+            .eq('auth_id', authUser.id)
+            .single();
+
+        if (!dbUser || !dbUser.role?.toLowerCase().includes('admin')) {
+            return NextResponse.json({ ok: false, error: 'Admin access required' }, { status: 403 });
+        }
+
+        const body = await request.json();
+        const { username, nip, nama, divisi, role, pages } = body;
+
+        if (!username || !nip || !nama) {
+            return NextResponse.json({ ok: false, error: 'Username, NIP, and Nama are required' }, { status: 400 });
+        }
+
+        // Check if NIP or Username already exists
+        const { data: existing } = await supabaseAdmin
+            .from('users')
+            .select('id')
+            .or(`username.eq.${username},nip.eq.${nip}`)
+            .maybeSingle();
+
+        if (existing) {
+            return NextResponse.json({ ok: false, error: 'Username or NIP already exists' }, { status: 400 });
+        }
+
+        const newUser = {
+            username,
+            nip,
+            nama,
+            divisi: divisi || '',
+            role: role || 'GURU',
+            pages: pages || 'Dashboard',
+            aktif: true,
+            created_at: new Date().toISOString()
+        };
+
+        const { data, error } = await supabaseAdmin
+            .from('users')
+            .insert(newUser)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error creating user:', error);
+            return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+        }
+
+        return NextResponse.json({ ok: true, data });
+    } catch (error: any) {
+        console.error('Error in POST /api/admin/users:', error);
+        return NextResponse.json(
+            { ok: false, error: 'Internal server error', details: error.message },
+            { status: 500 }
+        );
+    }
+}

@@ -20,8 +20,15 @@ export async function GET(request: NextRequest) {
         const nip = searchParams.get('nip');
         const kelas = searchParams.get('kelas');
         const tanggal = searchParams.get('tanggal');
-        const tahun_ajaran = searchParams.get('tahun_ajaran');
-        const semester = searchParams.get('semester');
+        let tahun_ajaran = searchParams.get('tahun_ajaran');
+        let semester = searchParams.get('semester');
+
+        if (!tahun_ajaran || !semester) {
+            const { getActiveSettingsServer } = await import('@/lib/settings-server');
+            const settings = await getActiveSettingsServer();
+            if (!tahun_ajaran) tahun_ajaran = settings?.tahun_ajaran || null;
+            if (!semester) semester = settings?.semester || null;
+        }
         const status_sesi = searchParams.get('status_sesi');
 
         let query = supabase
@@ -44,7 +51,8 @@ export async function GET(request: NextRequest) {
             query = query.eq('tahun_ajaran', tahun_ajaran);
         }
         if (semester) {
-            query = query.eq('semester', parseInt(semester));
+            const semVal = isNaN(parseInt(semester)) ? semester : parseInt(semester);
+            query = query.eq('semester', semVal);
         }
         if (status_sesi) {
             query = query.eq('status_sesi', status_sesi);
@@ -155,8 +163,16 @@ export async function POST(request: NextRequest) {
                 draft_type: 'DRAFT_DEFAULT',
                 materi: body.materi || null,
                 catatan: body.catatan || null,
-                tahun_ajaran: body.tahun_ajaran || '2024/2025',
-                semester: body.semester || 2,
+                tahun_ajaran: body.tahun_ajaran || (await (async () => {
+                    const { getActiveSettingsServer } = await import('@/lib/settings-server');
+                    const settings = await getActiveSettingsServer();
+                    return settings?.tahun_ajaran || '2025/2026';
+                })()),
+                semester: body.semester || (await (async () => {
+                    const { getActiveSettingsServer } = await import('@/lib/settings-server');
+                    const settings = await getActiveSettingsServer();
+                    return settings?.semester || 'Ganjil';
+                })()),
                 created_by: body.nip,
             })
             .select()

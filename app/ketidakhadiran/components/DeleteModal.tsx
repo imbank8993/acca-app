@@ -8,9 +8,10 @@ interface DeleteModalProps {
   onClose: () => void;
   onSuccess: () => void;
   data: any;
+  canDo: (resource: string, action: string) => any;
 }
 
-export default function DeleteModal({ isOpen, onClose, onSuccess, data }: DeleteModalProps) {
+export default function DeleteModal({ isOpen, onClose, onSuccess, data, canDo }: DeleteModalProps) {
   const [scope, setScope] = useState<"ONE" | "ALL">("ONE");
   const [submitting, setSubmitting] = useState(false);
 

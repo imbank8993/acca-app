@@ -156,10 +156,13 @@ export default function BulkReplaceTab() {
     }
 
     return (
-        <div className="bulkReplaceTab">
-            <div className="tabHeader">
-                <h2>Ganti Data Massal</h2>
-                <p>Ganti nilai tertentu di seluruh database (contoh: mengganti "Nuri" menjadi "Nurii").</p>
+        <div className="br">
+            <div className="br__head">
+                <div className="br__headIcon"><i className="bi bi-arrow-repeat"></i></div>
+                <div className="rp__headInfo">
+                    <h2>Ganti Data Massal</h2>
+                    <p>Utilitas tingkat lanjut untuk memperbarui nilai spesifik di seluruh kolom database secara instan.</p>
+                </div>
             </div>
 
             {/* Warning */}
@@ -321,256 +324,55 @@ export default function BulkReplaceTab() {
             )}
 
             <style jsx>{`
-        .bulkReplaceTab {
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-        }
+                .br { display: flex; flex-direction: column; gap: 32px; animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); padding: 5px; }
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        .tabHeader h2 {
-          margin: 0 0 8px;
-          font-size: 1.2rem;
-          color: rgba(11, 31, 58, 0.92);
-          font-weight: 600;
-        }
+                .br__head { display: flex; align-items: center; gap: 24px; padding: 24px; background: #fafafa; border-radius: 20px; border: 1px solid rgba(15, 42, 86, 0.08); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04); }
+                .br__headIcon { width: 56px; height: 56px; background: linear-gradient(135deg, #0f172a, #334155); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #fff; box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2); }
+                
+                .warningBox { display: flex; gap: 20px; padding: 24px; background: #fff1f2; border: 1px solid #fca5a5; border-radius: 20px; color: #e11d48; line-height: 1.6; font-size: 0.95rem; }
+                .warningBox i { font-size: 1.8rem; flex-shrink: 0; }
+                .warningBox strong { font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px; }
 
-        .tabHeader p {
-          margin: 0;
-          color: rgba(15, 23, 42, 0.62);
-          font-size: 0.95rem;
-        }
+                .formCard { background: #fff; padding: 32px; border-radius: 24px; border: 1px solid rgba(15, 42, 86, 0.06); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.03); }
+                .formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 32px; }
 
-        .warningBox {
-          display: flex;
-          gap: 12px;
-          padding: 16px;
-          background: rgba(239, 68, 68, 0.08);
-          border: 1px solid rgba(239, 68, 68, 0.25);
-          border-radius: 12px;
-          color: #dc2626;
-        }
+                .formGroup { display: flex; flex-direction: column; gap: 8px; }
+                .formGroup label { font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-left: 4px; }
+                .formGroup select, .formGroup input { padding: 14px 18px; border: 2px solid #f1f5f9; border-radius: 14px; font-size: 0.95rem; font-weight: 600; outline: none; transition: all 0.2s; background: #f8fafc; color: #0f1b2a; }
+                .formGroup select:focus, .formGroup input:focus { border-color: #3b82f6; background: #fff; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1); }
+                .formGroup select:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        .warningBox i {
-          font-size: 1.3rem;
-          flex-shrink: 0;
-        }
+                .btnPreview { padding: 16px 32px; background: linear-gradient(135deg, #3b82f6, #1e40af); color: white; border: none; border-radius: 16px; font-weight: 800; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: inline-flex; align-items: center; gap: 12px; box-shadow: 0 8px 15px rgba(30, 64, 175, 0.2); font-size: 1rem; }
+                .btnPreview:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 12px 25px rgba(30, 64, 175, 0.3); }
+                .btnPreview:disabled { opacity: 0.5; transform: none; box-shadow: none; cursor: not-allowed; }
 
-        .formCard {
-          background: rgba(248, 250, 252, 0.8);
-          padding: 20px;
-          border-radius: 12px;
-          border: 1px solid rgba(148, 163, 184, 0.2);
-        }
+                .previewCard { background: #fff; padding: 32px; border-radius: 24px; border: 1px solid rgba(59, 130, 246, 0.2); box-shadow: 0 20px 40px rgba(59, 130, 246, 0.06); animation: slideUp 0.3s ease; }
+                @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+                
+                .previewCard h3 { margin: 0 0 12px; font-size: 1.25rem; font-weight: 800; color: #0f1b2a; }
+                .previewInfo { margin-bottom: 24px; color: #64748b; font-size: 0.95rem; }
+                .previewInfo code { background: #eff6ff; color: #1e40af; padding: 4px 10px; border-radius: 8px; font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; margin: 0 4px; border: 1px solid rgba(30, 64, 175, 0.1); }
 
-        .formGrid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 16px;
-          margin-bottom: 16px;
-        }
+                .tableContainer { border: 1px solid #f1f5f9; border-radius: 18px; overflow: hidden; margin-bottom: 20px; }
+                .previewTable { width: 100%; border-collapse: separate; border-spacing: 0; }
+                .previewTable th { padding: 14px 18px; background: #fcfdfe; border-bottom: 2px solid #f1f5f9; text-align: left; font-size: 0.7rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+                .previewTable td { padding: 14px 18px; border-bottom: 1px solid #f8fafc; font-size: 0.9rem; color: #475569; }
+                .highlightChange { background: #fffbeb; color: #92400e; padding: 4px 8px; border-radius: 8px; font-weight: 800; border: 1px solid #fde68a; }
 
-        .formGroup {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
+                .btnExecute { padding: 18px 48px; background: linear-gradient(135deg, #ef4444, #9f1239); color: white; border: none; border-radius: 18px; font-weight: 800; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: inline-flex; align-items: center; gap: 14px; box-shadow: 0 10px 20px rgba(225, 29, 72, 0.25); font-size: 1.1rem; }
+                .btnExecute:hover:not(:disabled) { transform: translateY(-4px); box-shadow: 0 20px 35px rgba(225, 29, 72, 0.35); }
+                .btnExecute:disabled { opacity: 0.4; transform: none; box-shadow: none; cursor: not-allowed; }
 
-        .formGroup label {
-          font-weight: 500;
-          color: rgba(11, 31, 58, 0.88);
-          font-size: 0.9rem;
-        }
+                .message { padding: 18px 24px; border-radius: 16px; font-weight: 800; margin-top: 24px; border: 1px solid transparent; }
+                .message.success { background: #ecfdf5; color: #059669; border-color: #d1fae5; }
+                .message.error { background: #fff1f2; color: #e11d48; border-color: #fca5a5; }
+                .message.warning { background: #fefce8; color: #854d0e; border-color: #fef08a; }
 
-        .formGroup select,
-        .formGroup input {
-          padding: 10px 12px;
-          border: 1px solid rgba(148, 163, 184, 0.3);
-          border-radius: 8px;
-          font-size: 0.95rem;
-          background: white;
-        }
-
-        .formGroup select:focus,
-        .formGroup input:focus {
-          outline: none;
-          border-color: rgba(43, 108, 255, 0.5);
-        }
-
-        .actions {
-          display: flex;
-          gap: 12px;
-        }
-
-        .btnPreview {
-          padding: 10px 20px;
-          background: linear-gradient(135deg, rgba(43, 108, 255, 0.92), rgba(31, 79, 174, 0.88));
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-size: 0.95rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .btnPreview:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(43, 108, 255, 0.3);
-        }
-
-        .btnPreview:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .message {
-          padding: 12px 16px;
-          border-radius: 8px;
-          font-size: 0.9rem;
-        }
-
-        .message.success {
-          background: rgba(16, 185, 129, 0.1);
-          color: #059669;
-          border: 1px solid rgba(16, 185, 129, 0.3);
-        }
-
-        .message.error {
-          background: rgba(239, 68, 68, 0.1);
-          color: #dc2626;
-          border: 1px solid rgba(239, 68, 68, 0.3);
-        }
-
-        .message.warning {
-          background: rgba(245, 158, 11, 0.1);
-          color: #d97706;
-          border: 1px solid rgba(245, 158, 11, 0.3);
-        }
-
-        .previewCard {
-          background: white;
-          padding: 20px;
-          border-radius: 12px;
-          border: 1px solid rgba(148, 163, 184, 0.2);
-        }
-
-        .previewCard h3 {
-          margin: 0 0 12px;
-          font-size: 1.1rem;
-          color: rgba(11, 31, 58, 0.92);
-        }
-
-        .previewInfo {
-          margin: 0 0 16px;
-          color: rgba(15, 23, 42, 0.7);
-          font-size: 0.9rem;
-        }
-
-        .previewInfo code {
-          background: rgba(43, 108, 255, 0.1);
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-family: 'Courier New', monospace;
-        }
-
-        .tableContainer {
-          overflow-x: auto;
-          border-radius: 8px;
-          border: 1px solid rgba(148, 163, 184, 0.2);
-          margin-bottom: 12px;
-        }
-
-        .previewTable {
-          width: 100%;
-          border-collapse: collapse;
-        }
-
-        .previewTable th {
-          background: rgba(248, 250, 252, 0.9);
-          padding: 10px;
-          text-align: left;
-          font-size: 0.85rem;
-          font-weight: 600;
-          color: rgba(11, 31, 58, 0.8);
-          border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-        }
-
-        .previewTable td {
-          padding: 10px;
-          font-size: 0.85rem;
-          color: rgba(11, 31, 58, 0.8);
-          border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-        }
-
-        .highlightChange {
-          background: rgba(245, 158, 11, 0.2);
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-weight: 600;
-        }
-
-        .moreRecords {
-          margin: 12px 0;
-          color: rgba(15, 23, 42, 0.6);
-          font-size: 0.85rem;
-          font-style: italic;
-        }
-
-        .executeActions {
-          display: flex;
-          gap: 12px;
-          margin-top: 16px;
-        }
-
-        .btnExecute {
-          padding: 12px 24px;
-          background: linear-gradient(135deg, #dc2626, #b91c1c);
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-size: 0.95rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .btnExecute:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
-        }
-
-        .btnExecute:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .emptyPreview {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 12px;
-          padding: 40px;
-          background: rgba(248, 250, 252, 0.8);
-          border-radius: 12px;
-          text-align: center;
-        }
-
-        .emptyPreview i {
-          font-size: 2rem;
-          color: rgba(43, 108, 255, 0.5);
-        }
-
-        .emptyPreview p {
-          margin: 0;
-          color: rgba(15, 23, 42, 0.6);
-        }
-      `}</style>
+                .emptyPreview { padding: 80px; text-align: center; color: #94a3b8; background: #f8fafc; border-radius: 24px; border: 2px dashed #e2e8f0; }
+                .emptyPreview i { font-size: 3rem; margin-bottom: 18px; opacity: 0.3; }
+                .emptyPreview p { font-weight: 600; font-size: 1.1rem; }
+            `}</style>
         </div>
     )
 }

@@ -12,22 +12,36 @@ export async function GET(request: NextRequest) {
         const nip = searchParams.get('nip');
         const kelas = searchParams.get('kelas');
         const mapel = searchParams.get('mapel');
-        const semester = searchParams.get('semester');
+        let semester = searchParams.get('semester');
+        let tahun_ajaran = searchParams.get('tahun_ajaran');
+
+        if (!tahun_ajaran || !semester) {
+            const { getActiveSettingsServer } = await import('@/lib/settings-server');
+            const settings = await getActiveSettingsServer();
+            if (!tahun_ajaran) tahun_ajaran = settings?.tahun_ajaran || null;
+            if (!semester) semester = settings?.semester || null;
+        }
 
         if (!nip || !kelas || !mapel || !semester) {
             return NextResponse.json<ApiResponse>({ ok: false, error: 'Parameter tidak lengkap (nip, kelas, mapel, semester)' }, { status: 400 });
         }
 
-        const semInt = parseInt(semester);
+        const semVal = isNaN(parseInt(semester)) ? semester : parseInt(semester);
 
         // 1. Fetch Nilai Data
-        const { data: nilaiData, error: errorNilai } = await supabase
+        let queryNilai = supabase
             .from('nilai_data')
             .select('*')
             .eq('nip', nip)
             .eq('kelas', kelas)
             .eq('mapel', mapel)
-            .eq('semester', semInt);
+            .eq('semester', semVal);
+
+        if (tahun_ajaran) {
+            queryNilai = queryNilai.eq('tahun_ajaran', tahun_ajaran);
+        }
+
+        const { data: nilaiData, error: errorNilai } = await queryNilai;
 
         if (errorNilai) throw errorNilai;
 
@@ -38,7 +52,7 @@ export async function GET(request: NextRequest) {
             .eq('nip', nip)
             .eq('kelas', kelas)
             .eq('mapel', mapel)
-            .eq('semester', semInt)
+            .eq('semester', semVal)
             .maybeSingle();
 
         if (errorBobot) throw errorBobot;
@@ -50,7 +64,7 @@ export async function GET(request: NextRequest) {
             .eq('nip', nip)
             .eq('kelas', kelas)
             .eq('mapel', mapel)
-            .eq('semester', semInt);
+            .eq('semester', semVal);
 
         if (errorTagihan) throw errorTagihan;
 
@@ -58,21 +72,29 @@ export async function GET(request: NextRequest) {
 
         // 4. Fetch Students (NISN, Nama)
         // Try fetching with nama_siswa first, fallback to nama if error
-        let { data: siswaData, error: errorSiswa } = await supabase
+        let querySiswa = supabase
             .from('siswa_kelas')
             .select('nisn, nama_siswa')
             .eq('kelas', kelasTrimmed)
-            .eq('aktif', true)
-            .order('nama_siswa', { ascending: true });
+            .eq('aktif', true);
+
+        if (tahun_ajaran) {
+            querySiswa = querySiswa.eq('tahun_ajaran', tahun_ajaran);
+        }
+
+        let { data: siswaData, error: errorSiswa } = await querySiswa.order('nama_siswa', { ascending: true });
 
         if (errorSiswa) {
             console.warn('Fallback to "nama" column for siswa_kelas...');
-            const { data: retryData, error: retryError } = await supabase
+            let qRetry = supabase
                 .from('siswa_kelas')
                 .select('nisn, nama')
                 .eq('kelas', kelasTrimmed)
-                .eq('aktif', true)
-                .order('nama', { ascending: true });
+                .eq('aktif', true);
+
+            if (tahun_ajaran) qRetry = qRetry.eq('tahun_ajaran', tahun_ajaran);
+
+            const { data: retryData, error: retryError } = await qRetry.order('nama', { ascending: true });
 
             if (retryError) throw retryError;
 
@@ -114,19 +136,27 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { nip, kelas, mapel, semester, updates } = body;
+        let { nip, kelas, mapel, semester, updates, tahun_ajaran } = body;
+
+        if (!tahun_ajaran || !semester) {
+            const { getActiveSettingsServer } = await import('@/lib/settings-server');
+            const settings = await getActiveSettingsServer();
+            if (!tahun_ajaran) tahun_ajaran = settings?.tahun_ajaran || null;
+            if (!semester) semester = settings?.semester || null;
+        }
 
         if (!nip || !kelas || !mapel || !semester || !updates || !Array.isArray(updates)) {
             return NextResponse.json<ApiResponse>({ ok: false, error: 'Parameter tidak lengkap atau format updates salah' }, { status: 400 });
         }
 
-        const semInt = parseInt(semester);
+        const semVal = isNaN(parseInt(semester)) ? semester : parseInt(semester);
 
         const rowsToUpsert = updates.map(upd => ({
             nip,
             kelas,
             mapel,
-            semester: semInt,
+            semester: semVal,
+            tahun_ajaran: tahun_ajaran,
             nisn: upd.nisn,
             jenis: upd.jenis,
             tagihan: upd.tagihan || '',
@@ -139,7 +169,7 @@ export async function POST(request: NextRequest) {
         const { data, error } = await supabase
             .from('nilai_data')
             .upsert(rowsToUpsert, {
-                onConflict: 'nip,kelas,mapel,semester,nisn,jenis,tagihan,materi_tp'
+                onConflict: 'nip,kelas,mapel,semester,nisn,jenis,tagihan,materi_tp,tahun_ajaran'
             })
             .select();
 

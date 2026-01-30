@@ -22,8 +22,21 @@ export async function GET(request: NextRequest) {
             .order('kelas', { ascending: true })
             .order('nama_siswa', { ascending: true })
 
-        if (tahun_ajaran) {
-            query = query.eq('tahun_ajaran', tahun_ajaran)
+        let targetTahunAjaran = tahun_ajaran;
+        if (!targetTahunAjaran || targetTahunAjaran === 'Semua') {
+            // Default to active year IF not requesting "Semua" specifically
+            // Note: If the user explicitly wants "Semua", they should pass something or we handle "Semua" as null
+            if (targetTahunAjaran !== 'Semua') {
+                const { getActiveAcademicYearServer } = await import('@/lib/settings-server');
+                const active = await getActiveAcademicYearServer();
+                if (active) targetTahunAjaran = active;
+            } else {
+                targetTahunAjaran = null;
+            }
+        }
+
+        if (targetTahunAjaran && targetTahunAjaran !== 'Semua') {
+            query = query.eq('tahun_ajaran', targetTahunAjaran)
         }
 
         if (semester) {

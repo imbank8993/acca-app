@@ -1,24 +1,30 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import type { User } from '@/lib/types'
+import * as XLSX from 'xlsx'
+import Swal from 'sweetalert2'
 
 export default function UserDataTab() {
   const [users, setUsers] = useState<User[]>([])
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [isAdding, setIsAdding] = useState(false)
   const [formData, setFormData] = useState({
     username: '',
     nip: '',
     nama: '',
     divisi: '',
-    photoUrl: ''
+    role: 'GURU',
+    pages: 'Dashboard'
   })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [toggling, setToggling] = useState<number | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch all users
   useEffect(() => {
@@ -71,39 +77,60 @@ export default function UserDataTab() {
     inactive: users.filter((u) => !u.aktif).length
   }), [users])
 
-  const handleEdit = (user: User) => {
-    setEditingUser(user)
-    setFormData({
-      username: user.username,
-      nip: user.nip,
-      nama: user.nama,
-      divisi: user.divisi,
-      photoUrl: user.photoUrl || ''
-    })
-    setMessage(null)
-  }
-
-  const handleCancel = () => {
+  const handleAdd = () => {
+    setIsAdding(true)
     setEditingUser(null)
     setFormData({
       username: '',
       nip: '',
       nama: '',
       divisi: '',
-      photoUrl: ''
+      role: 'GURU',
+      pages: 'Dashboard'
+    })
+    setMessage(null)
+  }
+
+  const handleEdit = (user: User) => {
+    setIsAdding(false)
+    setEditingUser(user)
+    setFormData({
+      username: user.username,
+      nip: user.nip,
+      nama: user.nama,
+      divisi: user.divisi,
+      role: user.role || 'GURU',
+      pages: user.pages || 'Dashboard'
+    })
+    setMessage(null)
+  }
+
+  const handleCancel = () => {
+    setEditingUser(null)
+    setIsAdding(false)
+    setFormData({
+      username: '',
+      nip: '',
+      nama: '',
+      divisi: '',
+      role: 'GURU',
+      pages: 'Dashboard'
     })
     setMessage(null)
   }
 
   const handleSave = async () => {
-    if (!editingUser) return
+    if (!editingUser && !isAdding) return
 
     setSaving(true)
     setMessage(null)
 
     try {
-      const res = await fetch(`/api/admin/users/${editingUser.id}`, {
-        method: 'PUT',
+      const url = isAdding ? '/api/admin/users' : `/api/admin/users/${editingUser?.id}`
+      const method = isAdding ? 'POST' : 'PUT'
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       })
@@ -111,13 +138,13 @@ export default function UserDataTab() {
       const data = await res.json()
 
       if (data.ok) {
-        setMessage({ type: 'success', text: 'Data user berhasil diperbarui!' })
+        setMessage({ type: 'success', text: isAdding ? 'User baru berhasil ditambahkan!' : 'Data user berhasil diperbarui!' })
         fetchUsers() // Refresh list
         setTimeout(() => {
           handleCancel()
         }, 1500)
       } else {
-        setMessage({ type: 'error', text: data.error || 'Gagal memperbarui data user' })
+        setMessage({ type: 'error', text: data.error || 'Gagal menyimpan data user' })
       }
     } catch (error) {
       console.error('Error saving user data:', error)
@@ -125,6 +152,90 @@ export default function UserDataTab() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleExport = () => {
+    const dataToExport = users.map(u => ({
+      'id': u.id,
+      'username': u.username,
+      'nip': u.nip,
+      'nama': u.nama,
+      'divisi': u.divisi,
+      'role': u.role,
+      'pages': u.pages,
+      'aktif': u.aktif ? 'Y' : 'N',
+      'auth_id': u.auth_id || '',
+      'password': '****'
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Users')
+    XLSX.writeFile(wb, `Data_Users_ACCA_${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setImporting(true)
+    const reader = new FileReader()
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result
+        const wb = XLSX.read(bstr, { type: 'binary' })
+        const wsname = wb.SheetNames[0]
+        const ws = wb.Sheets[wsname]
+        const data = XLSX.utils.sheet_to_json(ws) as any[]
+
+        // Transform data
+        const usersToImport = data.map(row => {
+          const aktifRaw = String(row['aktif'] || row['Aktif'] || 'Y').toUpperCase();
+          const isAktif = ['Y', 'TRUE', 'YA', '1', 'ACTIVE'].includes(aktifRaw);
+
+          return {
+            username: String(row['username'] || row['Username'] || ''),
+            nip: String(row['nip'] || row['NIP'] || ''),
+            nama: String(row['nama'] || row['Nama'] || ''),
+            divisi: String(row['divisi'] || row['Divisi'] || ''),
+            role: String(row['role'] || row['Role'] || 'GURU'),
+            pages: String(row['pages'] || row['Pages'] || 'Dashboard'),
+            aktif: isAktif,
+            auth_id: String(row['auth_id'] || '').trim() || null,
+            password: String(row['password'] || '').trim() || null
+          };
+        }).filter(u => u.username && u.nama)
+
+        if (usersToImport.length === 0) {
+          Swal.fire('Error', 'Tidak ada data valid untuk diimport', 'error')
+          return
+        }
+
+        const res = await fetch('/api/admin/users/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ users: usersToImport })
+        })
+
+        const resData = await res.json()
+        if (resData.ok) {
+          Swal.fire('Berhasil', resData.message, 'success')
+          fetchUsers()
+        } else {
+          Swal.fire('Gagal', resData.error, 'error')
+        }
+      } catch (err: any) {
+        Swal.fire('Error', 'Gagal memproses file: ' + err.message, 'error')
+      } finally {
+        setImporting(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      }
+    }
+    reader.readAsBinaryString(file)
   }
 
   const handleToggleStatus = async (user: User) => {
@@ -161,23 +272,46 @@ export default function UserDataTab() {
   return (
     <div className="userDataTab">
       <div className="tabHeader">
-        <h2>Kelola Data & Status User</h2>
-        <p>Ubah informasi profil atau atur status aktivitas setiap personil.</p>
+        <div className="tabHeaderLeft">
+          <h2>Kelola Data & Status User</h2>
+          <p>Ubah informasi profil atau atur status aktivitas setiap personil.</p>
+        </div>
+        <div className="tabHeaderActions">
+          <input type="file" ref={fileInputRef} hidden accept=".xlsx,.xls" onChange={handleFileChange} />
+          <button className="btnAction add" onClick={handleAdd}>
+            <i className="bi bi-person-plus-fill"></i> Tambah Personil
+          </button>
+          <button className="btnAction export" onClick={handleExport}>
+            <i className="bi bi-file-earmark-spreadsheet"></i> Export
+          </button>
+          <button className="btnAction import" onClick={handleImportClick} disabled={importing}>
+            <i className="bi bi-file-earmark-arrow-up"></i> {importing ? 'Importing...' : 'Import'}
+          </button>
+        </div>
       </div>
 
       {/* Quick Stats */}
       <div className="statsRow">
-        <div className="statItem">
-          <span className="sVal">{stats.total}</span>
-          <span className="sLab">Total</span>
+        <div className="statItem total">
+          <div className="statIcon"><i className="bi bi-people-fill"></i></div>
+          <div className="statInfo">
+            <span className="sVal">{stats.total}</span>
+            <span className="sLab">Total Personil</span>
+          </div>
         </div>
         <div className="statItem active">
-          <span className="sVal">{stats.active}</span>
-          <span className="sLab">Aktif</span>
+          <div className="statIcon"><i className="bi bi-person-check-fill"></i></div>
+          <div className="statInfo">
+            <span className="sVal">{stats.active}</span>
+            <span className="sLab">Personil Aktif</span>
+          </div>
         </div>
         <div className="statItem inactive">
-          <span className="sVal">{stats.inactive}</span>
-          <span className="sLab">Off</span>
+          <div className="statIcon"><i className="bi bi-person-x-fill"></i></div>
+          <div className="statInfo">
+            <span className="sVal">{stats.inactive}</span>
+            <span className="sLab">Personil Off</span>
+          </div>
         </div>
       </div>
 
@@ -208,7 +342,7 @@ export default function UserDataTab() {
       )}
 
       {/* Table or Form */}
-      {!editingUser ? (
+      {(!editingUser && !isAdding) ? (
         <div className="tableWrapper">
           <table className="userTable">
             <thead>
@@ -264,7 +398,7 @@ export default function UserDataTab() {
             <button className="btnBack" onClick={handleCancel}>
               <i className="bi bi-arrow-left"></i> Kembali ke List
             </button>
-            <h3>Profil: {editingUser.nama}</h3>
+            <h3>{isAdding ? 'Tambah Personil Baru' : `Profil: ${editingUser?.nama}`}</h3>
           </div>
 
           <div className="editGrid">
@@ -284,9 +418,13 @@ export default function UserDataTab() {
               <label>Divisi</label>
               <input value={formData.divisi} onChange={e => setFormData({ ...formData, divisi: e.target.value })} />
             </div>
-            <div className="field full">
-              <label>URL Foto Profile</label>
-              <input value={formData.photoUrl} onChange={e => setFormData({ ...formData, photoUrl: e.target.value })} />
+            <div className="field">
+              <label>Role (Pisahkan koma jika multi)</label>
+              <input value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} placeholder="GURU, ADMIN, dll" />
+            </div>
+            <div className="field">
+              <label>Akses Halaman (Pisahkan koma)</label>
+              <input value={formData.pages} onChange={e => setFormData({ ...formData, pages: e.target.value })} placeholder="Dashboard, Jurnal, ..." />
             </div>
           </div>
 
@@ -299,79 +437,93 @@ export default function UserDataTab() {
       )}
 
       <style jsx>{`
-                .userDataTab { display: flex; flex-direction: column; gap: 24px; animation: fadeIn 0.3s ease; }
-                @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+                .userDataTab { display: flex; flex-direction: column; gap: 32px; animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); padding: 10px; }
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
-                .tabHeader h2 { margin: 0; font-size: 1.25rem; color: #1e293b; font-weight: 700; }
-                .tabHeader p { margin: 4px 0 0; color: #64748b; font-size: 0.95rem; }
+                .tabHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+                .tabHeaderLeft h2 { margin: 0; font-size: 1.5rem; color: #0f1b2a; font-weight: 800; letter-spacing: -0.01em; }
+                .tabHeaderLeft p { margin: 6px 0 0; color: #64748b; font-size: 0.95rem; }
 
-                /* Stats */
-                .statsRow { display: flex; gap: 12px; }
-                .statItem { flex: 1; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; display: flex; flex-direction: column; align-items: center; }
-                .statItem.active { background: #f0fdf4; border-color: #bbf7d0; color: #16a34a; }
-                .statItem.inactive { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
-                .sVal { font-size: 1.4rem; font-weight: 800; }
-                .sLab { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; opacity: 0.7; }
+                .tabHeaderActions { display: flex; gap: 12px; }
+                .btnAction { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 14px; border: none; font-weight: 700; font-size: 0.88rem; cursor: pointer; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); }
+                .btnAction:hover { transform: translateY(-3px); box-shadow: 0 12px 20px rgba(15, 23, 42, 0.12); }
+                .btnAction:active { transform: translateY(-1px); }
+                .btnAction.add { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; }
+                .btnAction.export { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+                .btnAction.export:hover { background: #fff; color: #0f1b2a; border-color: #3aa6ff; }
+                .btnAction.import { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+                .btnAction:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
-                /* Controls */
-                .controls { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
-                .filterGroup { display: flex; background: #f1f5f9; padding: 4px; border-radius: 10px; }
-                .filterGroup button { border: none; background: transparent; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; color: #64748b; cursor: pointer; transition: 0.2s; }
-                .filterGroup button.active { background: white; color: #2563eb; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-
-                .searchBox { position: relative; flex: 1; max-width: 400px; }
-                .searchBox i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
-                .searchBox input { width: 100%; padding: 10px 10px 10px 40px; border: 1px solid #e2e8f0; border-radius: 12px; outline: none; transition: 0.2s; }
-                .searchBox input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
-
-                /* Toast */
-                .messageToast { padding: 12px 20px; border-radius: 12px; display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 0.9rem; border: 1px solid transparent; }
-                .messageToast.success { background: #f0fdf4; border-color: #bbf7d0; color: #16a34a; }
-                .messageToast.error { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
-
-                /* Table */
-                .tableWrapper { background: white; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-                .userTable { width: 100%; border-collapse: collapse; }
-                .userTable th { background: #f8fafc; padding: 16px; text-align: left; font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
-                .userTable td { padding: 16px; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
+                /* Stats Cards */
+                .statsRow { display: flex; gap: 20px; }
+                .statItem { flex: 1; padding: 24px; background: #fff; border: 1px solid rgba(15, 42, 86, 0.06); border-radius: 20px; display: flex; align-items: center; gap: 20px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.03); transition: all 0.3s; }
+                .statItem:hover { transform: translateY(-4px); box-shadow: 0 15px 35px rgba(15, 23, 42, 0.06); }
                 
-                .profileCell { display: flex; flex-direction: column; }
-                .pName { font-weight: 700; color: #1e293b; }
-                .pNip { font-size: 0.75rem; color: #94a3b8; font-family: monospace; }
-                .uName { color: #2563eb; font-weight: 600; }
+                .statIcon { width: 56px; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; }
+                .statItem.total .statIcon { background: #f1f5f9; color: #475569; }
+                .statItem.active .statIcon { background: #ecfdf5; color: #10b981; }
+                .statItem.inactive .statIcon { background: #fff1f2; color: #f43f5e; }
+                
+                .statInfo { display: flex; flex-direction: column; }
+                .sVal { font-size: 1.75rem; font-weight: 800; color: #0f1b2a; line-height: 1; margin-bottom: 4px; }
+                .sLab { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
 
-                .statusTag { padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; }
-                .statusTag.active { background: #dcfce7; color: #166534; }
-                .statusTag.inactive { background: #fee2e2; color: #991b1b; }
+                /* Controls (Filter & Search) */
+                .controls { display: flex; justify-content: space-between; align-items: center; gap: 24px; background: #f8fafc; padding: 12px; border-radius: 20px; border: 1px solid #e2e8f0; }
+                .filterGroup { display: flex; background: #fff; padding: 6px; border-radius: 14px; border: 1px solid #e2e8f0; }
+                .filterGroup button { border: none; background: transparent; padding: 10px 20px; border-radius: 10px; font-size: 0.88rem; font-weight: 700; color: #64748b; cursor: pointer; transition: all 0.2s; }
+                .filterGroup button.active { background: #0f1b2a; color: white; box-shadow: 0 4px 10px rgba(15, 27, 42, 0.2); }
+                .filterGroup button:hover:not(.active) { color: #0f1b2a; background: #f1f5f9; }
 
-                .actionRow { display: flex; gap: 8px; justify-content: center; }
-                .btnE, .btnT { width: 36px; height: 36px; border-radius: 10px; border: 1px solid #e2e8f0; background: white; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
-                .btnE:hover { background: #eff6ff; border-color: #3b82f6; color: #2563eb; }
-                .btnT.on { color: #16a34a; }
-                .btnT.on:hover { background: #f0fdf4; border-color: #22c55e; }
-                .btnT.off { color: #dc2626; opacity: 0.6; }
-                .btnT.off:hover { background: #fef2f2; border-color: #ef4444; opacity: 1; }
-                .btnT:disabled { opacity: 0.3; cursor: not-allowed; }
+                .searchBox { position: relative; flex: 1; }
+                .searchBox i { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.1rem; }
+                .searchBox input { width: 100%; padding: 14px 20px 14px 52px; border: 1px solid #e2e8f0; border-radius: 16px; outline: none; transition: all 0.2s; font-size: 0.95rem; font-weight: 500; background: #fff; }
+                .searchBox input:focus { border-color: #3aa6ff; box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.1); background: #fff; }
 
-                /* Edit Area */
-                .editArea { background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; }
-                .editHead { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
-                .btnBack { background: #f1f5f9; border: none; padding: 8px 16px; border-radius: 10px; font-weight: 700; color: #64748b; cursor: pointer; transition: 0.2s; }
-                .btnBack:hover { background: #e2e8f0; color: #1e293b; }
-                .editHead h3 { margin: 0; font-size: 1.2rem; color: #1e293b; }
+                /* Table Styling */
+                .tableWrapper { background: #fff; border: 1px solid rgba(15, 42, 86, 0.06); border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.04); }
+                .userTable { width: 100%; border-collapse: separate; border-spacing: 0; }
+                .userTable th { background: #fcfdfe; padding: 20px 24px; text-align: left; font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #f1f5f9; }
+                .userTable td { padding: 20px 24px; border-bottom: 1px solid #f8fafc; font-size: 0.95rem; vertical-align: middle; transition: all 0.2s; }
+                .userTable tbody tr:hover td { background: #fcfdfe; }
+                
+                .profileCell { display: flex; flex-direction: column; gap: 4px; }
+                .pName { font-weight: 700; color: #0f1b2a; font-size: 1rem; }
+                .pNip { font-size: 0.8rem; color: #94a3b8; font-weight: 500; }
+                .uName { color: #3aa6ff; font-weight: 700; background: #f0f7ff; padding: 4px 10px; border-radius: 8px; font-size: 0.88rem; }
 
-                .editGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-                .field { display: flex; flex-direction: column; gap: 8px; }
-                .field.full { grid-column: span 2; }
-                .field label { font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; }
-                .field input { padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; outline: none; font-weight: 600; }
-                .field input:focus { border-color: #2563eb; }
+                .statusTag { padding: 6px 14px; border-radius: 10px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; }
+                .statusTag.active { background: #ecfdf5; color: #059669; border: 1px solid #d1fae5; }
+                .statusTag.inactive { background: #fff1f2; color: #e11d48; border: 1px solid #ffe4e6; }
 
-                .editFooter { margin-top: 30px; display: flex; justify-content: flex-end; }
-                .btnSave { padding: 14px 40px; background: #1e293b; color: white; border: none; border-radius: 14px; font-weight: 700; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-                .btnSave:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-                .loadingCell { text-align: center; padding: 40px; color: #94a3b8; font-style: italic; }
+                .actionRow { display: flex; gap: 10px; justify-content: center; }
+                .btnE, .btnT { width: 42px; height: 42px; border-radius: 14px; border: 1px solid #f1f5f9; background: #fff; cursor: pointer; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; color: #64748b; }
+                .btnE:hover { background: #f0f7ff; border-color: #3aa6ff; color: #1e40af; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(58, 166, 255, 0.15); }
+                .btnT.on { color: #10b981; }
+                .btnT.on:hover { background: #ecfdf5; border-color: #10b981; color: #065f46; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15); }
+                .btnT.off { color: #f43f5e; opacity: 0.6; }
+                .btnT.off:hover { background: #fff1f2; border-color: #f43f5e; color: #9f1239; opacity: 1; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(244, 63, 94, 0.15); }
+                .btnT:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
+
+                /* Form Area Improvements */
+                .editArea { background: white; border: 1px solid rgba(15, 42, 86, 0.08); border-radius: 24px; padding: 40px; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.08); }
+                .editHead { display: flex; align-items: center; gap: 24px; margin-bottom: 40px; }
+                .btnBack { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 24px; border-radius: 14px; font-weight: 700; color: #475569; cursor: pointer; transition: all 0.2s; font-size: 0.88rem; }
+                .btnBack:hover { background: #fff; color: #0f1b2a; border-color: #3aa6ff; transform: translateX(-4px); }
+                .editHead h3 { margin: 0; font-size: 1.5rem; color: #0f1b2a; font-weight: 800; }
+
+                .editGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+                .field { display: flex; flex-direction: column; gap: 10px; }
+                .field label { font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-left: 4px; }
+                .field input { padding: 16px; border: 1px solid #e2e8f0; border-radius: 16px; outline: none; font-weight: 600; font-size: 1rem; transition: all 0.2s; background: #fcfdfe; }
+                .field input:focus { border-color: #3aa6ff; box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.1); background: #fff; }
+
+                .editFooter { margin-top: 48px; border-top: 1px solid #f1f5f9; padding-top: 32px; display: flex; justify-content: flex-end; }
+                .btnSave { padding: 18px 60px; background: linear-gradient(135deg, #0f1b2a, #1e3a8a); color: white; border: none; border-radius: 18px; font-weight: 750; font-size: 1rem; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 10px 25px rgba(15, 27, 42, 0.2); }
+                .btnSave:hover:not(:disabled) { transform: translateY(-4px); box-shadow: 0 20px 35px rgba(15, 27, 42, 0.3); }
+                .btnSave:active { transform: translateY(-1px); }
+                .loadingCell { text-align: center; padding: 80px; color: #94a3b8; font-style: italic; font-size: 1.1rem; }
             `}</style>
-    </div>
+    </div >
   )
 }

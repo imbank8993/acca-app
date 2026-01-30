@@ -18,12 +18,22 @@ export async function GET(request: NextRequest) {
             query = query.ilike('keterangan', `%${q}%`)
         }
 
+        let targetTahunAjaran = tahun_ajaran;
+        if (!tahun && (!targetTahunAjaran || targetTahunAjaran === 'Semua')) {
+            if (targetTahunAjaran !== 'Semua') {
+                const { getActiveAcademicYearServer } = await import('@/lib/settings-server');
+                const active = await getActiveAcademicYearServer();
+                if (active) targetTahunAjaran = active;
+            } else {
+                targetTahunAjaran = null;
+            }
+        }
+
         if (tahun) {
-            // Filter by date range for the year
-            // "2025" -> 2025-01-01 to 2025-12-31
+            // Filter by calendar year
             query = query.gte('tanggal', `${tahun}-01-01`).lte('tanggal', `${tahun}-12-31`)
-        } else if (tahun_ajaran) {
-            query = query.eq('tahun_ajaran', tahun_ajaran)
+        } else if (targetTahunAjaran && targetTahunAjaran !== 'Semua') {
+            query = query.eq('tahun_ajaran', targetTahunAjaran)
         }
 
         const { data, error } = await query

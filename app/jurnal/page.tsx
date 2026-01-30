@@ -4,9 +4,10 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Select from 'react-select';
 import { hasPermission } from '@/lib/permissions-client';
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 import { supabase } from '@/lib/supabase';
 import Swal from 'sweetalert2';
+import JournalModal from './components/JournalModal';
 
 interface Journal {
     id: number;
@@ -101,11 +102,9 @@ function JurnalContent({ user }: { user?: any }) {
     const [showEditModal, setShowEditModal] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [editJournal, setEditJournal] = useState<Journal | null>(null);
-    const [newJournal, setNewJournal] = useState<Partial<Journal>>({
-        tanggal: new Date().toISOString().split('T')[0],
-        kategori_kehadiran: 'Sesuai'
-    });
-    const [jamOptions, setJamOptions] = useState<any[]>([]);
+
+    const [masterDataState, setMasterDataState] = useState<any>(null);
+
 
     // Derived values from URL
     const urlFilters: Filters = {
@@ -122,7 +121,8 @@ function JurnalContent({ user }: { user?: any }) {
 
     const isGuru = roles.includes('GURU');
     const isWali = roles.includes('WALI KELAS');
-    const isKepala = roles.includes('KEPALA MADRASAH');
+    const isKepala = roles.includes('KEPALA MADRASAH') || roles.includes('KAMAD');
+    const isOPJurnal = roles.includes('OP_JURNAL');
     const isAdmin = roles.includes('ADMIN');
 
     const canDo = (action: string) => {
@@ -158,20 +158,23 @@ function JurnalContent({ user }: { user?: any }) {
         }
     };
 
-    const handleDelete = async (id: number) => {
-        if (!confirm('Yakin ingin menghapus jurnal ini?')) return;
+    const handleDelete = async (ids: number | number[]) => {
+        const idsArray = Array.isArray(ids) ? ids : [ids];
+        if (!confirm(`Yakin ingin menghapus ${idsArray.length > 1 ? idsArray.length + ' data jurnal ini sekaligus?' : 'jurnal ini?'}`)) return;
 
         try {
-            const response = await fetch(`/api/jurnal?id=${id}`, {
-                method: 'DELETE'
-            });
+            // Loop for delete or we could update API to handle array
+            for (const id of idsArray) {
+                const response = await fetch(`/api/jurnal?id=${id}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) throw new Error('Gagal menghapus data dengan ID ' + id);
+            }
 
-            if (!response.ok) throw new Error('Failed to delete journal');
-
-            alert('Jurnal berhasil dihapus');
+            Swal.fire('Berhasil', 'Data jurnal berhasil dihapus', 'success');
             fetchJournals();
         } catch (err: any) {
-            alert('Gagal menghapus jurnal: ' + err.message);
+            Swal.fire('Gagal', 'Terjadi kesalahan: ' + err.message, 'error');
         }
     };
 
@@ -185,66 +188,360 @@ function JurnalContent({ user }: { user?: any }) {
         return true;
     });
 
-    const handleExport = async (mode: 'GURU' | 'WALI' | 'ADMIN') => {
-        let exportData = [...journals];
+    // AUTO-GROUPING LOGIC (Smart Range & Context)
+    const displayGroups = (filteredData: Journal[]) => {
+        if (filteredData.length === 0) return [];
+
+        const groups: any[] = [];
+        let currentGroup: any = null;
+
+        // Ensure sorted by Date, Teacher, Class, and Hour
+        const sorted = [...filteredData].sort((a, b) => {
+            if (a.tanggal !== b.tanggal) return b.tanggal.localeCompare(a.tanggal);
+            if (a.nama_guru !== b.nama_guru) return a.nama_guru.localeCompare(b.nama_guru);
+            if (a.kelas !== b.kelas) return a.kelas.localeCompare(b.kelas);
+            return (a.jam_ke_id || 0) - (b.jam_ke_id || 0);
+        });
+
+        sorted.forEach(j => {
+            if (!currentGroup) {
+                currentGroup = { ...j, allIds: [j.id], jamIds: [j.jam_ke_id] };
+            } else {
+                const lastJam = currentGroup.jamIds[currentGroup.jamIds.length - 1];
+                const isConsecutive = j.jam_ke_id === (lastJam + 1);
+
+                const isSameContext =
+                    j.nip === currentGroup.nip &&
+                    j.tanggal === currentGroup.tanggal &&
+                    j.kelas === currentGroup.kelas &&
+                    j.mata_pelajaran === currentGroup.mata_pelajaran &&
+                    j.kategori_kehadiran === currentGroup.kategori_kehadiran &&
+                    j.materi === currentGroup.materi &&
+                    j.refleksi === currentGroup.refleksi &&
+                    j.guru_pengganti === currentGroup.guru_pengganti &&
+                    j.status_pengganti === currentGroup.status_pengganti;
+
+                if (isSameContext) {
+                    currentGroup.allIds.push(j.id);
+                    currentGroup.jamIds.push(j.jam_ke_id);
+                } else {
+                    // Finalize previous group's jam_ke display
+                    formatJamRange(currentGroup);
+                    groups.push(currentGroup);
+                    currentGroup = { ...j, allIds: [j.id], jamIds: [j.jam_ke_id] };
+                }
+            }
+        });
+
+        if (currentGroup) {
+            formatJamRange(currentGroup);
+            groups.push(currentGroup);
+        }
+        return groups;
+    };
+
+    // Helper: Format jamIds into "1-3" or "1, 3" string
+    const formatJamRange = (group: any) => {
+        const ids = group.jamIds.sort((a: number, b: number) => a - b);
+        if (ids.length === 0) return;
+
+        // Logic to find ranges
+        const result = [];
+        let start = ids[0];
+        let prev = ids[0];
+
+        for (let i = 1; i <= ids.length; i++) {
+            const current = ids[i];
+            if (current === prev + 1) {
+                prev = current;
+            } else {
+                if (start === prev) {
+                    result.push(start.toString());
+                } else {
+                    result.push(`${start}-${prev}`);
+                }
+                start = current;
+                prev = current;
+            }
+        }
+        group.jam_ke = result.join(', ');
+    };
+
+    const finalDisplayData = displayGroups(filteredJournals);
+
+    const handleExport = async (mode: 'GURU' | 'WALI' | 'ADMIN' | 'KEPALA') => {
+        let exportRaw = [...journals];
         let filename = 'Jurnal_Export';
 
         if (mode === 'GURU') {
-            exportData = exportData.filter(j => j.nip === user?.nip);
+            // Filter by NIP or Name, and INCLUDE entries where user is Guru Pengganti (Point 4)
+            exportRaw = exportRaw.filter(j =>
+                j.nip === user?.nip ||
+                j.nama_guru === user?.nama ||
+                (j.guru_pengganti && j.guru_pengganti === user?.nama)
+            );
             filename = `Jurnal_Personal_${user?.nama || 'Guru'}`;
         } else if (mode === 'WALI') {
-            // Filter by selected class if any, or default to all if no specific class assigned to wali
-            if (selectedClass) {
-                exportData = exportData.filter(j => j.kelas === selectedClass);
-            }
-            filename = `Jurnal_Kelas_${selectedClass || 'Semua'}`;
-        } else if (mode === 'ADMIN') {
-            filename = `Jurnal_Global_${new Date().toISOString().split('T')[0]}`;
+            // Wali filters could be added here if needed
         }
+
+        // APPLY GROUPING TO EXPORT DATA
+        const exportData = displayGroups(exportRaw);
 
         if (exportData.length === 0) {
             Swal.fire('Info', 'Tidak ada data untuk diekspor dalam mode ini.', 'info');
             return;
         }
 
-        const dataToExcel = exportData.map((j, i) => ({
-            'No': i + 1,
-            'Tanggal': j.tanggal,
-            'Hari': j.hari,
-            'Jam': j.jam_ke,
-            'Guru': j.nama_guru,
-            'Kelas': j.kelas,
-            'Mata Pelajaran': j.mata_pelajaran,
-            'Kategori': j.kategori_kehadiran,
-            'Materi': j.materi || '-',
-            'Refleksi': j.refleksi || '-'
-        }));
+        // PREPARE DATA FOR EXCEL (Common transformation for all sheets)
+        const transformData = (data: any[]) => data.map((j, i) => {
+            let timeDisplay = '';
+            if (allWaktu.length > 0 && j.jamIds && j.jamIds.length > 0) {
+                const sortedIds = [...j.jamIds].sort((a, b) => a - b);
+                const firstId = sortedIds[0];
+                const lastId = sortedIds[sortedIds.length - 1];
+                const startSch = allWaktu.find((w: any) => w.jam_ke === firstId && w.hari === j.hari);
+                const endSch = allWaktu.find((w: any) => w.jam_ke === lastId && w.hari === j.hari);
+                if (startSch && endSch) {
+                    timeDisplay = `${startSch.mulai?.slice(0, 5)} - ${endSch.selesai?.slice(0, 5)}`;
+                } else {
+                    timeDisplay = j.jam_ke;
+                }
+            } else {
+                timeDisplay = j.jam_ke;
+            }
 
-        const ws = XLSX.utils.json_to_sheet(dataToExcel);
+            return {
+                'No': i + 1,
+                'Tanggal': j.tanggal,
+                'Hari': j.hari,
+                'Jam Ke': j.jam_ke,
+                'Waktu': timeDisplay,
+                'Guru': j.nama_guru,
+                'Kelas': j.kelas,
+                'Mata Pelajaran': j.mata_pelajaran,
+                'Kategori': j.kategori_kehadiran,
+                'Materi': j.materi || '-',
+                'Refleksi': j.refleksi || '-',
+                'Guru Pengganti': j.guru_pengganti || '-',
+                'Status Pengganti': j.status_pengganti || '-',
+                'Alasan Terlambat': j.keterangan_terlambat || '-',
+                'Keterangan Tambahan': j.keterangan_tambahan || '-',
+                'Guru Piket': j.guru_piket || '-'
+            };
+        });
+
+        // STYLING HELPER
+        const applySheetStyles = (ws: any, rowData: any[]) => {
+            const textColWidth = 42;
+            const keys = rowData.length > 0 ? Object.keys(rowData[0]) : [];
+
+            // Smart Auto-Fit Logic
+            ws['!cols'] = keys.map((key, i) => {
+                if ([9, 10, 14].includes(i)) return { wch: textColWidth };
+
+                let maxLen = key.length;
+                rowData.forEach(row => {
+                    const val = (row as any)[key] ? String((row as any)[key]) : '';
+                    if (val.length > maxLen) maxLen = val.length;
+                });
+                // Pad with extra 3 units for breathing room, cap non-text columns at 35
+                return { wch: Math.min(maxLen + 3, 35) };
+            });
+
+            ws['!rows'] = [{ hpt: 35 }];
+            const range = XLSX.utils.decode_range(ws['!ref'] || "A1:P1");
+            for (let R = range.s.r; R <= range.e.r; ++R) {
+                for (let C = range.s.c; C <= range.e.c; ++C) {
+                    const cell_address = XLSX.utils.encode_cell({ r: R, c: C });
+                    if (!ws[cell_address]) continue;
+                    const isHeader = R === 0;
+                    const style: any = {
+                        font: { name: "Arial", sz: 10.5 },
+                        alignment: { vertical: "center", wrapText: false },
+                        border: {
+                            top: { style: "thin", color: { rgb: "E2E8F0" } },
+                            bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+                            left: { style: "thin", color: { rgb: "E2E8F0" } },
+                            right: { style: "thin", color: { rgb: "E2E8F0" } }
+                        }
+                    };
+                    if (isHeader) {
+                        style.font = { name: "Arial", sz: 11, bold: true, color: { rgb: "FFFFFF" } };
+                        style.fill = { fgColor: { rgb: "1E3A8A" } };
+                        style.alignment = { horizontal: "center", vertical: "center", wrapText: true };
+                    } else {
+                        if (C === 9 || C === 10 || C === 14) {
+                            style.alignment.wrapText = true;
+                            style.alignment.vertical = "top";
+                        } else if ([0, 2, 3, 6, 8].includes(C)) {
+                            style.alignment.horizontal = "center";
+                        }
+                    }
+                    ws[cell_address].s = style;
+                }
+            }
+        };
+
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Journal Data");
+
+        // 1. SHEET: SEMUA
+        const allDataTransformed = transformData(exportData);
+        const wsAll = XLSX.utils.json_to_sheet(allDataTransformed);
+        applySheetStyles(wsAll, allDataTransformed);
+        XLSX.utils.book_append_sheet(wb, wsAll, "Semua Data");
+
+        // 2. SHEETS: PER BULAN
+        const monthsInIndo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+        // Group data by month using the 'tanggal' field
+        const groupedByMonth = exportData.reduce((acc: any, item: any) => {
+            const date = new Date(item.tanggal);
+            const monthIdx = date.getMonth();
+            const year = date.getFullYear();
+            const key = `${monthsInIndo[monthIdx]} ${year}`;
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(item);
+            return acc;
+        }, {});
+
+        // Sort keys to have months in chronological order
+        const monthKeys = Object.keys(groupedByMonth).sort((a, b) => {
+            const [mA, yA] = a.split(' ');
+            const [mB, yB] = b.split(' ');
+            if (yA !== yB) return parseInt(yA) - parseInt(yB);
+            return monthsInIndo.indexOf(mA) - monthsInIndo.indexOf(mB);
+        });
+
+        monthKeys.forEach(monthLabel => {
+            const monthData = transformData(groupedByMonth[monthLabel]);
+            const wsMonth = XLSX.utils.json_to_sheet(monthData);
+            applySheetStyles(wsMonth, monthData);
+            // Sheet name max 31 chars
+            XLSX.utils.book_append_sheet(wb, wsMonth, monthLabel.slice(0, 31));
+        });
+
+        // 3. ADD EXTRA SHEET FOR PRIVILEGED ROLES AT THE END (REKAP KETIDAKHADIRAN)
+        if (mode === 'ADMIN' || mode === 'KEPALA') {
+            const rekapDataRaw = exportData.filter(j => (j.kategori_kehadiran || '').toLowerCase() !== 'sesuai');
+            if (rekapDataRaw.length > 0) {
+                const rekapTransformed = transformData(rekapDataRaw);
+                const wsRekap = XLSX.utils.json_to_sheet(rekapTransformed);
+
+                // Define Color Mapping for categories
+                const getStatusColor = (kategori: string) => {
+                    const k = (kategori || '').toLowerCase();
+                    if (k.includes('terlambat')) return 'FFF7ED'; // Orange-50 (Amber)
+                    if (k.includes('tugas')) return 'F0FDF4';    // Green-50
+                    if (k.includes('diganti') || k.includes('tukar') || k.includes('pengganti')) return 'EFF6FF'; // Blue-50
+                    if (k.includes('tidak hadir') || k.includes('mangkir') || k.includes('sakit') || k.includes('izin')) return 'FEF2F2'; // Red-50
+                    return 'F8FAF8'; // Default greyish
+                };
+
+                // Apply styles specifically for Rekap (with colors)
+                const textColWidth = 42;
+                const keys = rekapTransformed.length > 0 ? Object.keys(rekapTransformed[0]) : [];
+                wsRekap['!cols'] = keys.map((key, i) => {
+                    if ([9, 10, 14].includes(i)) return { wch: textColWidth };
+                    let maxLen = key.length;
+                    rekapTransformed.forEach(row => {
+                        const val = (row as any)[key] ? String((row as any)[key]) : '';
+                        if (val.length > maxLen) maxLen = val.length;
+                    });
+                    return { wch: Math.min(maxLen + 3, 35) };
+                });
+
+                wsRekap['!rows'] = [{ hpt: 35 }];
+                const range = XLSX.utils.decode_range(wsRekap['!ref'] || "A1:P1");
+                for (let R = range.s.r; R <= range.e.r; ++R) {
+                    for (let C = range.s.c; C <= range.e.c; ++C) {
+                        const cell_address = XLSX.utils.encode_cell({ r: R, c: C });
+                        if (!wsRekap[cell_address]) continue;
+                        const isHeader = R === 0;
+                        const itemData = R > 0 ? rekapDataRaw[R - 1] : null;
+                        const rowColor = itemData ? getStatusColor(itemData.kategori_kehadiran) : 'FFFFFF';
+
+                        const style: any = {
+                            font: { name: "Arial", sz: 10.5 },
+                            alignment: { vertical: "center", wrapText: false },
+                            border: {
+                                top: { style: "thin", color: { rgb: "E2E8F0" } },
+                                bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+                                left: { style: "thin", color: { rgb: "E2E8F0" } },
+                                right: { style: "thin", color: { rgb: "E2E8F0" } }
+                            },
+                            fill: { fgColor: { rgb: rowColor } }
+                        };
+
+                        if (isHeader) {
+                            style.font = { name: "Arial", sz: 11, bold: true, color: { rgb: "FFFFFF" } };
+                            style.fill = { fgColor: { rgb: "991B1B" } }; // Deep Red for Rekap Header
+                            style.alignment = { horizontal: "center", vertical: "center", wrapText: true };
+                        } else {
+                            if (C === 9 || C === 10 || C === 14) {
+                                style.alignment.wrapText = true;
+                                style.alignment.vertical = "top";
+                            } else if ([0, 2, 3, 6, 8].includes(C)) {
+                                style.alignment.horizontal = "center";
+                            }
+                        }
+                        wsRekap[cell_address].s = style;
+                    }
+                }
+
+                // Add to END of book
+                XLSX.utils.book_append_sheet(wb, wsRekap, "Rekap Ketidakhadiran Guru");
+            }
+        }
+
         XLSX.writeFile(wb, `${filename}.xlsx`);
     };
 
     const showExportOptions = () => {
         const items: any[] = [];
-        if (isGuru) items.push({ id: 'GURU', label: 'Eksport Jurnal Saya (Format Guru)' });
-        if (isWali) items.push({ id: 'WALI', label: 'Eksport Jurnal Kelas (Wali Kelas)' });
-        if (isAdmin || isKepala) items.push({ id: 'ADMIN', label: 'Eksport Semua Jurnal (Admin/Pimpinan)' });
+        if (canDo('export_personal')) items.push({ id: 'GURU', label: 'Mode GURU', desc: 'Eksport jurnal personal & pengganti saya' });
+        if (canDo('export_class')) items.push({ id: 'WALI', label: 'Mode WALI KELAS', desc: 'Eksport semua jurnal untuk kelas bimbingan' });
+        if (canDo('export_admin')) items.push({ id: 'ADMIN', label: 'Mode ADMIN', desc: 'Eksport seluruh data jurnal sistem' });
+        if (isKepala) items.push({ id: 'KEPALA', label: 'Mode KEPALA MADRASAH', desc: 'Eksport laporan jurnal untuk pimpinan' });
 
         if (items.length === 0) {
             Swal.fire('Perhatian', 'Anda tidak memiliki hak akses untuk melakukan eksport.', 'warning');
             return;
         }
 
+        const getExportIcon = (id: string) => {
+            switch (id) {
+                case 'GURU': return 'bi-person-badge';
+                case 'WALI': return 'bi-people';
+                case 'ADMIN': return 'bi-shield-check';
+                case 'KEPALA': return 'bi-award';
+                default: return 'bi-file-earmark-spreadsheet';
+            }
+        };
+
         Swal.fire({
             title: 'Pilih Mode Eksport',
-            html: `<div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
-                ${items.map(it => `<button id="exp-${it.id}" class="swal2-confirm" style="width: 100%; justify-content: center; margin: 0;">${it.label}</button>`).join('')}
-            </div>`,
+            html: `
+            <div class="swal-export-grid">
+                ${items.map(it => `
+                    <div id="exp-${it.id}" class="swal-export-card">
+                        <div class="swal-export-icon">
+                            <i class="bi ${getExportIcon(it.id)}"></i>
+                        </div>
+                        <div class="swal-export-info">
+                            <div class="swal-export-label">${it.label}</div>
+                            <div class="swal-export-desc">${it.desc}</div>
+                        </div>
+                        <div class="swal-export-arrow">
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `,
             showConfirmButton: false,
             showCancelButton: true,
-            cancelButtonText: 'Tutup',
+            cancelButtonText: 'Batal',
             didOpen: () => {
                 items.forEach(it => {
                     const btn = document.getElementById(`exp-${it.id}`);
@@ -282,172 +579,6 @@ function JurnalContent({ user }: { user?: any }) {
         loadFilterOptions();
     }, []);
 
-    // Effect to filter Jam/Mapel/Kelas based on Guru + Tanggal
-    useEffect(() => {
-        const target = showEditModal ? editJournal : newJournal;
-        const setTarget = showEditModal ? setEditJournal : setNewJournal;
-
-        // If no guru selected, or no date, revert to generic options
-        if (!target?.tanggal || !target?.nama_guru) {
-            // Revert jamOptions to generic for the day
-            if (target?.tanggal && allWaktu.length > 0) {
-                const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-                const dateObj = new Date(target.tanggal);
-                const dayName = days[dateObj.getDay()];
-                const dailySchedule = allWaktu.filter((w: any) => w.hari === dayName && w.aktif);
-
-                if (dailySchedule.length > 0) {
-                    const uniqueSchedule = Array.from(new Map(dailySchedule.map((item: any) => [item.jam_ke, item])).values());
-                    const options = uniqueSchedule.sort((a: any, b: any) => a.jam_ke - b.jam_ke).map((w: any) => ({
-                        value: String(w.jam_ke),
-                        label: `Jam Ke-${w.jam_ke}`,
-                        jamStr: `Jam Ke-${w.jam_ke}`,
-                        timeStr: `${w.mulai?.slice(0, 5)} - ${w.selesai?.slice(0, 5)}`
-                    }));
-                    setJamOptions(options);
-                } else {
-                    setJamOptions([]); // No schedule for this day
-                }
-            } else {
-                // If no date or allWaktu, revert to initial state (empty or all jams)
-                const uniqueJam = Array.from(new Set(allWaktu.map((w: any) => w.jam_ke))).sort((a: any, b: any) => a - b);
-                setJamOptions(uniqueJam.map((jam: any) => ({ value: String(jam), label: `Jam Ke-${jam}` })));
-            }
-            setMapelOptions(allMapels); // Revert to all master mapels
-            setKelasOptions(allKelas);   // Revert to all master kelas
-            return;
-        }
-
-        const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-        const dateObj = new Date(target.tanggal);
-        const dayName = days[dateObj.getDay()];
-
-        // 1. Find Schedule for this Guru on this Day
-        const mySchedule = allJadwal.filter(j =>
-            j.nama_guru === target.nama_guru &&
-            j.hari === dayName &&
-            j.aktif
-        );
-
-        if (mySchedule.length > 0) {
-            // Group Consecutive Periods
-            const sorted = mySchedule.sort((a: any, b: any) => parseInt(a.jam_ke) - parseInt(b.jam_ke));
-            const groups: any[] = [];
-
-            if (sorted.length > 0) {
-                let currentGroup = [sorted[0]];
-
-                for (let i = 1; i < sorted.length; i++) {
-                    const prev = currentGroup[currentGroup.length - 1];
-                    const curr = sorted[i];
-
-                    const isConsecutive = (parseInt(curr.jam_ke) === parseInt(prev.jam_ke) + 1);
-                    const isSameMapel = (curr.mata_pelajaran || curr.mapel) === (prev.mata_pelajaran || prev.mapel);
-                    const isSameKelas = curr.kelas === prev.kelas;
-
-                    if (isConsecutive && isSameMapel && isSameKelas) {
-                        currentGroup.push(curr);
-                    } else {
-                        groups.push(currentGroup);
-                        currentGroup = [curr];
-                    }
-                }
-                groups.push(currentGroup);
-            }
-
-            const newJamOptions = groups.map(group => {
-                const first = group[0];
-                const last = group[group.length - 1];
-                const jamValue = (group.length > 1) ? `${first.jam_ke}-${last.jam_ke}` : String(first.jam_ke);
-
-                const timeStart = allWaktu.find(w => String(w.jam_ke) === String(first.jam_ke) && w.hari === dayName);
-                const timeEnd = allWaktu.find(w => String(w.jam_ke) === String(last.jam_ke) && w.hari === dayName);
-
-                // If filtering by program is needed, it would be here. For now assume day/jam uniqueness or first match.
-
-                const timeStr = (timeStart && timeEnd) ? `${timeStart.mulai?.slice(0, 5)} - ${timeEnd.selesai?.slice(0, 5)}` : '--:--';
-
-                return {
-                    value: jamValue,
-                    label: `Jam Ke-${jamValue} ${first.mata_pelajaran || first.mapel ? `(${first.mata_pelajaran || first.mapel} - ${first.kelas})` : ''}`,
-                    jamStr: `Jam Ke-${jamValue}`,
-                    timeStr: timeStr,
-                    info: `${first.mata_pelajaran || first.mapel} (${first.kelas})`,
-                    autoMapel: first.mata_pelajaran || first.mapel,
-                    autoKelas: first.kelas
-                };
-            });
-            setJamOptions(newJamOptions);
-
-            // Auto-fill Logic
-            if (target.jam_ke) {
-                const selectedOpt = newJamOptions.find(o => o.value === target.jam_ke);
-
-                if (selectedOpt) {
-                    // Logic 1: Autofill mapel/kelas if not set or different
-                    if (target.kelas !== selectedOpt.autoKelas || target.mata_pelajaran !== selectedOpt.autoMapel) {
-                        setTarget((prev: any) => ({
-                            ...prev,
-                            kelas: selectedOpt.autoKelas,
-                            mata_pelajaran: selectedOpt.autoMapel
-                        }));
-                    }
-                    // Logic 2: Restrict dropdowns to this specific grouped option
-                    setKelasOptions([{ value: selectedOpt.autoKelas, label: selectedOpt.autoKelas }]);
-                    setMapelOptions([{ value: selectedOpt.autoMapel, label: selectedOpt.autoMapel }]);
-                } else {
-                    // If selected jam is not in options (e.g. legacy '3' vs new '3-5'), what to do?
-                    // Currently will just show empty label in Select.
-                    // The user needs to re-select to fix it.
-                    // We can try to finding partial match? E.g. '3' is inside '3-5'.
-                    // For now, let's leave it.
-                    // But still populate options for the day so they can re-select.
-                    const dailyKelas = Array.from(new Set(mySchedule.map(s => s.kelas))).map(c => ({ value: c, label: c }));
-                    setKelasOptions(dailyKelas);
-                    const dailyMapel = Array.from(new Set(mySchedule.map(s => s.mata_pelajaran || s.mapel))).map(m => ({ value: m, label: m }));
-                    setMapelOptions(dailyMapel);
-                }
-            } else {
-                // If Jam not selected, restrict generic options
-                const dailyKelas = Array.from(new Set(mySchedule.map(s => s.kelas))).map(c => ({ value: c, label: c }));
-                setKelasOptions(dailyKelas);
-
-                const dailyMapel = Array.from(new Set(mySchedule.map(s => s.mata_pelajaran || s.mapel))).map(m => ({ value: m, label: m }));
-                setMapelOptions(dailyMapel);
-            }
-
-        } else {
-            // No schedule found for this guru on this day. Revert to all master options.
-            setJamOptions([]);
-            setMapelOptions(allMapels);
-            setKelasOptions(allKelas);
-
-            // Notify user
-            if (target.nama_guru && target.tanggal) {
-                const Toast = Swal.mixin({
-                    toast: true,
-                    position: 'top-end',
-                    showConfirmButton: false,
-                    timer: 4000,
-                    timerProgressBar: true,
-                    didOpen: (toast) => {
-                        toast.addEventListener('mouseenter', Swal.stopTimer)
-                        toast.addEventListener('mouseleave', Swal.resumeTimer)
-                        toast.style.zIndex = '99999' // Force above modal
-                    }
-                });
-
-                Toast.fire({
-                    icon: 'info',
-                    title: 'Jadwal Tidak Ditemukan',
-                    text: `Tidak ada jadwal aktif pada tanggal tersebut.`
-                });
-            }
-        }
-
-    }, [newJournal.nama_guru, newJournal.tanggal, newJournal.jam_ke, editJournal?.nama_guru, editJournal?.tanggal, editJournal?.jam_ke, allJadwal, allWaktu, showEditModal, allMapels, allKelas]);
-
-
     const loadFilterOptions = async () => {
         try {
             const [guruRes, mapelRes, kelasRes, waktuRes, jadwalRes] = await Promise.all([
@@ -478,9 +609,7 @@ function JurnalContent({ user }: { user?: any }) {
             }
             if (waktuData.ok) {
                 setAllWaktu(waktuData.data);
-                // Initial generic jam options (before guru/date selection)
-                const uniqueJam = Array.from(new Set(waktuData.data.map((w: any) => w.jam_ke))).sort((a: any, b: any) => a - b);
-                setJamOptions(uniqueJam.map((jam: any) => ({ value: String(jam), label: `Jam Ke-${jam}` })));
+                // Initial generic jam options moved to JournalModal component
             }
             if (jadwalData.ok) {
                 setAllJadwal(jadwalData.data); // Store all schedules
@@ -518,6 +647,26 @@ function JurnalContent({ user }: { user?: any }) {
                 if (katOpts.length > 0) {
                     setKategoriKehadiranOptions(katOpts);
                 }
+
+                // Set Master Data State for Modal
+                setMasterDataState({
+                    guru: guruData.ok ? guruData.data : [],
+                    mapel: mapelData.ok ? mapelData.data : [],
+                    kelas: kelasData.ok ? kelasData.data : [],
+                    waktu: waktuData.ok ? waktuData.data : [],
+                    jadwal: jadwalData.ok ? jadwalData.data : [],
+                    dropdown: {
+                        terlambat: extractOptions('keterangan_terlambat'),
+                        statusPengganti: statusOpts.length > 0 ? statusOpts : [
+                            { value: 'Hadir Penuh', label: 'Hadir Penuh' },
+                            { value: 'Hanya Tugas', label: 'Hanya Tugas' },
+                            { value: 'Zoom/Online', label: 'Zoom/Online' },
+                            { value: 'Terlambat', label: 'Terlambat' }
+                        ],
+                        jenisKetidakhadiran: extractOptions('jenis_ketidakhadiran'),
+                        kategoriKehadiran: katOpts
+                    }
+                });
             }
 
         } catch (err) {
@@ -602,20 +751,19 @@ function JurnalContent({ user }: { user?: any }) {
                 <table className="jt__table">
                     <thead>
                         <tr>
-                            <th className="cTanggalHari">Tanggal & Hari</th>
+                            <th className="cTanggalHari">Hari/Tanggal</th>
                             <th className="cJam">Jam Ke</th>
                             <th className="cGuruMapel">Guru & Mapel</th>
                             <th className="cKelas">Kelas</th>
                             <th className="cKategori">Kategori</th>
-                            <th className="cMateri hidden-lg">Materi</th>
-                            <th className="cRefleksi hidden-lg">Refleksi</th>
+                            <th className="cMateriRefleksi hidden-lg">Materi & Refleksi</th>
                             <th className="cAksi">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         {loading ? (
                             <tr>
-                                <td colSpan={8} className="jt__empty">
+                                <td colSpan={7} className="jt__empty">
                                     <div className="jt__loading">
                                         <div className="jt__spinner"></div>
                                         Memuat data...
@@ -624,14 +772,14 @@ function JurnalContent({ user }: { user?: any }) {
                             </tr>
                         ) : error ? (
                             <tr>
-                                <td colSpan={8} className="jt__empty jt__error">
+                                <td colSpan={7} className="jt__empty jt__error">
                                     <i className="bi bi-exclamation-triangle-fill" aria-hidden="true" />
                                     Error: {error}
                                 </td>
                             </tr>
-                        ) : filteredJournals.length === 0 ? (
+                        ) : finalDisplayData.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="jt__empty jt__muted">
+                                <td colSpan={7} className="jt__empty jt__muted">
                                     <div className="jt__emptyContent">
                                         <i className="bi bi-journal-x" aria-hidden="true" />
                                         <div>Tidak ada data jurnal</div>
@@ -640,7 +788,7 @@ function JurnalContent({ user }: { user?: any }) {
                                 </td>
                             </tr>
                         ) : (
-                            filteredJournals.map((journal: Journal, index: number) => (
+                            finalDisplayData.map((journal: any, index: number) => (
                                 <tr key={journal.id}>
                                     <td>
                                         <div className="jt__day">{journal.hari}</div>
@@ -698,38 +846,55 @@ function JurnalContent({ user }: { user?: any }) {
                                             {journal.kategori_kehadiran}
                                         </span>
                                     </td>
-                                    <td className="jt__materi hidden-lg">
-                                        <div className="jt__materiText">{journal.materi || '-'}</div>
-                                    </td>
-                                    <td className="jt__refleksi hidden-lg">
-                                        <div className="jt__refleksiText">{journal.refleksi || '-'}</div>
+                                    <td className="jt__materiRefleksi hidden-lg">
+                                        <div className="text-xs font-medium text-slate-800 mb-1 line-clamp-1" title={journal.materi || ''}>
+                                            {journal.materi || '-'}
+                                        </div>
+                                        {journal.refleksi && (
+                                            <div className="text-[0.7rem] text-slate-500 italic border-l-2 border-slate-200 pl-2 line-clamp-1" title={journal.refleksi}>
+                                                "{journal.refleksi}"
+                                            </div>
+                                        )}
                                     </td>
                                     <td>
                                         <div className="jt__rowActions">
                                             <button
                                                 className="jt__iconBtn"
                                                 onClick={() => { setSelectedJournal(journal); setShowDetailModal(true); }}
-                                                disabled={!canDo('read')}
                                                 title="Lihat Detail"
                                             >
                                                 <i className="bi bi-eye" aria-hidden="true" />
                                             </button>
-                                            <button
-                                                className="jt__iconBtn"
-                                                onClick={() => { setEditJournal(journal); setShowEditModal(true); }}
-                                                disabled={!canDo('update')}
-                                                title="Edit Jurnal"
-                                            >
-                                                <i className="bi bi-pencil" aria-hidden="true" />
-                                            </button>
-                                            <button
-                                                className="jt__iconBtn danger"
-                                                onClick={() => handleDelete(journal.id)}
-                                                disabled={!canDo('delete')}
-                                                title="Hapus Jurnal"
-                                            >
-                                                <i className="bi bi-trash" aria-hidden="true" />
-                                            </button>
+
+                                            {(() => {
+                                                const isOwner = journal.nip === user?.nip || journal.nama_guru === user?.nama;
+                                                const isSubstitute = journal.guru_pengganti && journal.guru_pengganti === user?.nama;
+                                                const hasFullAccess = canDo('update_any') || isAdmin;
+                                                const canEditLimited = canDo('edit_materi_refleksi') && (isSubstitute || (!journal.guru_pengganti && isOwner));
+
+                                                if (hasFullAccess || canEditLimited) {
+                                                    return (
+                                                        <button
+                                                            className={`jt__iconBtn ${canEditLimited && !hasFullAccess ? 'isLimited' : ''}`}
+                                                            onClick={() => { setEditJournal(journal); setShowEditModal(true); }}
+                                                            title={hasFullAccess ? "Edit Full" : "Edit Materi & Refleksi"}
+                                                        >
+                                                            <i className="bi bi-pencil" aria-hidden="true" />
+                                                        </button>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
+
+                                            {(canDo('delete_any') || isAdmin) && (
+                                                <button
+                                                    className="jt__iconBtn danger"
+                                                    onClick={() => handleDelete(journal.allIds || journal.id)}
+                                                    title="Hapus Jurnal"
+                                                >
+                                                    <i className="bi bi-trash" aria-hidden="true" />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -760,7 +925,7 @@ function JurnalContent({ user }: { user?: any }) {
                         </div>
                     </div>
                 ) : (
-                    journals.map((journal: Journal) => (
+                    finalDisplayData.map((journal: any) => (
                         <div className="jt__card" key={`m-${journal.id}`}>
                             <div className="jt__cardHead">
                                 <div className="jt__cardTitle">
@@ -816,23 +981,41 @@ function JurnalContent({ user }: { user?: any }) {
                             <div className="jt__cardActions">
                                 <button
                                     className="jt__iconBtn"
-                                    onClick={() => {
-                                        setEditJournal(journal);
-                                        setShowEditModal(true);
-                                    }}
-                                    disabled={!canDo('update')}
-                                    title="Edit"
+                                    onClick={() => { setSelectedJournal(journal); setShowDetailModal(true); }}
+                                    title="Detail"
                                 >
-                                    <i className="bi bi-pencil" aria-hidden="true" />
+                                    <i className="bi bi-eye" aria-hidden="true" />
                                 </button>
-                                <button
-                                    className="jt__iconBtn danger"
-                                    onClick={() => handleDelete(journal.id)}
-                                    disabled={!canDo('delete')}
-                                    title="Hapus"
-                                >
-                                    <i className="bi bi-trash" aria-hidden="true" />
-                                </button>
+
+                                {(() => {
+                                    const isOwner = journal.nip === user?.nip || journal.nama_guru === user?.nama;
+                                    const isSubstitute = journal.guru_pengganti && journal.guru_pengganti === user?.nama;
+                                    const hasFullAccess = canDo('update_any') || isAdmin;
+                                    const canEditLimited = canDo('edit_materi_refleksi') && (isSubstitute || (!journal.guru_pengganti && isOwner));
+
+                                    if (hasFullAccess || canEditLimited) {
+                                        return (
+                                            <button
+                                                className={`jt__iconBtn ${canEditLimited && !hasFullAccess ? 'isLimited' : ''}`}
+                                                onClick={() => { setEditJournal(journal); setShowEditModal(true); }}
+                                                title={hasFullAccess ? "Edit Full" : "Edit Materi & Refleksi"}
+                                            >
+                                                <i className="bi bi-pencil" aria-hidden="true" />
+                                            </button>
+                                        );
+                                    }
+                                    return null;
+                                })()}
+
+                                {(canDo('delete_any') || isAdmin) && (
+                                    <button
+                                        className="jt__iconBtn danger"
+                                        onClick={() => handleDelete(journal.allIds || journal.id)}
+                                        title="Hapus"
+                                    >
+                                        <i className="bi bi-trash" aria-hidden="true" />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))
@@ -900,13 +1083,51 @@ function JurnalContent({ user }: { user?: any }) {
                                     <div className="jt__detailLabel">NIP</div>
                                     <div className="jt__detailValue">{selectedJournal.nip}</div>
                                 </div>
+
+                                {selectedJournal.keterangan_terlambat && (
+                                    <div className="jt__detailItem col-span-2">
+                                        <div className="jt__detailLabel text-amber-600">Alasan Terlambat</div>
+                                        <div className="jt__detailValue">{selectedJournal.keterangan_terlambat}</div>
+                                    </div>
+                                )}
+
+                                {selectedJournal.guru_pengganti && (
+                                    <>
+                                        <div className="jt__detailItem">
+                                            <div className="jt__detailLabel text-blue-600">Guru Pengganti / Mitra</div>
+                                            <div className="jt__detailValue">{selectedJournal.guru_pengganti}</div>
+                                        </div>
+                                        <div className="jt__detailItem">
+                                            <div className="jt__detailLabel text-blue-600">Status Kehadiran Pengganti</div>
+                                            <div className="jt__detailValue">{selectedJournal.status_pengganti || '-'}</div>
+                                        </div>
+                                    </>
+                                )}
+
+                                {selectedJournal.guru_piket && (
+                                    <div className="jt__detailItem">
+                                        <div className="jt__detailLabel">Guru Piket</div>
+                                        <div className="jt__detailValue">{selectedJournal.guru_piket}</div>
+                                    </div>
+                                )}
+
+                                {selectedJournal.keterangan_tambahan && (
+                                    <div className="jt__detailItem col-span-2">
+                                        <div className="jt__detailLabel">Keterangan Tambahan</div>
+                                        <div className="jt__detailValue">{selectedJournal.keterangan_tambahan}</div>
+                                    </div>
+                                )}
                                 <div className="jt__detailItem col-span-2">
                                     <div className="jt__detailLabel">Materi</div>
-                                    <div className="jt__detailValue">{selectedJournal.materi || '-'}</div>
+                                    <div className="jt__detailValue text-sm font-sans leading-relaxed text-slate-700">
+                                        {selectedJournal.materi || '-'}
+                                    </div>
                                 </div>
                                 <div className="jt__detailItem col-span-2">
                                     <div className="jt__detailLabel">Refleksi</div>
-                                    <div className="jt__detailValue">{selectedJournal.refleksi || '-'}</div>
+                                    <div className="jt__detailValue text-xs italic text-slate-600 leading-relaxed border-l-2 border-slate-200 pl-3">
+                                        "{selectedJournal.refleksi || '-'}"
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -915,312 +1136,36 @@ function JurnalContent({ user }: { user?: any }) {
             )}
 
             {/* ===== Modal Add/Edit Comprehensive ===== */}
+            {/* ===== Modal Add/Edit Comprehensive (NEW) ===== */}
             {(showAddModal || showEditModal) && (
-                <div className="jt__modal" onClick={() => { setShowAddModal(false); setShowEditModal(false); }}>
-                    <form
-                        onSubmit={async (e) => {
-                            e.preventDefault();
-                            const target = showEditModal ? editJournal : newJournal;
-                            if (!target?.nip || !target?.tanggal || !target?.jam_ke || !target?.kelas || !target?.mata_pelajaran) {
-                                Swal.fire('Perhatian', 'Mohon lengkapi semua data wajib!', 'warning');
-                                return;
-                            }
-
-                            const currentKategori = (target?.kategori_kehadiran || 'Sesuai').toLowerCase();
-                            if (['diganti', 'tukaran', 'tim teaching', 'penugasan dengan pendampingan', 'guru pengganti'].includes(currentKategori)) {
-                                if (!target?.guru_pengganti || !target?.status_pengganti) {
-                                    Swal.fire('Perhatian', 'Guru Pengganti dan Status Kehadiran wajib diisi!', 'warning');
-                                    return;
-                                }
-                            }
-
-                            const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-                            const hari = days[new Date(target.tanggal!).getDay()];
-
-                            try {
-                                const res = await fetch('/api/jurnal/submit', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        ...target,
-                                        hari,
-                                        auth_id: user?.id
-                                    })
-                                });
-                                const result = await res.json();
-                                if (result.success) {
-                                    Swal.fire('Berhasil', 'Jurnal berhasil disimpan', 'success');
-                                    setShowAddModal(false);
-                                    setShowEditModal(false);
-                                    fetchJournals();
-                                } else {
-                                    throw new Error(result.error);
-                                }
-                            } catch (err: any) {
-                                Swal.fire('Error', 'Gagal menyimpan: ' + err.message + (err.response?.data?.message ? ` (${err.response.data.message})` : ''), 'error');
-                            }
-                        }}
-                        className="jt__modalContent max-w-2xl !p-0 border-0 flex flex-col max-h-[90vh] overflow-visible min-h-[600px]"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Header */}
-                        <div className="p-6 bg-gradient-to-r from-navy-900 to-navy-800 text-white flex justify-between items-center rounded-t-2xl flex-none">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
-                                    <i className={`bi ${showEditModal ? 'bi-pencil-square' : 'bi-plus-circle'} text-xl`}></i>
-                                </div>
-                                <div>
-                                    <h3 className="m-0 text-lg font-bold tracking-tight">
-                                        {showEditModal ? 'Update Jurnal' : 'Tambah Jurnal Baru'}
-                                    </h3>
-                                    <p className="m-0 text-xs text-navy-200">Lengkapi detail kegiatan belajar mengajar</p>
-                                </div>
-                            </div>
-                            <button type="button" className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors" onClick={() => { setShowAddModal(false); setShowEditModal(false); }}>
-                                <i className="bi bi-x-lg text-sm"></i>
-                            </button>
+                masterDataState ? (
+                    <JournalModal
+                        isOpen={showAddModal || showEditModal}
+                        onClose={() => { setShowAddModal(false); setShowEditModal(false); setEditJournal(null); }}
+                        mode={showEditModal ? 'edit' : 'add'}
+                        initialData={showEditModal ? editJournal : null}
+                        user={user}
+                        masterData={masterDataState}
+                        onSuccess={fetchJournals}
+                        limited={
+                            showEditModal &&
+                            canDo('edit_materi_refleksi') &&
+                            !canDo('update_any') &&
+                            !isAdmin &&
+                            (
+                                (editJournal?.guru_pengganti === user?.nama) ||
+                                (!editJournal?.guru_pengganti && (editJournal?.nip === user?.nip || editJournal?.nama_guru === user?.nama))
+                            )
+                        }
+                    />
+                ) : (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+                        <div className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 animate-bounce-in">
+                            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                            <span className="font-medium text-slate-700">Menyiapkan data form...</span>
                         </div>
-
-                        {/* Scrollable Body */}
-<div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-                            <div className="space-y-6">
-                                <div className="jt__formGrid">
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                                <i className="bi bi-calendar-event text-navy-600"></i> Tanggal
-                                            </label>
-                                            <input
-                                                type="date"
-                                                className="jt__formInput !bg-slate-50 border-slate-200 focus:!bg-white"
-                                                value={(showEditModal ? editJournal?.tanggal : newJournal.tanggal) || ''}
-                                                onChange={(e) => showEditModal ? setEditJournal({ ...editJournal!, tanggal: e.target.value }) : setNewJournal({ ...newJournal, tanggal: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                                <i className="bi bi-clock text-navy-600"></i> Jam Ke
-                                            </label>
-                                            <Select
-                                                options={jamOptions}
-                                                value={jamOptions.find(o => o.value === (showEditModal ? editJournal?.jam_ke : newJournal.jam_ke))}
-                                                onChange={(opt: any) => showEditModal ? setEditJournal({ ...editJournal!, jam_ke: opt.value }) : setNewJournal({ ...newJournal, jam_ke: opt.value })}
-                                                styles={customSelectStyles}
-                                                formatOptionLabel={(option: any) => (
-                                                    <div className="flex flex-col leading-tight">
-                                                        <span className="text-[11px] font-bold text-slate-700">{option.timeStr || '--:--'}</span>
-                                                        <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wide">{option.jamStr || option.label}</span>
-                                                    </div>
-                                                )}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                                <i className="bi bi-person text-navy-600"></i> GURU PENGAMPU
-                                            </label>
-                                            <Select
-                                                options={guruOptions}
-                                                value={guruOptions.find(o => o.value === (showEditModal ? editJournal?.nama_guru : newJournal.nama_guru))}
-                                                onChange={(opt: any) => {
-                                                    const payload = { nama_guru: opt.value, nip: opt.nip };
-                                                    showEditModal ? setEditJournal({ ...editJournal!, ...payload }) : setNewJournal({ ...newJournal, ...payload });
-                                                }}
-                                                styles={customSelectStyles}
-                                                placeholder="Pilih Guru..."
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                                <i className="bi bi-card-heading text-navy-600"></i> NIP
-                                            </label>
-                                            <input
-                                                type="text"
-                                                className="jt__formInput !bg-slate-50 border-slate-200 cursor-not-allowed"
-                                                readOnly
-                                                value={(showEditModal ? editJournal?.nip : newJournal.nip) || ''}
-                                                placeholder="Otomatis terisi..."
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                                <i className="bi bi-book text-navy-600"></i> Mata Pelajaran
-                                            </label>
-                                            <Select
-                                                options={mapelOptions}
-                                                value={mapelOptions.find(o => o.value === (showEditModal ? editJournal?.mata_pelajaran : newJournal.mata_pelajaran))}
-                                                onChange={(opt: any) => showEditModal ? setEditJournal({ ...editJournal!, mata_pelajaran: opt.value }) : setNewJournal({ ...newJournal, mata_pelajaran: opt.value })}
-                                                styles={customSelectStyles}
-                                                placeholder="Pilih Mapel..."
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                                <i className="bi bi-people text-navy-600"></i> Kelas
-                                            </label>
-                                            <Select
-                                                options={kelasOptions}
-                                                value={kelasOptions.find(o => o.value === (showEditModal ? editJournal?.kelas : newJournal.kelas))}
-                                                onChange={(opt: any) => showEditModal ? setEditJournal({ ...editJournal!, kelas: opt.value }) : setNewJournal({ ...newJournal, kelas: opt.value })}
-                                                styles={customSelectStyles}
-                                                placeholder="Pilih Kelas..."
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                                <i className="bi bi-check2-circle text-navy-600"></i> Kategori Kehadiran
-                                            </label>
-                                            <select
-                                                className="jt__formInput !bg-slate-50 border-slate-200 focus:!bg-white"
-                                                value={(showEditModal ? editJournal?.kategori_kehadiran : newJournal.kategori_kehadiran) || 'Sesuai'}
-                                                onChange={(e) => showEditModal ? setEditJournal({ ...editJournal!, kategori_kehadiran: e.target.value }) : setNewJournal({ ...newJournal, kategori_kehadiran: e.target.value })}
-                                            >
-                                                {kategoriKehadiranOptions.length > 0 ? (
-                                                    kategoriKehadiranOptions.map((opt) => (
-                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                    ))
-                                                ) : (
-                                                    <>
-                                                        <option value="Sesuai">Sesuai</option>
-                                                        <option value="Terlambat">Terlambat</option>
-                                                        <option value="Diganti">Diganti</option>
-                                                        <option value="Tidak Hadir">Tidak Hadir</option>
-                                                        <option value="Tukaran">Tukaran</option>
-                                                        <option value="Tim Teaching">Tim Teaching</option>
-                                                        <option value="Penugasan dengan Pendampingan">Penugasan dengan Pendampingan</option>
-                                                        <option value="Guru Pengganti">Guru Pengganti</option>
-                                                    </>
-                                                )}
-                                            </select>
-                                        </div>
-
-                                        {/* Conditional Fields */}
-                                        {((showEditModal ? editJournal?.kategori_kehadiran : newJournal.kategori_kehadiran) === 'Terlambat') && (
-                                            <div className="space-y-2 animate-fadeIn">
-                                                <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                                    <i className="bi bi-clock-history text-navy-600"></i> Keterangan Terlambat
-                                                </label>
-                                                <Select
-                                                    options={terlambatOptions}
-                                                    value={terlambatOptions.find(o => o.value === (showEditModal ? editJournal?.keterangan_terlambat : newJournal.keterangan_terlambat))}
-                                                    onChange={(opt: any) => showEditModal ? setEditJournal({ ...editJournal!, keterangan_terlambat: opt.value }) : setNewJournal({ ...newJournal, keterangan_terlambat: opt.value })}
-                                                    styles={customSelectStyles}
-                                                    placeholder="Pilih Alasan..."
-                                                />
-                                            </div>
-                                        )}
-
-                                        {['diganti', 'tukaran', 'tim teaching', 'penugasan dengan pendampingan', 'guru pengganti'].includes(((showEditModal ? editJournal?.kategori_kehadiran : newJournal.kategori_kehadiran) || '').toLowerCase()) && (
-                                            <div className="grid grid-cols-2 gap-6 animate-fadeIn">
-                                                <div className="space-y-2">
-                                                    <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                                        <i className="bi bi-person-badge text-navy-600"></i>
-                                                        {(() => {
-                                                            const kat = (showEditModal ? editJournal?.kategori_kehadiran : newJournal.kategori_kehadiran);
-                                                            if (kat === 'Tim Teaching') return 'Guru Mitra / Partner';
-                                                            if (kat === 'Penugasan dengan Pendampingan') return 'Guru Pendamping';
-                                                            if (kat === 'Tukaran') return 'Bertukar dengan Guru';
-                                                            return 'Guru Pengganti';
-                                                        })()}
-                                                    </label>
-                                                    <Select
-                                                        options={guruOptions}
-                                                        value={guruOptions.find(o => o.value === (showEditModal ? editJournal?.guru_pengganti : newJournal.guru_pengganti))}
-                                                        onChange={(opt: any) => showEditModal ? setEditJournal({ ...editJournal!, guru_pengganti: opt.value }) : setNewJournal({ ...newJournal, guru_pengganti: opt.value })}
-                                                        styles={customSelectStyles}
-                                                        placeholder="Pilih Guru..."
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                                        <i className="bi bi-activity text-navy-600"></i> Status Kehadiran
-                                                    </label>
-                                                    <Select
-                                                        options={statusPenggantiOptions}
-                                                        value={statusPenggantiOptions.find(o => o.value === (showEditModal ? editJournal?.status_pengganti : newJournal.status_pengganti))}
-                                                        onChange={(opt: any) => showEditModal ? setEditJournal({ ...editJournal!, status_pengganti: opt.value }) : setNewJournal({ ...newJournal, status_pengganti: opt.value })}
-                                                        styles={customSelectStyles}
-                                                        placeholder="Pilih Status..."
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                            <i className="bi bi-person-check text-navy-600"></i> GURU PIKET
-                                        </label>
-                                        <Select
-                                            options={guruOptions}
-                                            value={guruOptions.find(o => o.value === (showEditModal ? editJournal?.guru_piket : newJournal.guru_piket))}
-                                            onChange={(opt: any) => showEditModal ? setEditJournal({ ...editJournal!, guru_piket: opt.value }) : setNewJournal({ ...newJournal, guru_piket: opt.value })}
-                                            styles={customSelectStyles}
-                                            placeholder="Pilih Guru Piket..."
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                            <i className="bi bi-card-text text-navy-600"></i> Materi Pembelajaran
-                                        </label>
-                                        <textarea
-                                            className="jt__formInput !bg-slate-50 border-slate-200 focus:!bg-white min-h-[80px]"
-                                            rows={2}
-                                            value={(showEditModal ? editJournal?.materi : newJournal.materi) || ''}
-                                            onChange={(e) => showEditModal ? setEditJournal({ ...editJournal!, materi: e.target.value }) : setNewJournal({ ...newJournal, materi: e.target.value })}
-                                            placeholder="Tuliskan materi pembelajaran hari ini..."
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                            <i className="bi bi-chat-left-dots text-navy-600"></i> Refleksi Pembelajaran
-                                        </label>
-                                        <textarea
-                                            className="jt__formInput !bg-slate-50 border-slate-200 focus:!bg-white min-h-[80px]"
-                                            rows={2}
-                                            value={(showEditModal ? editJournal?.refleksi : newJournal.refleksi) || ''}
-                                            onChange={(e) => showEditModal ? setEditJournal({ ...editJournal!, refleksi: e.target.value }) : setNewJournal({ ...newJournal, refleksi: e.target.value })}
-                                            placeholder="Tuliskan refleksi hasil pembelajaran..."
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="flex items-center gap-2 text-[11px] font-bold text-slate-500 uppercase tracking-wider ml-1">
-                                            <i className="bi bi-journal-plus text-navy-600"></i> Keterangan Tambahan
-                                        </label>
-                                        <textarea
-                                            className="jt__formInput !bg-slate-50 border-slate-200 focus:!bg-white min-h-[60px]"
-                                            rows={2}
-                                            value={(showEditModal ? editJournal?.keterangan_tambahan : newJournal.keterangan_tambahan) || ''}
-                                            onChange={(e) => showEditModal ? setEditJournal({ ...editJournal!, keterangan_tambahan: e.target.value }) : setNewJournal({ ...newJournal, keterangan_tambahan: e.target.value })}
-                                            placeholder="Catatan tambahan (opsional)..."
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Footer */}
-<div className="flex-none p-6 border-t border-slate-100 bg-white rounded-b-2xl flex justify-end gap-3">
-                            <button type="button" className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors" onClick={() => { setShowAddModal(false); setShowEditModal(false); }}>
-                                Batal
-                            </button>
-                            <button type="submit" className="px-8 py-2.5 rounded-xl bg-navy-600 text-white text-sm font-bold shadow-lg shadow-navy-200 hover:bg-navy-700 active:scale-95 transition-all">
-                                <i className="bi bi-cloud-check mr-2" /> {showEditModal ? 'Simpan Perubahan' : 'Simpan Jurnal'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                    </div>
+                )
             )}
 
             <style jsx>{`
@@ -1265,11 +1210,11 @@ function JurnalContent({ user }: { user?: any }) {
     justify-content: space-between;
     align-items: center;
     background: #fff;
-    padding: 24px;
+    padding: 28px 32px;
     border-radius: var(--jt-radius);
-    border: 1px solid var(--jt-line);
-    box-shadow: var(--jt-shadow2);
-    margin-bottom: 8px;
+    border: 1px solid rgba(15, 42, 86, 0.08);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+    margin-bottom: 20px;
 }
 
 .jt__toolbar {
@@ -1368,9 +1313,9 @@ function JurnalContent({ user }: { user?: any }) {
   width: 100%;
   overflow-x: auto;
   border-radius: var(--jt-radius);
-  border: 1px solid var(--jt-line);
+  border: 1px solid rgba(15, 42, 86, 0.08);
   background: #fff;
-  box-shadow: var(--jt-shadow);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
 }
 
 .jt__table {
@@ -1380,42 +1325,59 @@ function JurnalContent({ user }: { user?: any }) {
   min-width: 900px;
 }
 
+/* Explicit Column Widths to prioritize Content */
+.cTanggalHari { width: 140px; }
+.cJam { width: 110px; }
+.cGuruMapel { width: 280px; } /* Increased from 200px */
+.cKelas { width: 110px; }
+.cKategori { width: 230px; } /* Increased to fit full text */
+.cAksi { width: 90px; }
+.cMateriRefleksi {
+    min-width: 200px;
+}
+
 .jt__table thead th {
-  background: var(--jt-navy-bg-light);
-  padding: 16px;
+  background: #f8fafc;
+  padding: 16px 18px;
   text-align: left;
-  border-bottom: 1px solid var(--jt-line);
+  border-bottom: 1px solid rgba(15, 42, 86, 0.08);
   font-weight: 700;
-  color: var(--jt-navy-dark);
-}
-
-.jt__table tbody tr {
-  transition: background 0.2s;
-}
-
-.jt__table tbody tr:hover {
-  background: var(--jt-navy-light);
+  color: #475569;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .jt__table td {
-  padding: 16px;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
-  vertical-align: top;
+  padding: 16px 18px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  font-size: 0.88rem;
+  transition: background 0.2s;
 }
 
-.jt__day { font-weight: 700; color: var(--jt-navy-dark); }
-.jt__date { font-size: 0.8rem; color: #64748b; }
-.jt__jamMain { font-weight: 700; color: var(--jt-navy-accent); }
-.jt__jamSub { font-size: 0.75rem; color: #94a3b8; }
-.jt__guru { font-weight: 600; }
-.jt__mapel { font-size: 0.8rem; color: #64748b; }
+.jt__table tbody tr:hover td {
+    background: #fcfdfe;
+}
+
+.jt__day { font-weight: 500; color: var(--jt-navy-dark); font-size: 0.82rem; } /* Reduced from 0.9rem */
+.jt__date { font-size: 0.7rem; color: #64748b; } /* Reduced from 0.75rem */
+.jt__jamMain { font-weight: 500; color: var(--jt-navy-accent); font-size: 0.82rem; } /* Reduced from 0.9rem */
+.jt__jamSub { font-size: 0.7rem; color: #94a3b8; } /* Reduced from 0.75rem */
+.jt__guru { font-weight: 500; font-size: 0.82rem; } /* Reduced from 0.9rem */
+.jt__mapel { font-size: 0.7rem; color: #64748b; } /* Reduced from 0.75rem/0.8rem */
+
+/* Duplicate/extra rule cleanup if present, consolidating styles */
 
 .sk__status {
-    padding: 4px 12px;
+    padding: 4px 10px; /* Slightly reduced padding */
     border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-size: 0.7rem; /* Reduced from 0.75rem */
+    font-weight: 500;
     white-space: nowrap;
+    text-align: center;
+    line-height: 1.2;
+    display: inline-block;
 }
 .sk__status.isOn { background: rgba(34, 197, 94, 0.1); color: #16a34a; }
 .sk__status.isWarning { background: rgba(245, 158, 11, 0.1); color: #d97706; }
@@ -1484,7 +1446,7 @@ function JurnalContent({ user }: { user?: any }) {
 .jt__detailGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 .jt__detailItem { display: flex; flex-direction: column; gap: 4px; }
 .jt__detailLabel { font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600; }
-.jt__detailValue { font-weight: 600; }
+.jt__detailValue { font-weight: 400; }
 .col-span-2 { grid-column: span 2; }
 
 /* Detail Modal Enhancements */
@@ -1591,7 +1553,16 @@ function JurnalContent({ user }: { user?: any }) {
   .jt__cards { display: none; }
 }
 
-`}</style>
+            `}</style>
+
+            {/* Mobile Floating Action Button (FAB) */}
+            <button
+                className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center md:hidden z-50 hover:bg-blue-700 active:scale-95 transition-all"
+                onClick={() => setShowAddModal(true)}
+                disabled={!canDo('create')}
+            >
+                <i className="bi bi-plus-lg text-2xl"></i>
+            </button>
         </div>
     );
 }

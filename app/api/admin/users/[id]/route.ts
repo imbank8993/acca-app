@@ -127,7 +127,7 @@ export async function PUT(
         }
 
         const body = await request.json();
-        const { username, nip, nama, divisi, photoUrl } = body;
+        const { username, nip, nama, divisi } = body;
 
         // Build update object (only include provided fields)
         const updateData: any = {};
@@ -135,7 +135,6 @@ export async function PUT(
         if (nip !== undefined) updateData.nip = nip;
         if (nama !== undefined) updateData.nama = nama;
         if (divisi !== undefined) updateData.divisi = divisi;
-        if (photoUrl !== undefined) updateData.photoUrl = photoUrl;
 
         if (Object.keys(updateData).length === 0) {
             return NextResponse.json({ ok: false, error: 'No fields to update' }, { status: 400 });

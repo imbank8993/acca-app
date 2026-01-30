@@ -1,4 +1,7 @@
-import * as XLSX from 'xlsx-js-style'
+
+
+import * as XLSX_BASE from 'xlsx'
+// We need to keep these styles here or move them? They are simple objects.
 
 const HEADER_STYLE = {
     fill: { fgColor: { rgb: "4F81BD" } }, // Blueish
@@ -22,7 +25,9 @@ const DATA_STYLE = {
     alignment: { vertical: "center", wrapText: false }
 }
 
-export const exportToExcel = (data: any[], fileName: string, sheetName: string = 'Data') => {
+export const exportToExcel = async (data: any[], fileName: string, sheetName: string = 'Data') => {
+    const XLSX = XLSX_BASE;
+
     // 1. Create Worksheet
     const worksheet = XLSX.utils.json_to_sheet(data)
 
@@ -72,68 +77,9 @@ export const exportToExcel = (data: any[], fileName: string, sheetName: string =
     XLSX.writeFile(workbook, `${fileName}.xlsx`)
 }
 
-export const downloadTemplate = (columns: string[], fileName: string) => {
-    // Create an empty row with just headers
-    const data = [
-        columns.reduce((acc, col) => ({ ...acc, [col]: '' }), {}) // Empty row to ensure headers are generated? 
-        // Actually json_to_sheet uses keys as headers if data exists.
-        // If we want just headers and maybe 1 example row?
-        // Let's providing an empty object with keys might Result in just headers?
-        // No, json_to_sheet with empty values works.
-    ]
-    // Or better: Use array of arrays (AOA) for explicit control.
-    // But keeping it consistent with exportToExcel logic is easier for styling.
-
-    // Let's create dummy data for the user to understand? Or just empty.
-    // User asked "bisa download template" implies empty structure.
-
-    // Using json_to_sheet with one empty row object might result in a row of empty strings. 
-    // Let's stick to AOA for template to be safe and clean.
-
+export const downloadTemplate = async (columns: string[], fileName: string) => {
+    const XLSX = XLSX_BASE;
     const worksheet = XLSX.utils.aoa_to_sheet([columns])
-
-    // Apply styles to the single header row
-    const range = XLSX.utils.decode_range(worksheet['!ref'] || "A1:A1")
-    const colWidths: any[] = []
-
-    // Identify text columns
-    const textColIndices: number[] = [];
-    columns.forEach((col, idx) => {
-        const lower = col.toLowerCase();
-        if (lower.includes('nisn') || lower.includes('nip') || lower.includes('kode') || lower.includes('nik') || lower.includes('hp')) {
-            textColIndices.push(idx);
-        }
-    });
-
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-        const address = XLSX.utils.encode_col(C) + "1"
-        if (worksheet[address]) {
-            worksheet[address].s = HEADER_STYLE
-            colWidths[C] = { wch: Math.max(String(worksheet[address].v).length + 5, 15) }
-        }
-    }
-    worksheet['!cols'] = colWidths
-
-    // Pre-format 50 rows
-    for (let R = 1; R <= 50; ++R) {
-        for (let C of textColIndices) {
-            const cellAddress = XLSX.utils.encode_cell({ c: C, r: R });
-            worksheet[cellAddress] = {
-                v: '',
-                t: 's',
-                z: '@',
-                s: {
-                    alignment: { wrapText: true },
-                    numFmt: '@'
-                }
-            };
-        }
-    }
-    // Update Range
-    if (textColIndices.length > 0) {
-        worksheet['!ref'] = XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: columns.length - 1, r: 50 } });
-    }
-
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Template')
     XLSX.writeFile(workbook, `${fileName}.xlsx`)
@@ -145,10 +91,10 @@ export const importFromExcel = (file: File): Promise<any[]> => {
         reader.onload = (e) => {
             try {
                 const data = e.target?.result
-                const workbook = XLSX.read(data, { type: 'array' })
+                const workbook = XLSX_BASE.read(data, { type: 'array' })
                 const sheetName = workbook.SheetNames[0]
                 const worksheet = workbook.Sheets[sheetName]
-                const json = XLSX.utils.sheet_to_json(worksheet)
+                const json = XLSX_BASE.utils.sheet_to_json(worksheet)
                 resolve(json)
             } catch (error) {
                 reject(error)

@@ -58,12 +58,97 @@
   --shadow-mini: var(--n-shadow-soft);
 
   /* Radius */
-  --n-radius: 16px;
-  --n-radius-sm: 12px;
+  --n-radius: 20px;
+  --n-radius-sm: 14px;
   --radius: var(--n-radius);
 
   /* Interaction */
   --n-ring: 0 0 0 4px rgba(58, 166, 255, 0.16);
+}
+
+/* =========================================================
+   PREMIUM SELECTION CARDS (FOR MODALS)
+========================================================= */
+.swal-export-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.swal-export-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 42, 86, 0.08);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.02);
+  position: relative;
+  overflow: hidden;
+}
+
+.swal-export-card:hover {
+  background: #f8fafc;
+  border-color: #3aa6ff;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.08);
+}
+
+.swal-export-card:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.swal-export-icon {
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #f0f7ff 0%, #e0f0ff 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1e40af;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.swal-export-card:hover .swal-export-icon {
+  background: #3aa6ff;
+  color: #ffffff;
+  transform: rotate(-5deg) scale(1.1);
+}
+
+.swal-export-info {
+  flex: 1;
+}
+
+.swal-export-label {
+  font-weight: 700;
+  color: #0f1b2a;
+  font-size: 0.95rem;
+  margin-bottom: 2px;
+}
+
+.swal-export-desc {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.swal-export-arrow {
+  color: #cbd5e1;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.swal-export-card:hover .swal-export-arrow {
+  color: #3aa6ff;
+  transform: translateX(4px);
 }
 
 /* tailwind v4 theme bridge (biarkan) */

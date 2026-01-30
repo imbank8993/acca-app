@@ -7,6 +7,7 @@ import WaliKelasTab from './WaliKelasTab'
 import GuruAsuhTab from './GuruAsuhTab'
 import LiburTab from './LiburTab'
 import DropdownTab from './DropdownTab'
+// import TahunAjaranTab removed
 
 type TabType = 'siswa_kelas' | 'wali_kelas' | 'guru_asuh' | 'libur' | 'dropdown'
 
@@ -22,6 +23,7 @@ export default function DataSettingsPage({ user }: { user?: any }) {
       { key: 'guru_asuh', label: 'Guru Asuh', icon: 'bi-heart' },
       { key: 'dropdown', label: 'Master Dropdown', icon: 'bi-menu-button-wide' },
       { key: 'libur', label: 'Data Libur', icon: 'bi-calendar-event' }
+      // Tahun Ajaran tab removed
     ],
     []
   )
@@ -140,7 +142,7 @@ export default function DataSettingsPage({ user }: { user?: any }) {
           display: flex;
           gap: 10px;
           padding: 10px 12px;
-
+          
           overflow-x: auto;
           overflow-y: hidden;
           -webkit-overflow-scrolling: touch;

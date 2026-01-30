@@ -338,14 +338,12 @@ export default function PageAccessTab() {
   }
 
   return (
-    <div className="container">
-      <div className="glassHeader">
-        <div className="titleSection">
-          <div className="iconBox"><i className="fa-solid fa-user-shield"></i></div>
-          <div>
-            <h2>Manajer Izin & Akses Halaman</h2>
-            <p>Atur peran fungsional (Role) sekaligus struktur navigasi personil dalam satu panel terpadu.</p>
-          </div>
+    <div className="pa">
+      <div className="pa__head">
+        <div className="pa__headIcon"><i className="bi bi-shield-lock-fill"></i></div>
+        <div className="pa__headInfo">
+          <h2>Akses & Struktur Navigasi</h2>
+          <p>Konfigurasi izin akses halaman dan susun arsitektur menu untuk setiap personil.</p>
         </div>
       </div>
 
@@ -579,98 +577,135 @@ export default function PageAccessTab() {
       )}
 
       <style jsx>{`
-                .container { display: flex; flex-direction: column; gap: 20px; font-family: 'Outfit', sans-serif; }
-                .glassHeader {
-                    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-                    padding: 30px; border-radius: 20px; color: white;
-                    box-shadow: 0 10px 40px -15px rgba(15, 23, 42, 0.4);
-                }
-                .iconBox { width: 48px; height: 48px; background: #6366f1; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
-                .titleSection { display: flex; align-items: center; gap: 20px; }
-                .titleSection h2 { margin:0; font-size: 1.5rem; font-weight: 800; }
-                .titleSection p { margin: 4px 0 0; opacity: 0.7; font-size: 0.95rem; }
+                .pa { display: flex; flex-direction: column; gap: 28px; animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); padding: 5px; }
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-                .mainGrid { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
-                .card { background: white; border-radius: 18px; padding: 20px; border: 1px solid #e2e8f0; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-                .inputLabel { display: block; font-size: 0.7rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 12px; }
-                .styledSelect { width: 100%; padding: 12px; border-radius: 12px; border: 2px solid #f1f5f9; background: #fff; font-weight: 700; outline: none; color: #1e293b; }
-                .userBadge { margin-top: 15px; background: #f8fafc; padding: 12px; border-radius: 12px; border-left: 4px solid #6366f1; }
-                .uName { display: block; font-weight: 800; color: #1e293b; font-size: 0.95rem; }
-                .uMeta { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
+                .pa__head { display: flex; align-items: center; gap: 24px; padding: 24px; background: #fff; border-radius: 20px; border: 1px solid rgba(15, 42, 86, 0.08); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04); }
+                .pa__headIcon { width: 56px; height: 56px; background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #fff; box-shadow: 0 8px 20px rgba(30, 64, 175, 0.2); }
+                .pa__headInfo h2 { margin: 0; font-size: 1.4rem; color: #0f1b2a; font-weight: 800; letter-spacing: -0.01em; }
+                .pa__headInfo p { margin: 4px 0 0; color: #64748b; font-size: 0.95rem; }
 
-                .rolesGrid { display: flex; flex-direction: column; gap: 8px; }
-                .roleItem { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #e2e8f0; cursor: pointer; transition: 0.2s; font-size: 0.85rem; font-weight: 700; color: #475569; }
-                .roleItem:hover { background: #f1f5f9; border-color: #cbd5e1; }
-                .roleItem.selected { background: #eff6ff; border-color: #3b82f6; color: #2563eb; }
-                .roleItem i { font-size: 1rem; opacity: 0.3; }
-                .roleItem.selected i { opacity: 1; }
+                .mainGrid { display: grid; grid-template-columns: 340px 1fr; gap: 28px; }
+                .card { background: white; border-radius: 24px; padding: 24px; border: 1px solid rgba(15, 42, 86, 0.06); box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03); margin-bottom: 24px; transition: all 0.3s; }
+                .card:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06); }
+                
+                .inputLabel { display: block; font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; margin-left: 4px; }
+                .styledSelect { width: 100%; padding: 14px; border-radius: 14px; border: 2px solid #f1f5f9; background: #fff; font-weight: 700; outline: none; color: #1e293b; font-size: 0.95rem; transition: all 0.2s; }
+                .styledSelect:focus { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
 
-                .liveNode { margin-bottom: 15px; }
-                .pNode { font-weight: 800; color: #1e293b; font-size: 0.8rem; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-                .pNode i { color: #6366f1; width: 20px; text-align: center; }
-                .cNode { padding-left: 20px; font-size: 0.75rem; color: #64748b; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
-                .cNode i { font-size: 0.6rem; opacity: 0.5; }
+                .userBadge { margin-top: 18px; background: #f0f7ff; padding: 16px; border-radius: 16px; border-left: 5px solid #3b82f6; }
+                .uName { display: block; font-weight: 800; color: #1e40af; font-size: 1rem; margin-bottom: 2px; }
+                .uMeta { font-size: 0.8rem; color: #64748b; font-weight: 600; }
 
-                .mainSearchBar { position: relative; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 16px; padding: 0 18px; display: flex; align-items: center; gap: 12px; transition: 0.2s; }
-                .mainSearchBar:focus-within { border-color: #6366f1; background: white; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
-                .mainSearchBar input { flex: 1; padding: 15px 0; border: none; outline: none; font-weight: 700; font-size: 1rem; color: #1e293b; background: transparent; }
-                .searchPortalParent { position: absolute; top: 100%; left: 0; right: 0; background: white; border-radius: 16px; margin-top: 8px; box-shadow: 0 20px 50px -10px rgba(0,0,0,0.2); z-index: 1000; border: 1px solid #e2e8f0; overflow: hidden; }
-                .portalLabel { padding: 10px 15px; background: #f8fafc; font-size: 0.65rem; font-weight: 900; color: #94a3b8; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; }
-                .portalItem { padding: 12px 15px; cursor: pointer; display: flex; align-items: center; gap: 12px; }
-                .portalItem:hover { background: #f5f7ff; }
-                .portalItem i { width: 30px; height: 30px; background: #eef2f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #6366f1; }
-                .pLabel { font-weight: 800; color: #1e293b; }
-                .pRoute { margin-left: auto; font-size: 0.6rem; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: 800; color: #64748b; }
-                .portalAction { background: #eff6ff; padding: 15px; color: #2563eb; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 10px; border-top: 1px solid #e2e8f0; }
+                .rolesGrid { display: flex; flex-direction: column; gap: 10px; }
+                .roleItem { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 14px; background: #f8fafc; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); font-size: 0.9rem; font-weight: 700; color: #475569; }
+                .roleItem:hover { background: #fff; border-color: #3b82f6; color: #1e40af; }
+                .roleItem.selected { background: #1e40af; border-color: #1e293b; color: white; box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3); }
+                .roleItem i { font-size: 1.1rem; opacity: 0.4; }
+                .roleItem.selected i { opacity: 1; color: #fff; }
 
-                .nodeCard { display: flex; gap: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 18px; padding: 15px; transition: 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
-                .nodeActions { width: 32px; display: flex; flex-direction: column; gap: 4px; border-right: 1px solid #f1f5f9; padding-right: 12px; justify-content: center; }
-                .nodeActions button { border: none; background: #f8fafc; border-radius: 6px; height: 26px; cursor: pointer; color: #94a3b8; }
-                .nodeActions button:hover:not(:disabled) { color: #6366f1; background: #eff6ff; }
+                .liveSidebar { background: #f8fafc; border-radius: 16px; padding: 16px; border: 1px solid #f1f5f9; max-height: 400px; overflow-y: auto; }
+                .liveNode { margin-bottom: 12px; }
+                .pNode { font-weight: 800; color: #0f1b2a; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+                .pNode i { color: #3b82f6; font-size: 0.9rem; width: 18px; text-align: center; }
+                .cNode { padding-left: 28px; font-size: 0.8rem; color: #64748b; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+                .cNode i { font-size: 0.7rem; opacity: 0.4; }
+
+                .mainSearchBar { position: relative; background: #fff; border: 2px solid #e2e8f0; border-radius: 20px; padding: 4px 20px; display: flex; align-items: center; gap: 14px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 15px rgba(15, 23, 42, 0.04); }
+                .mainSearchBar:focus-within { border-color: #3b82f6; box-shadow: 0 10px 25px rgba(59, 130, 246, 0.1); }
+                .mainSearchBar i { color: #94a3b8; font-size: 1.2rem; }
+                .mainSearchBar input { flex: 1; padding: 16px 0; border: none; outline: none; font-weight: 700; font-size: 1.05rem; color: #0f1b2a; background: transparent; }
+                
+                .searchPortalParent { position: absolute; top: calc(100% + 12px); left: 0; right: 0; background: white; border-radius: 20px; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.15); z-index: 1000; border: 1px solid rgba(15, 42, 86, 0.08); overflow: hidden; animation: slideDown 0.2s ease; }
+                @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+                
+                .portalLabel { padding: 14px 20px; background: #f8fafc; font-size: 0.7rem; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #f1f5f9; }
+                .portalItem { padding: 14px 20px; cursor: pointer; display: flex; align-items: center; gap: 16px; transition: all 0.2s; }
+                .portalItem:hover { background: #f0f7ff; transform: translateX(5px); }
+                .portalItem i { width: 36px; height: 36px; background: #f1f5f9; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #3b82f6; font-size: 1.1rem; }
+                .pLabel { font-weight: 800; color: #0f1b2a; }
+                .pRoute { margin-left: auto; font-size: 0.7rem; background: #f1f5f9; padding: 4px 10px; border-radius: 8px; font-weight: 800; color: #64748b; text-transform: uppercase; }
+                .portalAction { background: #f0f7ff; padding: 18px 20px; color: #1e40af; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 12px; border-top: 1px solid #e2e8f0; transition: all 0.2s; }
+                .portalAction:hover { background: #e0f0ff; }
+
+                .nodeList { display: flex; flex-direction: column; gap: 16px; }
+                .nodeCard { display: flex; gap: 18px; background: white; border: 1px solid rgba(15, 42, 86, 0.06); border-radius: 20px; padding: 20px; transition: all 0.3s; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03); }
+                .nodeCard:hover { border-color: rgba(59, 130, 246, 0.2); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06); }
+                
+                .nodeActions { width: 40px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid #f1f5f9; padding-right: 18px; justify-content: center; }
+                .nodeActions button { border: none; background: #f8fafc; border-radius: 10px; height: 32px; cursor: pointer; color: #94a3b8; transition: all 0.2s; }
+                .nodeActions button:hover:not(:disabled) { color: #3b82f6; background: #f0f7ff; transform: scale(1.1); }
+                .nodeActions button:disabled { opacity: 0.2; cursor: default; }
+
                 .nodeBody { flex: 1; }
-                .nodeHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-                .nodeLabel { font-weight: 900; font-size: 1.05rem; color: #1e293b; }
-                .nodeDel { background: transparent; border: none; color: #cbd5e1; cursor: pointer; transition: 0.2s; }
-                .nodeDel:hover { color: #ef4444; }
+                .nodeHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+                .nodeMeta { display: flex; align-items: center; gap: 10px; }
+                .nodeLabel { font-weight: 800; font-size: 1.1rem; color: #0f1b2a; }
+                .nodeRoute { font-size: 0.75rem; color: #3b82f6; background: #eff6ff; padding: 4px 10px; border-radius: 10px; font-weight: 700; font-family: monospace; }
+                .nodeDel { background: #fff1f2; border: none; color: #f43f5e; width: 32px; height: 32px; border-radius: 10px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+                .nodeDel:hover { background: #f43f5e; color: #fff; transform: rotate(15deg); }
 
-                .subListItems { display: flex; flex-wrap: wrap; gap: 8px; }
-                .subItemTag { background: #f1f5f9; padding: 6px 12px; border-radius: 10px; display: flex; align-items: center; gap: 10px; font-size: 0.8rem; font-weight: 700; color: #475569; }
-                .subSort i { cursor: pointer; opacity: 0.3; padding: 0 2px; }
-                .subSort i:hover { opacity: 1; color: #6366f1; }
-                .subDel { color: #cbd5e1; cursor: pointer; }
-                .subDel:hover { color: #ef4444; }
+                .subListItems { display: flex; flex-wrap: wrap; gap: 10px; }
+                .subItemTag { background: #f1f5f9; padding: 8px 16px; border-radius: 12px; display: flex; align-items: center; gap: 12px; font-size: 0.85rem; font-weight: 700; color: #475569; border: 1px solid transparent; transition: all 0.2s; }
+                .subItemTag:hover { background: #fff; border-color: #3b82f6; color: #1e40af; box-shadow: 0 4px 10px rgba(59, 130, 246, 0.1); }
+                .subSort { display: flex; align-items: center; gap: 6px; }
+                .subSort i { cursor: pointer; opacity: 0.3; padding: 4px; transition: all 0.2s; }
+                .subSort i:hover { opacity: 1; color: #3b82f6; background: #eff6ff; border-radius: 6px; }
+                .subDel { color: #cbd5e1; cursor: pointer; transition: all 0.2s; font-size: 1rem; }
+                .subDel:hover { color: #f43f5e; transform: scale(1.2); }
 
-                .subTrigger { background: white; border: 2px dashed #e2e8f0; padding: 6px 12px; border-radius: 10px; font-size: 0.8rem; font-weight: 800; color: #94a3b8; cursor: pointer; }
-                .subTrigger:hover { border-color: #6366f1; color: #6366f1; }
-                .subSearchPortal { position: absolute; bottom: 100%; left: 0; background: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); width: 240px; padding: 10px; border: 1px solid #e2e8f0; }
-                .subSearchBox input { width: 100%; padding: 8px; border: 1px solid #f1f5f9; background: #f8fafc; border-radius: 8px; font-size: 0.8rem; outline: none; margin-bottom: 8px; }
-                .subOptions { max-height: 180px; overflow-y: auto; }
-                .subOpt { padding: 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-                .subOpt:hover { background: #f5f7ff; color: #6366f1; }
-                .subOpt i { font-size: 0.7rem; opacity: 0.5; }
-                .subOpt small { margin-left: auto; font-size: 0.6rem; background: #eef2f6; padding: 2px 4px; border-radius: 4px; }
+                .subAddContainer { position: relative; }
+                .subTrigger { background: #fff; border: 2px dashed #e2e8f0; padding: 8px 18px; border-radius: 12px; font-size: 0.85rem; font-weight: 800; color: #94a3b8; cursor: pointer; transition: all 0.2s; }
+                .subTrigger:hover { border-color: #3b82f6; color: #3b82f6; background: #f0f7ff; }
+                
+                .subSearchPortal { position: absolute; bottom: calc(100% + 12px); left: 0; background: white; border-radius: 18px; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2); width: 280px; padding: 12px; border: 1px solid rgba(15, 42, 86, 0.08); z-index: 100; animation: bounceIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+                @keyframes bounceIn { from { opacity: 0; transform: scale(0.8) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 
-                .configFooter { margin-top: 30px; padding: 25px; border-top: 2px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
-                .saveAction { background: #2563eb; color: white; border: none; padding: 14px 40px; border-radius: 14px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 12px; box-shadow: 0 8px 20px -5px rgba(37, 99, 235, 0.4); transition: 0.2s; }
-                .saveAction:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 25px -5px rgba(37, 99, 235, 0.5); }
-                .statusMsg { font-weight: 800; display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
-                .statusMsg.success { color: #16a34a; }
-                .statusMsg.error { color: #dc2626; }
+                .subSearchBox input { width: 100%; padding: 12px; border: 2px solid #f1f5f9; background: #f8fafc; border-radius: 12px; font-size: 0.85rem; outline: none; margin-bottom: 12px; font-weight: 600; }
+                .subSearchBox input:focus { border-color: #3b82f6; background: #fff; }
+                .subOptions { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+                .subOpt { padding: 10px 14px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.2s; }
+                .subOpt:hover { background: #f0f7ff; color: #1e40af; transform: translateX(4px); }
+                .subOpt i { font-size: 0.9rem; color: #3b82f6; opacity: 0.6; }
+                .subOpt.kustom { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+                .subOpt.kustom:hover { background: #fef3c7; }
+                .subOpt small { margin-left: auto; font-size: 0.65rem; background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 6px; text-transform: uppercase; }
 
-                .nodeWelcome { padding: 100px 40px; text-align: center; color: #94a3b8; }
-                .wIcon { font-size: 4rem; color: #f1f5f9; margin-bottom: 20px; }
+                .configFooter { margin-top: 40px; padding: 32px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: #fcfdfe; border-radius: 0 0 24px 24px; }
+                .saveAction { background: linear-gradient(135deg, #0f1b2a, #1e40af); color: white; border: none; padding: 16px 48px; border-radius: 18px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 14px; box-shadow: 0 12px 25px rgba(15, 27, 42, 0.2); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-size: 1rem; }
+                .saveAction:hover:not(:disabled) { transform: translateY(-4px); box-shadow: 0 20px 35px rgba(15, 27, 42, 0.3); }
+                .saveAction:active { transform: translateY(-1px); }
+                .saveAction:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+                
+                .statusMsg { font-weight: 800; display: flex; align-items: center; gap: 12px; font-size: 0.95rem; line-height: 1; }
+                .statusMsg.success { color: #10b981; }
+                .statusMsg.error { color: #f43f5e; }
 
-                .modalBase { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 2000; }
-                .modalCard { background: white; width: 400px; padding: 30px; border-radius: 20px; box-shadow: 0 30px 60px -10px rgba(0,0,0,0.5); }
-                .modalHead h3 { margin:0; font-weight: 900; display: flex; align-items: center; gap: 10px; color: #1e293b; }
-                .modalHead p { font-size: 0.8rem; color: #94a3b8; margin: 4px 0 20px; }
-                .inputGroup { display: flex; flex-direction: column; gap: 6px; margin-bottom: 15px; }
-                .inputGroup label { font-size: 0.65rem; font-weight: 900; color: #94a3b8; text-transform: uppercase; }
-                .inputGroup input { padding: 12px; border: 2px solid #f1f5f9; border-radius: 10px; font-weight: 700; outline: none; }
-                .inputGroup input:focus { border-color: #6366f1; }
-                .modalBottom { display: flex; gap: 10px; margin-top: 20px; }
-                .cancel { flex: 1; padding: 12px; border: none; background: #f1f5f9; color: #64748b; font-weight: 800; border-radius: 10px; cursor: pointer; }
-                .confirm { flex: 2; padding: 12px; border: none; background: #6366f1; color: white; font-weight: 800; border-radius: 10px; cursor: pointer; }
+                .nodeWelcome { padding: 120px 40px; text-align: center; color: #94a3b8; }
+                .wIcon { font-size: 5rem; color: #f1f5f9; margin-bottom: 24px; animation: pulse 2s infinite; }
+                @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+                .nodeWelcome h3 { font-size: 1.5rem; color: #0f1b2a; font-weight: 800; margin-bottom: 12px; }
+                .nodeWelcome p { max-width: 400px; margin: 0 auto; line-height: 1.6; }
+
+                .modalBase { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; z-index: 2000; animation: fadeIn 0.3s ease; }
+                .modalCard { background: white; width: 440px; padding: 40px; border-radius: 28px; box-shadow: 0 40px 100px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); }
+                .modalHead h3 { margin: 0; font-weight: 900; display: flex; align-items: center; gap: 14px; color: #0f1b2a; font-size: 1.5rem; }
+                .modalHead h3 i { color: #3b82f6; }
+                .modalHead p { font-size: 0.9rem; color: #64748b; margin: 6px 0 32px; font-weight: 500; }
+                
+                .inputGroup { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+                .inputGroup label { font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-left: 4px; }
+                .inputGroup input { padding: 14px 18px; border: 2px solid #f1f5f9; border-radius: 14px; font-weight: 700; outline: none; font-size: 1rem; transition: all 0.2s; background: #f8fafc; }
+                .inputGroup input:focus { border-color: #3b82f6; background: #fff; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1); }
+                .inputGroup small { font-size: 0.75rem; color: #94a3b8; line-height: 1.4; margin-top: 4px; }
+                
+                .modalBottom { display: flex; gap: 14px; margin-top: 32px; }
+                .cancel { flex: 1; padding: 16px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; font-weight: 800; border-radius: 16px; cursor: pointer; transition: all 0.2s; }
+                .cancel:hover { background: #f8fafc; color: #0f1b2a; }
+                .confirm { flex: 2; padding: 16px; border: none; background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; font-weight: 800; border-radius: 16px; cursor: pointer; box-shadow: 0 10px 20px rgba(30, 64, 175, 0.2); transition: all 0.2s; }
+                .confirm:hover { transform: translateY(-2px); box-shadow: 0 15px 30px rgba(30, 64, 175, 0.3); }
+                .confirm:active { transform: translateY(0); }
+                .confirm:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
             `}</style>
     </div>
   )

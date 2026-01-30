@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import ExportModal from './components/ExportModal';
+import { hasPermission } from '@/lib/permissions-client';
 import './absensi.css';
 
 // Types
@@ -61,6 +62,7 @@ export default function AbsensiPage() {
 
     const [userPermissions, setUserPermissions] = useState<any[]>([]);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [roles, setRoles] = useState<string[]>([]);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [userRole, setUserRole] = useState<string>('GURU');
 
@@ -86,10 +88,18 @@ export default function AbsensiPage() {
             // Set user data if found
             if (userData) {
                 setUserRole(userData.role || 'GURU');
-                setNip(userData.nip || '');
+                // PRIORITIZE NIP
+                const userNip = userData.nip || userData.username || '';
+                setNip(userNip);
+                setNipDisplay(userNip);
+
+                // Ensure name is set
+                setNamaGuru(userData.nama || userData.nama_lengkap || 'Guru');
+
                 setUserPermissions(userData.permissions || []);
+                setRoles(userData.roles || []);
                 setIsAdmin(userData.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false);
-                console.log('User data loaded:', userData.username);
+                console.log('User data loaded:', userData.username, 'NIP:', userNip);
             } else {
                 console.error('User not found in database');
             }
@@ -98,13 +108,14 @@ export default function AbsensiPage() {
         }
     };
 
-    const canDo = (resource: string, action: string) => {
-        if (isAdmin) return true;
-        return userPermissions.some(p =>
-            (p.resource === '*' || p.resource === resource) &&
-            (p.action === '*' || p.action === action)
-        );
-    }
+    const isGuru = roles.some(r => r.toUpperCase() === 'GURU');
+    const isWali = roles.some(r => r.toUpperCase() === 'WALI KELAS');
+    const isKepala = roles.some(r => r.toUpperCase() === 'KEPALA MADRASAH' || r.toUpperCase() === 'KAMAD');
+    const isOPAbsensi = roles.some(r => r.toUpperCase() === 'OP_ABSENSI');
+
+    const canDo = (action: string) => {
+        return hasPermission(userPermissions, 'absensi', action, isAdmin);
+    };
 
     useEffect(() => {
         if (nip) loadScopes();
@@ -184,6 +195,24 @@ export default function AbsensiPage() {
         if (!kelas || !mapel || !tanggal || !jamKe) {
             Swal.fire({ icon: 'warning', title: 'Perhatian', text: 'Lengkapi data sesi terlebih dahulu' });
             return;
+        }
+
+        // PERMISSION & SCOPE CHECK
+        if (!canDo('take')) {
+            Swal.fire({ icon: 'error', title: 'Akses Ditolak', text: 'Anda tidak memiliki izin untuk melakukan absensi.' });
+            return;
+        }
+
+        if (!isAdmin) {
+            // Check if selected matches scope
+            const key = `${kelas}||${mapel}`;
+            const allowedJams = scope?.jamKeByKelasMapel[key] || [];
+            const ranges = formatJamRange(allowedJams);
+
+            if (!scope?.kelasList.includes(kelas) || !(scope?.mapelByKelas[kelas] || []).includes(mapel) || !ranges.includes(jamKe)) {
+                Swal.fire({ icon: 'error', title: 'Di Luar Jadwal', text: 'Anda hanya dapat melakukan absensi sesuai dengan jadwal mengajar Anda.' });
+                return;
+            }
         }
 
         setLoading(true);
@@ -644,7 +673,7 @@ export default function AbsensiPage() {
                             <button
                                 className="btn btn-primary w-full"
                                 onClick={bukaSesi}
-                                disabled={loading}
+                                disabled={loading || !canDo('take')}
                             >
                                 <i className="bi bi-box-arrow-in-right"></i>
                                 Buka
@@ -659,7 +688,7 @@ export default function AbsensiPage() {
                     <button
                         className="btn btn-outline"
                         onClick={refreshKetidakhadiran}
-                        disabled={!currentSesi || isFinal || !canDo('absensi', 'refresh_ketidakhadiran')}
+                        disabled={!currentSesi || isFinal || !canDo('refresh_ketidakhadiran')}
                         title="Ambil data terbaru dari modul ketidakhadiran"
                     >
                         <i className="bi bi-arrow-clockwise"></i>
@@ -667,7 +696,7 @@ export default function AbsensiPage() {
                     </button>
                     <button
                         className="btn btn-success"
-                        disabled={!currentSesi || isFinal || !canDo('absensi', 'save_draft')}
+                        disabled={!currentSesi || isFinal || !canDo('save_draft')}
                         onClick={() => handleSimpan(false)}
                     >
                         <i className="bi bi-check-circle-fill"></i>
@@ -675,7 +704,7 @@ export default function AbsensiPage() {
                     </button>
                     <button
                         className="btn btn-dark"
-                        disabled={!currentSesi || isFinal || !canDo('absensi', 'finalize')}
+                        disabled={!currentSesi || isFinal || !canDo('finalize')}
                         onClick={() => handleSimpan(true)}
                     >
                         <i className="bi bi-lock-fill"></i>
@@ -683,7 +712,7 @@ export default function AbsensiPage() {
                     </button>
                     <button
                         onClick={() => setIsExportModalOpen(true)}
-                        disabled={!canDo('absensi', 'export')}
+                        disabled={!canDo('export')}
                         className="btn bg-[#1D6F42] hover:bg-[#155230] text-white shadow-lg shadow-green-900/20 border-none"
                         title="Export Data Absensi ke Excel"
                     >

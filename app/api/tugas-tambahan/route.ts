@@ -5,13 +5,16 @@ export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const nip = searchParams.get('nip');
-        const tahun_ajaran = searchParams.get('tahun_ajaran');
-        const semester = searchParams.get('semester');
+        let targetTA = tahun_ajaran;
+        if (!targetTA) {
+            const { getActiveAcademicYearServer } = await import('@/lib/settings-server');
+            targetTA = await getActiveAcademicYearServer();
+        }
 
         let query = supabaseAdmin.from('tugas_tambahan').select('*');
 
         if (nip) query = query.eq('nip', nip);
-        if (tahun_ajaran) query = query.eq('tahun_ajaran', tahun_ajaran);
+        if (targetTA) query = query.eq('tahun_ajaran', targetTA);
         if (semester) query = query.eq('semester', semester);
 
         const { data, error } = await query.order('jabatan', { ascending: true });

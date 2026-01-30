@@ -30,21 +30,22 @@ const RESOURCES = [
     { value: 'master_data:kelas', label: 'Master: Kelas' },
     { value: 'pengaturan_data:wali_kelas', label: 'Setting: Wali Kelas' },
     { value: 'pengaturan_data:jadwal_guru', label: 'Setting: Jadwal Guru' },
+    { value: 'pengaturan_data:tahun_ajaran', label: 'Setting: Tahun Ajaran' },
     { value: 'pengaturan_users', label: 'Pengaturan User/Sistem' },
 ]
 
 const ACTIONS = [
-    { value: '*', label: 'Semua Aksi' },
-    { value: 'create', label: 'Tambah Data (Create)' },
-    { value: 'read', label: 'Lihat Data (Read)' },
-    { value: 'update', label: 'Edit Data (Update)' },
-    { value: 'delete', label: 'Hapus Data (Delete)' },
-    { value: 'finalize', label: 'Finalkan/Kunci Absensi' },
-    { value: 'export_all', label: 'Export Rekap Seluruh Kelas' },
-    { value: 'edit_materi', label: 'Jurnal: Edit Materi Saja' },
-    { value: 'edit_refleksi', label: 'Jurnal: Edit Refleksi Saja' },
-    { value: 'edit_kehadiran', label: 'Jurnal: Edit Status Hadir' },
-    { value: 'edit_full', label: 'Jurnal: Edit Semua Kolom' },
+    { value: 'export_admin', label: 'Jurnal: Mode Export ADMIN (Global)' },
+    { value: 'export_personal', label: 'Jurnal: Mode Export GURU (Personal)' },
+    { value: 'export_class', label: 'Jurnal: Mode Export WALI KELAS (Kelas)' },
+    { value: 'create', label: 'Jurnal: Tambah Data (Admin/OP)' },
+    { value: 'update_any', label: 'Jurnal: Edit Semua Data (Admin/OP)' },
+    { value: 'delete_any', label: 'Jurnal: Hapus Semua Data (Admin/OP)' },
+    { value: 'edit_materi_refleksi', label: 'Jurnal: Edit Materi & Refleksi (Guru)' },
+    { value: 'take', label: 'Absensi: Melakukan Presensi (Sesuai Jadwal)' },
+    { value: 'export_personal', label: 'Absensi: Export GURU (Personal)' },
+    { value: 'export_class', label: 'Absensi: Export WALI KELAS (Bimbingan)' },
+    { value: 'export_admin', label: 'Absensi: Export ADMIN (Semua Data)' },
 ]
 
 export default function RolePermissionsTab() {
@@ -156,10 +157,13 @@ export default function RolePermissionsTab() {
     }
 
     return (
-        <div className="rolePermissionTab">
-            <div className="tabHeader">
-                <h2>Kelola Izin Role (Dynamic RBAC)</h2>
-                <p>Tambah role baru dan atur izin spesifik tanpa perlu mengubah kode program.</p>
+        <div className="rp">
+            <div className="rp__head">
+                <div className="rp__headIcon"><i className="bi bi-key-fill"></i></div>
+                <div className="rp__headInfo">
+                    <h2>Izin Role & RBAC</h2>
+                    <p>Konfigurasi izin dinamis untuk setiap level pengguna tanpa modifikasi kode.</p>
+                </div>
             </div>
 
             <div className="grid">
@@ -288,42 +292,56 @@ export default function RolePermissionsTab() {
             )}
 
             <style jsx>{`
-                .rolePermissionTab { display: flex; flex-direction: column; gap: 20px; }
-                .tabHeader h2 { margin: 0 0 8px; font-size: 1.2rem; color: #0b1f3a; }
-                .tabHeader p { margin: 0; color: #64748b; font-size: 0.95rem; }
-                
-                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-                .section { background: white; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0; }
-                .section.fullWidth { grid-column: 1 / -1; }
-                .section h3 { margin: 0 0 16px; font-size: 1rem; color: #1e293b; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; }
-                
-                .form { display: flex; flex-direction: column; gap: 12px; }
-                .formGroup { display: flex; flex-direction: column; gap: 6px; }
-                .formGroup label { font-size: 0.85rem; font-weight: 600; color: #475569; }
-                .formGroup input, .formGroup select { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; }
-                
-                .btnPrimary { padding: 10px; background: #2b6cff; color: white; border: none; border-radius: 6px; font-weight: 500; cursor: pointer; }
-                .btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; }
-                
-                .rolesList h4 { font-size: 0.85rem; margin: 16px 0 8px; color: #475569; }
-                .badges { display: flex; flex-wrap: wrap; gap: 8px; }
-                .badge { padding: 4px 10px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; font-weight: 600; color: #334155; }
-                
-                .tableWrap { overflow-x: auto; margin-top: 10px; }
-                .table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-                .table th { text-align: left; padding: 12px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 0.8rem; }
-                .table td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
-                .bold { font-weight: 600; color: #0f172a; }
-                .status { padding: 2px 8px; background: #dcfce7; color: #166534; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }
-                
-                .btnIcon { background: none; border: none; cursor: pointer; padding: 4px; border-radius: 4px; }
-                .btnIcon.danger:hover { background: #fee2e2; color: #dc2626; }
-                
-                .message { padding: 12px; border-radius: 8px; font-size: 0.9rem; position: fixed; bottom: 20px; right: 20px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-                .message.success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-                .message.error { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+                .rp { display: flex; flex-direction: column; gap: 32px; animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); padding: 5px; }
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-                @media (max-width: 768px) {
+                .rp__head { display: flex; align-items: center; gap: 24px; padding: 24px; background: #fff; border-radius: 20px; border: 1px solid rgba(15, 42, 86, 0.08); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04); }
+                .rp__headIcon { width: 56px; height: 56px; background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #fff; box-shadow: 0 8px 20px rgba(30, 64, 175, 0.2); }
+                .rp__headInfo h2 { margin: 0; font-size: 1.4rem; color: #0f1b2a; font-weight: 800; letter-spacing: -0.01em; }
+                .rp__headInfo p { margin: 4px 0 0; color: #64748b; font-size: 0.95rem; }
+
+                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+                .section { background: white; padding: 32px; border-radius: 24px; border: 1px solid rgba(15, 42, 86, 0.06); box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03); transition: all 0.3s; }
+                .section.fullWidth { grid-column: 1 / -1; }
+                .section:hover { box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06); }
+                
+                .section h3 { margin: 0 0 24px; font-size: 1.15rem; color: #0f1b2a; font-weight: 800; border-bottom: 2px solid #f8fafc; padding-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+                .section h3::before { content: ''; width: 4px; height: 18px; background: #3b82f6; border-radius: 4px; }
+                
+                .form { display: flex; flex-direction: column; gap: 20px; }
+                .formGroup { display: flex; flex-direction: column; gap: 8px; }
+                .formGroup label { font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-left: 4px; }
+                .formGroup input, .formGroup select { padding: 14px 18px; border: 2px solid #f1f5f9; border-radius: 14px; font-size: 0.95rem; font-weight: 600; outline: none; transition: all 0.2s; background: #f8fafc; }
+                .formGroup input:focus, .formGroup select:focus { border-color: #3b82f6; background: #fff; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1); }
+                
+                .btnPrimary { padding: 16px; background: linear-gradient(135deg, #0f1b2a, #1e40af); color: white; border: none; border-radius: 16px; font-weight: 800; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-size: 0.95rem; box-shadow: 0 8px 15px rgba(15, 27, 42, 0.15); }
+                .btnPrimary:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 12px 25px rgba(15, 27, 42, 0.25); }
+                .btnPrimary:active { transform: translateY(-1px); }
+                .btnPrimary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+                
+                .rolesList h4 { font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin: 24px 0 12px; }
+                .badges { display: flex; flex-wrap: wrap; gap: 10px; }
+                .badge { padding: 6px 14px; background: #f0f7ff; border: 1px solid #e0f2fe; border-radius: 10px; font-size: 0.8rem; font-weight: 700; color: #0369a1; transition: all 0.2s; }
+                .badge:hover { background: #1e40af; color: #fff; transform: translateY(-2px); }
+                
+                .tableWrap { overflow-x: auto; margin-top: 10px; background: #fff; border-radius: 20px; border: 1px solid #f1f5f9; }
+                .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.95rem; }
+                .table th { text-align: left; padding: 18px 24px; background: #fcfdfe; border-bottom: 2px solid #f1f5f9; color: #94a3b8; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+                .table td { padding: 18px 24px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+                .table tbody tr:hover td { background: #fcfdfe; }
+                
+                .bold { font-weight: 700; color: #0f1b2a; }
+                .status { padding: 6px 12px; background: #ecfdf5; color: #059669; border-radius: 10px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; border: 1px solid #d1fae5; }
+                
+                .btnIcon { width: 36px; height: 36px; background: #fcfdfe; border: 1px solid #f1f5f9; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; color: #94a3b8; font-size: 1.1rem; }
+                .btnIcon.danger:hover { background: #fff1f2; border-color: #fca5a5; color: #e11d48; transform: scale(1.1); box-shadow: 0 4px 10px rgba(225, 29, 72, 0.1); }
+                
+                .message { padding: 16px 24px; border-radius: 16px; font-weight: 800; position: fixed; bottom: 32px; right: 32px; z-index: 2000; box-shadow: 0 20px 50px rgba(0,0,0,0.15); animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+                @keyframes slideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+                .message.success { background: #ecfdf5; color: #059669; border: 1px solid #d1fae5; }
+                .message.error { background: #fff1f2; color: #e11d48; border: 1px solid #fca5a5; }
+
+                @media (max-width: 992px) {
                     .grid { grid-template-columns: 1fr; }
                 }
             `}</style>

@@ -51,13 +51,42 @@ export default function AdminTugasTambahan() {
     // Form states
     const [selectedGuru, setSelectedGuru] = useState<any>(null);
     const [selectedJabatan, setSelectedJabatan] = useState<any>(null);
-    const [tahunAjaran, setTahunAjaran] = useState('2025/2026');
-    const [semester, setSemester] = useState(2);
+    const [tahunAjaran, setTahunAjaran] = useState('');
+    const [semester, setSemester] = useState<string | number>('Ganjil');
     const [keterangan, setKeterangan] = useState('');
+    const [academicYears, setAcademicYears] = useState<string[]>([]);
 
     useEffect(() => {
         loadData();
+        fetchAcademicYears();
     }, []);
+
+    const fetchAcademicYears = async () => {
+        try {
+            const { getActivePeriods, getActiveSettings } = await import('@/lib/settings-client');
+            const periods = await getActivePeriods();
+            const defaultSettings = await getActiveSettings();
+
+            if (periods.length > 0) {
+                const uniqueYears = Array.from(new Set(periods.map(p => p.tahun_ajaran)));
+                setAcademicYears(uniqueYears);
+
+                const currentYearIsValid = uniqueYears.includes(tahunAjaran);
+
+                if (!currentYearIsValid && defaultSettings) {
+                    setTahunAjaran(defaultSettings.tahun_ajaran);
+                    setSemester(defaultSettings.semester);
+                } else if (!currentYearIsValid && periods.length > 0) {
+                    setTahunAjaran(periods[0].tahun_ajaran);
+                    setSemester(periods[0].semester);
+                }
+            } else {
+                setAcademicYears([]);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     const loadData = async () => {
         setLoading(true);
@@ -255,23 +284,26 @@ export default function AdminTugasTambahan() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="jt__formGroup">
                                         <label className="jt__formLabel">Tahun Ajaran</label>
-                                        <input
-                                            type="text"
+                                        <select
                                             className="jt__formInput"
                                             value={tahunAjaran}
                                             onChange={e => setTahunAjaran(e.target.value)}
-                                            placeholder="2025/2026"
-                                        />
+                                        >
+                                            {academicYears.length > 1 && <option value="Semua">Semua</option>}
+                                            {academicYears.map(y => (
+                                                <option key={y} value={y}>{y}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div className="jt__formGroup">
                                         <label className="jt__formLabel">Semester</label>
                                         <select
                                             className="jt__formInput"
                                             value={semester}
-                                            onChange={e => setSemester(Number(e.target.value))}
+                                            onChange={e => setSemester(e.target.value)}
                                         >
-                                            <option value={1}>Ganjil (1)</option>
-                                            <option value={2}>Genap (2)</option>
+                                            <option value="Ganjil">Ganjil</option>
+                                            <option value="Genap">Genap</option>
                                         </select>
                                     </div>
                                 </div>

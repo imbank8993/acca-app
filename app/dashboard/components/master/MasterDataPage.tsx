@@ -7,18 +7,18 @@ import KelasTab from './KelasTab'
 import MapelTab from './MapelTab'
 import WaktuTab from './WaktuTab'
 import KodeGuruTab from './KodeGuruTab'
-import DropdownTab from '../settings/DropdownTab' // Importing from adjacent settings folder
+import TahunAjaranTab from '../settings/TahunAjaranTab' // Importing from adjacent settings folder
 
-type TabType = 'siswa' | 'guru' | 'kode-guru' | 'mapel' | 'kelas' | 'waktu' | 'dropdown'
+type TabType = 'siswa' | 'guru' | 'kode-guru' | 'mapel' | 'kelas' | 'waktu' | 'tahun_ajaran'
 
 const tabs = [
+  { key: 'tahun_ajaran', label: 'Tahun Ajaran', icon: 'bi-calendar-range' },
   { key: 'siswa', label: 'Siswa', icon: 'bi-people' },
   { key: 'guru', label: 'Guru', icon: 'bi-person-badge' },
   { key: 'kode-guru', label: 'Kode Guru', icon: 'bi-hash' },
   { key: 'mapel', label: 'Mapel', icon: 'bi-book' },
   { key: 'kelas', label: 'Kelas', icon: 'bi-door-open' },
   { key: 'waktu', label: 'Waktu', icon: 'bi-clock' },
-  { key: 'dropdown', label: 'Dropdown', icon: 'bi-list-stars' },
 ]
 
 export default function MasterDataPage({ user }: { user?: any }) {
@@ -30,7 +30,7 @@ export default function MasterDataPage({ user }: { user?: any }) {
     hasPermission(permissions, `master_data:${tab.key}`, 'read', isAdmin)
   )
 
-  const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]?.key as TabType || 'siswa')
+  const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]?.key as TabType || 'tahun_ajaran')
   const tabsHeaderRef = useRef<HTMLDivElement>(null)
 
   const activeIndex = allowedTabs.findIndex(tab => tab.key === activeTab)
@@ -49,7 +49,7 @@ export default function MasterDataPage({ user }: { user?: any }) {
             <div className="md-titles">
               <h1 className="md-title">Master Data</h1>
               <p className="md-sub">
-                Kelola data referensi dasar aplikasi (Siswa, Guru, Kode Guru, Mapel, Kelas, Waktu).
+                Kelola data referensi dasar aplikasi (Tahun Ajaran, Siswa, Guru, Kode Guru, Mapel, Kelas, Waktu).
               </p>
             </div>
           </div>
@@ -83,7 +83,7 @@ export default function MasterDataPage({ user }: { user?: any }) {
           {activeTab === 'mapel' && <MapelTab />}
           {activeTab === 'kelas' && <KelasTab />}
           {activeTab === 'waktu' && <WaktuTab />}
-          {activeTab === 'dropdown' && <DropdownTab />}
+          {activeTab === 'tahun_ajaran' && <TahunAjaranTab />}
         </div>
       </div>
 

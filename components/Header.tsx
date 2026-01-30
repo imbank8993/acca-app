@@ -13,6 +13,7 @@ interface HeaderProps {
 export default function Header({ user, onMenuToggle, isCollapsed }: HeaderProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const [activeSettings, setActiveSettings] = useState<{ tahun_ajaran: string, semester: string } | null>(null)
 
   // Load dark mode preference on mount
   useEffect(() => {
@@ -21,7 +22,18 @@ export default function Header({ user, onMenuToggle, isCollapsed }: HeaderProps)
     if (savedMode) {
       document.documentElement.classList.add('dark')
     }
+    fetchActiveSettings()
   }, [])
+
+  const fetchActiveSettings = async () => {
+    try {
+      const { getActiveSettings } = await import('@/lib/settings-client')
+      const settings = await getActiveSettings()
+      setActiveSettings(settings)
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   const toggleDarkMode = () => {
     const newMode = !isDarkMode
@@ -49,7 +61,10 @@ export default function Header({ user, onMenuToggle, isCollapsed }: HeaderProps)
         </button>
         <div className="header-title-wrapper">
           <h1 className="header-title">Academic Center & Access</h1>
-          <p className="header-subtitle">MAN Insan Cendekia Gowa</p>
+          <div className="header-badges">
+            <span className="header-subtitle">MAN Insan Cendekia Gowa</span>
+            {/* Active settings display removed as per request */}
+          </div>
         </div>
       </div>
 

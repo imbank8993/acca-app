@@ -23,6 +23,8 @@ export default function LiburTab() {
   const [showModal, setShowModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [academicYears, setAcademicYears] = useState<string[]>([])
+  const [tahunAjaran, setTahunAjaran] = useState('')
 
   // Form Data
   const [startDate, setStartDate] = useState('')
@@ -42,16 +44,40 @@ export default function LiburTab() {
 
   useEffect(() => {
     fetchMasterWaktu()
+    fetchAcademicYears()
   }, [])
 
+  const fetchAcademicYears = async () => {
+    try {
+      const { getActivePeriods, getActiveSettings } = await import('@/lib/settings-client');
+      const periods = await getActivePeriods();
+      const defaultSettings = await getActiveSettings();
 
+      if (periods.length > 0) {
+        const uniqueYears = Array.from(new Set(periods.map(p => p.tahun_ajaran)));
+        setAcademicYears(uniqueYears);
+
+        const currentYearIsValid = uniqueYears.includes(tahunAjaran);
+
+        if (!currentYearIsValid && defaultSettings) {
+          setTahunAjaran(defaultSettings.tahun_ajaran);
+        } else if (!currentYearIsValid && periods.length > 0) {
+          setTahunAjaran(periods[0].tahun_ajaran);
+        }
+      } else {
+        setAcademicYears([]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       fetchData()
     }, 500)
     return () => clearTimeout(timeoutId)
-  }, [tahun, searchTerm])
+  }, [tahun, searchTerm, tahunAjaran])
 
   const fetchMasterWaktu = async () => {
     try {
@@ -67,7 +93,8 @@ export default function LiburTab() {
     setLoading(true)
     const params = new URLSearchParams({
       q: searchTerm,
-      tahun: tahun === 'Semua' ? '' : tahun
+      tahun: tahun === 'Semua' ? '' : tahun,
+      tahun_ajaran: tahunAjaran === 'Semua' ? '' : tahunAjaran
     })
     try {
       const res = await fetch(`/api/settings/libur?${params}`)
@@ -245,12 +272,10 @@ export default function LiburTab() {
             />
           </div>
 
-          <select value={tahun} onChange={(e) => setTahun(e.target.value)}>
-            <option value="Semua">Semua Tahun</option>
-            <option value="2024">2024</option>
-            <option value="2025">2025</option>
-            <option value="2026">2026</option>
-            <option value="2027">2027</option>
+          <select value={tahunAjaran} onChange={(e) => setTahunAjaran(e.target.value)}>
+            {academicYears.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
           </select>
         </div>
 

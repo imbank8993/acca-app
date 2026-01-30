@@ -55,6 +55,8 @@ export default function JadwalGuruTab() {
     // Default valid date to today YYYY-MM-DD
     const todayStr = new Date().toISOString().split('T')[0]
     const [filterValidDate, setFilterValidDate] = useState(todayStr)
+    const [tahunAjaran, setTahunAjaran] = useState('')
+    const [academicYears, setAcademicYears] = useState<string[]>([])
 
     // UI States
     const [showModal, setShowModal] = useState(false)
@@ -82,9 +84,35 @@ export default function JadwalGuruTab() {
     const defaultTahunAjaran = getCurrentAcademicYear()
 
     useEffect(() => {
+        fetchAcademicYears()
         fetchInitialData()
         fetchJadwal()
     }, [])
+
+    const fetchAcademicYears = async () => {
+        try {
+            const { getActivePeriods, getActiveSettings } = await import('@/lib/settings-client');
+            const periods = await getActivePeriods();
+            const defaultSettings = await getActiveSettings();
+
+            if (periods.length > 0) {
+                const uniqueYears = Array.from(new Set(periods.map(p => p.tahun_ajaran)));
+                setAcademicYears(uniqueYears);
+
+                const currentYearIsValid = uniqueYears.includes(tahunAjaran);
+
+                if (!currentYearIsValid && defaultSettings) {
+                    setTahunAjaran(defaultSettings.tahun_ajaran);
+                } else if (!currentYearIsValid && periods.length > 0) {
+                    setTahunAjaran(periods[0].tahun_ajaran);
+                }
+            } else {
+                setAcademicYears([]);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
 
     useEffect(() => {
         const to = setTimeout(fetchJadwal, 500)
@@ -93,7 +121,8 @@ export default function JadwalGuruTab() {
 
     const fetchInitialData = async () => {
         try {
-            const resGM = await fetch(`/api/settings/guru-mapel?tahun_ajaran=${defaultTahunAjaran}`)
+            const ta = tahunAjaran || getCurrentAcademicYear()
+            const resGM = await fetch(`/api/settings/guru-mapel?tahun_ajaran=${ta}`)
             const jsonGM = await resGM.json()
             if (jsonGM.ok) setMasterGuruMapel(jsonGM.data || [])
 
@@ -106,6 +135,10 @@ export default function JadwalGuruTab() {
             if (jsonW.ok) setMasterWaktu(jsonW.data || [])
         } catch (e) { console.error(e) }
     }
+
+    useEffect(() => {
+        if (tahunAjaran) fetchInitialData()
+    }, [tahunAjaran])
 
     const fetchJadwal = async () => {
         setLoading(true)
@@ -541,6 +574,14 @@ export default function JadwalGuruTab() {
                         <i className="bi bi-search" aria-hidden="true"></i>
                         <input type="text" placeholder="Cari Guru / Mapel..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
+                </div>
+                <div className="sk__cell">
+                    <select value={tahunAjaran} onChange={e => setTahunAjaran(e.target.value)}>
+                        {academicYears.length > 1 && <option value="Semua">Semua</option>}
+                        {academicYears.map(y => (
+                            <option key={y} value={y}>{y}</option>
+                        ))}
+                    </select>
                 </div>
                 <div className="sk__cell">
                     <select value={filterHari} onChange={e => setFilterHari(e.target.value)}>
