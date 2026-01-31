@@ -6,40 +6,37 @@
 */
 
 :root {
-  --app-sidebar-w: 240px;
+  --app-sidebar-w: 256px;
   --app-sidebar-w-collapsed: 70px;
-  --app-header-h: 70px;
-  --app-gap: 20px;
-  --app-margin: 20px;
+  --app-header-h: 65px;
 }
 
 /* ===== Header Shell ===== */
 .header {
   position: fixed;
-  top: var(--app-margin);
-  left: calc(var(--app-margin) + var(--app-sidebar-w) + var(--app-gap));
-  right: var(--app-margin);
+  top: 0;
+  left: var(--app-sidebar-w);
+  /* ✅ sync with sidebar width */
+  right: 0;
   height: var(--app-header-h);
 
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(0, 63, 136, 0.08);
-  border-radius: 16px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: space-between;
 
-  padding: 0 20px;
+  padding: 0 12px;
   z-index: 900;
 
-  transition: all .3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  transition: left .3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .04);
 }
 
 /* Collapsed state */
 .header.collapsed {
-  left: calc(var(--app-margin) + var(--app-sidebar-w-collapsed) + var(--app-gap));
+  left: var(--app-sidebar-w-collapsed);
+  /* ✅ sync collapsed width */
 }
 
 /* Mobile: sidebar overlay, header full */
@@ -250,7 +247,7 @@
 
 .user-name-header {
   font-weight: 650;
-  color: var(--n-ink);
+  color: #0b1b3a;
   font-size: .9rem;
   line-height: 1.2;
   white-space: nowrap;
@@ -258,7 +255,7 @@
 
 .user-role-header {
   font-size: .75rem;
-  color: var(--n-muted);
+  color: #6b7280;
   line-height: 1.2;
   white-space: nowrap;
 }
@@ -298,10 +295,10 @@
   top: calc(100% + 10px);
   right: 0;
   width: 260px;
-  background: var(--n-card);
+  background: #fff;
   border-radius: 14px;
-  box-shadow: var(--n-shadow);
-  border: 1px solid var(--n-border);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .15);
+  border: 1px solid #e5e7eb;
   z-index: 900;
   overflow: hidden;
 }
@@ -348,7 +345,7 @@
 
   cursor: pointer;
   transition: background .18s ease;
-  color: var(--n-ink);
+  color: #0b1b3a;
   font-size: .9rem;
   font-weight: 550;
 }
@@ -360,41 +357,4 @@
 .user-menu-item i {
   font-size: 1.1rem;
   color: #ef4444;
-}
-
-/* Dark Mode Overrides for Header */
-.dark .header {
-  background: rgba(20, 30, 51, 0.9);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-}
-
-.dark .header-title {
-  color: #fff;
-}
-
-.dark .user-menu-trigger,
-.dark .dark-mode-toggle {
-  background: #1e293b;
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #fff;
-}
-
-.dark .user-menu-trigger:hover,
-.dark .dark-mode-toggle:hover {
-  background: #334155;
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.dark .user-menu-info {
-  background: #1e293b;
-  border-bottom-color: rgba(255, 255, 255, 0.1);
-}
-
-.dark .user-menu-name {
-  color: #fff;
-}
-
-.dark .user-menu-item:hover {
-  background: rgba(255, 255, 255, 0.05);
 }

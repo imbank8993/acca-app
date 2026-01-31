@@ -7,53 +7,55 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* ✅ Layout tokens (1 sumber kebenaran) */
-  --app-header-h: 65px;
-  --app-sidebar-w: 256px;
+  /* ✅ Layout tokens (Hybrid Spacing System) */
+  --app-header-h: 70px;
+  --app-sidebar-w: 240px;
   --app-sidebar-w-collapsed: 70px;
+  --app-margin: 20px;
+  --app-gap: 20px;
 
   /* =========================================================
      SMOOTH NAVY SYSTEM (Unified)
   ========================================================= */
 
   /* Backgrounds & Surfaces */
-  --n-bg: #f5f7fb;
+  --n-bg: #f8fafc;
   --n-card: #ffffff;
-  --n-card-prominent: linear-gradient(135deg, #ffffff 0%, #fefeff 100%);
 
-  /* Brand / Primary (Navy) */
-  --n-navy-950: #07162e;
-  --n-navy-900: #0b1f3a;
-  --n-navy-800: #0f2a56;
-  --n-navy-700: #163663;
+  /* Unified Sidebar-Matching Navy System */
+  --n-primary: #003f88;
+  /* Sidebar Main Color */
+  --n-primary-light: #0056b3;
+  --n-primary-dark: #002d62;
+
+  /* Hero & Prominent Surfaces (Smoothed) */
+  --n-hero-gradient: linear-gradient(135deg, #004ba2 0%, #1e70d6 100%);
 
   /* Aliases */
-  --navy: var(--n-navy-900);
-  --navy-2: var(--n-navy-800);
+  --navy: var(--n-primary);
+  --navy-2: var(--n-primary-light);
   --bg: var(--n-bg);
   --card: var(--n-card);
 
   /* Accents */
-  --n-blue: #3aa6ff;
-  --n-blue-hover: #2183d6;
-  --accent: var(--n-blue);
+  --accent: var(--n-primary);
 
   /* Text */
-  --n-ink: #0b1324;
+  --n-ink: #0f172a;
   --n-muted: #64748b;
   --text: var(--n-ink);
   --muted: var(--n-muted);
 
   /* Borders & Dividers */
-  --n-border: rgba(15, 42, 86, 0.14);
-  --n-soft: rgba(15, 42, 86, 0.06);
+  --n-border: rgba(0, 63, 136, 0.14);
+  --n-soft: rgba(0, 63, 136, 0.06);
   --line: var(--n-border);
   --line-2: rgba(148, 163, 184, 0.22);
 
   /* Elevation */
-  --n-shadow: 0 12px 30px rgba(15, 23, 42, 0.10);
-  --n-shadow-2: 0 10px 18px rgba(15, 23, 42, 0.08);
-  --n-shadow-soft: 0 6px 16px rgba(2, 6, 23, 0.07);
+  --n-shadow: 0 10px 25px -5px rgba(0, 63, 136, 0.08), 0 8px 10px -6px rgba(0, 63, 136, 0.05);
+  --n-shadow-2: 0 10px 18px rgba(0, 63, 136, 0.08);
+  --n-shadow-soft: 0 6px 16px rgba(0, 63, 136, 0.07);
   --shadow-soft: var(--n-shadow);
   --shadow-mini: var(--n-shadow-soft);
 
@@ -159,11 +161,36 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Manual Dark Mode Trigger */
+.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+
+  /* Dark Mode Surfaces */
+  --n-bg: #0b1324;
+  --n-card: #141e33;
+
+  /* Dark Mode Navy Adjustment */
+  --n-primary: #3aa6ff;
+  /* A bit brighter for dark mode */
+  --n-primary-light: #60b5ff;
+  --n-primary-dark: #003f88;
+
+  /* Hero Gradient Dark Mode (Smoothed) */
+  --n-hero-gradient: linear-gradient(135deg, #141e33 0%, #003f88 100%);
+
+  /* Text Dark Mode */
+  --n-ink: #f8fafc;
+  --n-muted: #94a3b8;
+
+  /* Borders & Shadows Dark Mode */
+  --n-border: rgba(255, 255, 255, 0.08);
+  --n-soft: rgba(255, 255, 255, 0.03);
+  --n-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+
+  --line: var(--n-border);
+  --navy: var(--n-primary);
+  --navy-2: var(--n-primary-light);
 }
 
 /* =========================================================
@@ -190,6 +217,8 @@ body {
 
   /* ✅ iOS: scroll halus */
   -webkit-overflow-scrolling: touch;
+
+  /* ✅ Let dashboard layout handle padding/margins */
 }
 
 /* =========================================================

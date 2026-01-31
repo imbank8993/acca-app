@@ -1,26 +1,6 @@
-/* PREMIUM ABSENSI DESIGN - Modern & Professional (Refined) */
+/* PREMIUM ABSENSI DESIGN - Modern & Professional (Unified) */
 
 :root {
-  /* Premium Navy Palette */
-  --navy-primary: #0f172a;
-  --navy-secondary: #1e293b;
-  --navy-accent: #334155;
-
-  /* Accent Colors */
-  --accent-blue: #3b82f6;
-  --accent-blue-light: #60a5fa;
-  --accent-green: #10b981;
-  --accent-yellow: #f59e0b;
-  --accent-red: #ef4444;
-
-  /* Neutrals */
-  --gray-50: #f8fafc;
-  --gray-100: #f1f5f9;
-  --gray-200: #e2e8f0;
-  --gray-300: #cbd5e1; /* FIX: sebelumnya dipakai tapi belum didefinisikan */
-  --gray-600: #475569;
-  --gray-700: #334155;
-
   /* Spacing */
   --spacing-xs: 0.5rem;
   --spacing-sm: 0.75rem;
@@ -28,21 +8,15 @@
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
 
-  /* Shadows - Premium */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 10px -2px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08);
-  --shadow-lg: 0 12px 22px -10px rgb(0 0 0 / 0.18), 0 6px 16px -10px rgb(0 0 0 / 0.12);
-  --shadow-xl: 0 24px 40px -20px rgb(0 0 0 / 0.22), 0 12px 22px -18px rgb(0 0 0 / 0.16);
-
-  /* Border Radius */
+  /* Radius */
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
   --radius-full: 9999px;
 
-  /* Smooth Active */
-  --active-ring: 0 0 0 4px rgba(59, 130, 246, 0.14);
+  /* Interactive */
+  --active-ring: 0 0 0 4px rgba(58, 166, 255, 0.14);
 }
 
 /* Optional: make all buttons feel “smooth blue active” */
@@ -51,22 +25,25 @@ button,
 a {
   -webkit-tap-highlight-color: transparent;
 }
+
 button:focus-visible,
 .btn:focus-visible,
 a:focus-visible {
   outline: none;
   box-shadow: var(--active-ring);
-  border-color: rgba(59, 130, 246, 0.55) !important;
+  border-color: var(--n-primary-focus) !important;
 }
 
-/* Premium Page Header */
+/* Page Header (Matching Dashboard Hero) */
 .absensi-header {
-  background: linear-gradient(135deg, var(--navy-primary) 0%, var(--navy-secondary) 100%);
-  padding: var(--spacing-lg) var(--spacing-xl);
-  border-radius: var(--radius-xl);
+  background: var(--n-hero-gradient);
+  padding: 32px 36px;
+  border-radius: 20px;
   margin-bottom: var(--spacing-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--n-shadow);
   color: white;
+  position: relative;
+  overflow: hidden;
 }
 
 .absensi-title {
@@ -82,13 +59,13 @@ a:focus-visible {
   margin-top: 0.25rem;
 }
 
-/* Premium Filter Card */
+/* Filter Card */
 .filter-card {
-  background: white;
+  background: var(--n-card);
   border-radius: var(--radius-xl);
   padding: var(--spacing-xl);
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--gray-200);
+  box-shadow: var(--n-shadow);
+  border: 1px solid var(--n-border);
   margin-bottom: var(--spacing-lg);
 }
 
@@ -97,7 +74,7 @@ a:focus-visible {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--gray-600);
+  color: var(--n-muted);
   margin-bottom: var(--spacing-md);
   display: flex;
   align-items: center;
@@ -108,11 +85,11 @@ a:focus-visible {
   content: "";
   width: 3px;
   height: 14px;
-  background: linear-gradient(180deg, var(--accent-blue), var(--accent-blue-light));
+  background: var(--n-primary);
   border-radius: var(--radius-full);
 }
 
-/* Premium Form Inputs */
+/* Form Elements */
 .form-group {
   margin-bottom: 0;
 }
@@ -120,8 +97,9 @@ a:focus-visible {
 .form-label {
   display: block;
   font-size: 0.875rem;
-  font-weight: 600; /* lebih ringan */
-  color: var(--gray-700);
+  font-weight: 600;
+  /* lebih ringan */
+  color: var(--n-muted);
   margin-bottom: 0.5rem;
 }
 
@@ -130,48 +108,47 @@ a:focus-visible {
   width: 100%;
   padding: 0.62rem 0.9rem;
   font-size: 0.875rem;
-  background: var(--gray-50);
-  border: 1.5px solid var(--gray-200);
+  background: var(--n-bg);
+  border: 1.5px solid var(--n-border);
   border-radius: var(--radius-md);
   transition: all 0.18s ease;
-  color: var(--navy-primary);
+  color: var(--n-ink);
   font-weight: 500;
 }
 
 .form-input:hover,
 .form-select:hover {
-  border-color: var(--gray-300);
-  background: white;
+  border-color: var(--n-primary);
+  opacity: 0.9;
 }
 
 .form-input:focus,
 .form-select:focus {
   outline: none;
-  border-color: var(--accent-blue);
-  background: white;
+  border-color: var(--n-primary);
+  background: var(--n-card);
   box-shadow: var(--active-ring);
 }
 
-/* Premium Buttons */
+/* Buttons */
 .btn {
   padding: 0.62rem 1rem;
   font-size: 0.875rem;
-  font-weight: 600; /* lebih ringan */
+  font-weight: 600;
   border-radius: var(--radius-md);
   border: none;
   cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, color 0.16s ease;
+  transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  box-shadow: var(--shadow-sm);
   height: 38px;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  filter: brightness(1.1);
 }
 
 .btn:active {
@@ -186,7 +163,7 @@ a:focus-visible {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-blue), var(--accent-blue-light));
+  background: var(--n-primary);
   color: white;
 }
 
@@ -195,10 +172,9 @@ a:focus-visible {
 }
 
 .btn-success {
-  background: white;
-  color: var(--accent-green);
-  border: 2px solid rgba(16, 185, 129, 0.65);
-  box-shadow: none;
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1.5px solid rgba(16, 185, 129, 0.3);
 }
 
 .btn-success:hover:not(:disabled) {
@@ -207,7 +183,7 @@ a:focus-visible {
 }
 
 .btn-dark {
-  background: linear-gradient(135deg, var(--navy-primary), var(--navy-secondary));
+  background: var(--n-primary-dark);
   color: white;
 }
 
@@ -216,9 +192,9 @@ a:focus-visible {
 }
 
 .btn-outline {
-  background: white;
-  color: var(--gray-700);
-  border: 1.5px solid var(--gray-200);
+  background: var(--n-bg);
+  color: var(--n-ink);
+  border: 1.5px solid var(--n-border);
 }
 
 .btn-outline:hover:not(:disabled) {
@@ -226,13 +202,13 @@ a:focus-visible {
   border-color: var(--gray-300);
 }
 
-/* Premium Table */
+/* Data Table */
 .data-table {
-  background: white;
+  background: var(--n-card);
   border-radius: var(--radius-xl);
   overflow: hidden;
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--gray-200);
+  box-shadow: var(--n-shadow);
+  border: 1px solid var(--n-border);
 }
 
 .data-table table {
@@ -241,7 +217,7 @@ a:focus-visible {
 }
 
 .data-table thead {
-  background: linear-gradient(135deg, var(--gray-100), var(--gray-50));
+  background: var(--n-soft);
 }
 
 .data-table th {
@@ -251,14 +227,15 @@ a:focus-visible {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--gray-600);
-  border-bottom: 2px solid var(--gray-200);
+  color: var(--n-muted);
+  border-bottom: 2px solid var(--n-border);
 }
 
 .data-table td {
   padding: 0.95rem 1rem;
   font-size: 0.875rem;
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--n-border);
+  color: var(--n-ink);
 }
 
 .data-table tbody tr {
@@ -266,21 +243,21 @@ a:focus-visible {
 }
 
 .data-table tbody tr:hover {
-  background: rgba(59, 130, 246, 0.04); /* smooth blue hover */
+  background: rgba(58, 166, 255, 0.05);
 }
 
 .data-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-/* Premium Status Radios */
+/* Status Radios */
 .status-radio-group {
   display: flex;
   gap: 0.5rem;
   padding: 0.4rem;
-  background: var(--gray-50);
+  background: var(--n-bg);
   border-radius: var(--radius-full);
-  border: 1.5px solid var(--gray-200);
+  border: 1.5px solid var(--n-border);
 }
 
 .status-radio-item {
@@ -301,8 +278,8 @@ a:focus-visible {
   letter-spacing: 0.03em;
   border-radius: var(--radius-full);
   cursor: pointer;
-  transition: all 0.16s ease;
-  color: var(--gray-600);
+  transition: all 0.2s ease;
+  color: var(--n-muted);
   background: transparent;
 }
 
@@ -312,48 +289,66 @@ a:focus-visible {
   box-shadow: var(--shadow-sm);
 }
 
-.status-radio-item input:checked + .status-radio-label {
+.status-radio-item input:checked+.status-radio-label {
   background: white;
-  color: var(--navy-primary);
-  box-shadow: var(--shadow-sm);
+  color: #000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.dark .status-radio-item input:checked+.status-radio-label {
+  background: var(--n-primary);
+  color: white;
 }
 
 /* Disabled */
-.status-radio-item input:disabled + .status-radio-label {
+.status-radio-item input:disabled+.status-radio-label {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-/* Status-specific colors */
-.status-radio-item input:checked + .status-radio-label[data-status="HADIR"] {
-  background: var(--accent-blue);
+/* Status Colors */
+.status-radio-item input:checked+.status-radio-label[data-status="HADIR"] {
+  background: #3b82f6;
   color: white;
 }
 
-.status-radio-item input:checked + .status-radio-label[data-status="IZIN"] {
-  background: var(--accent-yellow);
+.status-radio-item input:checked+.status-radio-label[data-status="IZIN"] {
+  background: #f59e0b;
   color: white;
 }
 
-.status-radio-item input:checked + .status-radio-label[data-status="SAKIT"] {
+.status-radio-item input:checked+.status-radio-label[data-status="SAKIT"] {
   background: #fb923c;
   color: white;
 }
 
-.status-radio-item input:checked + .status-radio-label[data-status="ALPHA"] {
-  background: var(--accent-red);
+.status-radio-item input:checked+.status-radio-label[data-status="ALPHA"] {
+  background: #ef4444;
   color: white;
 }
 
-/* Row highlights */
-.row-hadir { background: rgba(59, 130, 246, 0.05); }
-.row-izin  { background: rgba(245, 158, 11, 0.05); }
-.row-sakit { background: rgba(251, 146, 60, 0.05); }
-.row-alpha { background: rgba(239, 68, 68, 0.05); }
+/* Row Backgrounds - Adaptive Alpha */
+.row-hadir {
+  background: rgba(59, 130, 246, 0.03);
+}
 
-.row-changed { position: relative; }
+.row-izin {
+  background: rgba(245, 158, 11, 0.03);
+}
 
-/* Premium Badges */
+.row-sakit {
+  background: rgba(251, 146, 60, 0.03);
+}
+
+.row-alpha {
+  background: rgba(239, 68, 68, 0.03);
+}
+
+.row-changed {
+  position: relative;
+}
+
+/* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -362,34 +357,36 @@ a:focus-visible {
   font-size: 0.75rem;
   font-weight: 600;
   border-radius: var(--radius-full);
-  background: var(--gray-100);
-  color: var(--gray-700);
+  background: var(--n-soft);
+  color: var(--n-muted);
 }
 
 .badge-success {
-  background: rgba(16, 185, 129, 0.12);
-  color: var(--accent-green);
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
 }
 
 .badge-warning {
-  background: rgba(245, 158, 11, 0.12);
-  color: var(--accent-yellow);
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
 }
 
 /* Session Info Banner */
 .session-info {
   padding: 0.875rem 1rem;
-  background: linear-gradient(135deg, var(--gray-50), white);
+  background: var(--n-soft);
   border-radius: var(--radius-md);
   font-size: 0.8125rem;
-  color: var(--gray-600);
-  border: 1px solid var(--gray-200);
+  color: var(--n-muted);
+  border: 1px solid var(--n-border);
   margin-top: var(--spacing-md);
 }
 
 /* ================= MOBILE OPTIMIZATION ================= */
 @media (max-width: 576px) {
-  .max-w-7xl { padding: 0.75rem !important; }
+  .max-w-7xl {
+    padding: 0.75rem !important;
+  }
 
   .filter-card {
     padding: 1rem;
@@ -407,7 +404,9 @@ a:focus-visible {
   }
 
   /* Table to cards */
-  .data-table thead { display: none; }
+  .data-table thead {
+    display: none;
+  }
 
   .data-table table,
   .data-table tbody,
@@ -419,9 +418,9 @@ a:focus-visible {
 
   .data-table tbody tr {
     margin-bottom: 1rem;
-    border: 1px solid var(--gray-200);
+    border: 1px solid var(--n-border);
     border-radius: var(--radius-lg);
-    background: white;
+    background: var(--n-card);
     box-shadow: var(--shadow-sm);
     overflow: hidden;
   }
@@ -432,7 +431,7 @@ a:focus-visible {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--gray-100);
+    border-bottom: 1px solid var(--n-border);
     min-height: 40px;
     flex-wrap: wrap;
     gap: 0.5rem;
@@ -449,7 +448,7 @@ a:focus-visible {
     justify-content: flex-end;
     padding-top: 0.55rem;
     padding-bottom: 0.55rem;
-    background: var(--gray-50);
+    background: var(--n-soft);
   }
 
   .data-table td::before {
@@ -457,7 +456,7 @@ a:focus-visible {
     font-weight: 700;
     text-transform: uppercase;
     font-size: 0.7rem;
-    color: var(--gray-600);
+    color: var(--n-muted);
     letter-spacing: 0.06em;
     text-align: left;
   }
@@ -482,8 +481,11 @@ a:focus-visible {
 }
 
 @media (max-width: 768px) {
-  .absensi-header { padding: 1rem; }
-  .absensi-title  { font-size: 1.2rem; }
+  .absensi-header {
+    padding: 1rem;
+  }
+
+  .absensi-title {
+    font-size: 1.2rem;
+  }
 }
-
-

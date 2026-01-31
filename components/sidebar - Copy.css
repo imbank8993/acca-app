@@ -1,0 +1,275 @@
+/* Sidebar - FULL REPLACE (Fixed + Overlay Mobile + Collapse Desktop)
+   Sinkron dengan Dashboard lewat CSS variable:
+   --app-sidebar-w: 256px
+   --app-sidebar-w-collapsed: 70px
+*/
+
+/* pastikan variabel ada meski dashboard belum render */
+:root{
+  --app-sidebar-w: 256px;
+  --app-sidebar-w-collapsed: 70px;
+}
+
+/* Overlay (mobile) */
+.sidebar-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.50);
+  z-index: 40;
+  animation: fadeIn .25s ease-in-out;
+}
+
+@keyframes fadeIn{
+  from{ opacity: 0; }
+  to{ opacity: 1; }
+}
+
+/* Sidebar shell */
+.sidebar{
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100dvh;
+  width: var(--app-sidebar-w);
+  background: linear-gradient(180deg, #0f1e3d 0%, #0a1628 100%);
+  color: #fff;
+
+  display: flex;
+  flex-direction: column;
+
+  transform: translateX(-100%);
+  transition: transform .28s ease, width .28s ease;
+  z-index: 41;
+
+  /* optional: biar tegas */
+  box-shadow: 0 18px 44px rgba(2,6,23,.18);
+}
+
+/* open (mobile) */
+.sidebar.open{
+  transform: translateX(0);
+}
+
+/* collapsed (desktop) */
+.sidebar.collapsed{
+  width: var(--app-sidebar-w-collapsed);
+}
+
+/* Desktop always visible */
+@media (min-width: 992px){
+  .sidebar{
+    transform: translateX(0);
+  }
+  .sidebar-overlay{
+    display: none;
+  }
+}
+
+/* Header */
+.sidebar-header{
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+}
+
+.sidebar.collapsed .sidebar-header{
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 8px;
+}
+
+/* Brand */
+.brand{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+}
+
+.sidebar.collapsed .brand{
+  justify-content: center;
+  width: 100%;
+}
+
+.brand-logo{
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.sidebar-title{
+  font-size: 1.75rem;
+  font-weight: 750;
+  margin: 0;
+  white-space: nowrap;
+  letter-spacing: .2px;
+}
+
+/* Toggle */
+.toggle-btn{
+  width: 32px;
+  height: 32px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 10px;
+  color: #fff;
+
+  display: none;
+  align-items:center;
+  justify-content:center;
+
+  cursor: pointer;
+  transition: background .18s ease, transform .18s ease;
+  flex-shrink: 0;
+}
+
+.toggle-btn:hover{
+  background: rgba(255,255,255,.18);
+  transform: translateY(-1px);
+}
+
+@media (min-width: 992px){
+  .toggle-btn{
+    display: flex;
+  }
+}
+
+.sidebar.collapsed .toggle-btn{
+  display:flex !important;
+  margin: 8px auto 0;
+}
+
+/* Nav area */
+.sidebar-nav{
+  margin-top: 16px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 20px;
+}
+
+.sidebar-nav::-webkit-scrollbar{ width: 4px; }
+.sidebar-nav::-webkit-scrollbar-track{ background: transparent; }
+.sidebar-nav::-webkit-scrollbar-thumb{
+  background: rgba(255,255,255,.20);
+  border-radius: 2px;
+}
+.sidebar-nav::-webkit-scrollbar-thumb:hover{
+  background: rgba(255,255,255,.30);
+}
+
+/* Menu button */
+.menu-btn{
+  width: 100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+
+  padding: 9px 24px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  text-align:left;
+
+  cursor: pointer;
+  transition: background-color .18s ease;
+}
+
+.menu-btn:hover{
+  background: rgba(30,64,117,.28);
+}
+
+.menu-btn.active{
+  background: rgba(30,64,117,.48);
+}
+
+/* Left content in menu */
+.menu-content{
+  display:flex;
+  align-items:center;
+  gap: 12px;
+}
+
+.menu-icon{
+  width: 20px;
+  height: 20px;
+  font-size: 1.25rem;
+}
+
+.menu-label{
+  font-size: .90rem;
+}
+
+.sidebar.collapsed .menu-label,
+.sidebar.collapsed .chevron{
+  display:none;
+}
+
+.sidebar.collapsed .menu-btn{
+  justify-content:center;
+  padding: 11px 10px;
+}
+
+/* Chevron */
+.chevron{
+  width: 16px;
+  height: 16px;
+  font-size: 1rem;
+  transition: transform .25s ease;
+}
+
+.chevron.rotate{
+  transform: rotate(180deg);
+}
+
+/* Submenu */
+.submenu{
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .25s ease-in-out;
+}
+
+.submenu.open{
+  max-height: 200px;
+}
+
+.submenu-btn{
+  width: 100%;
+  display:flex;
+  align-items:center;
+  gap: 12px;
+
+  padding: 7px 24px;
+  padding-left: 56px;
+
+  background: transparent;
+  border: none;
+  color: #a9b4c7;
+  text-align:left;
+
+  cursor: pointer;
+  transition: background-color .18s ease, color .18s ease;
+}
+
+.submenu-btn:hover{
+  background: rgba(30,64,117,.26);
+  color: #fff;
+}
+
+.submenu-btn.active{
+  color:#fff;
+}
+
+.sidebar.collapsed .submenu{
+  padding-left: 0;
+}
+
+.sidebar.collapsed .submenu-btn{
+  justify-content:center;
+  padding: 10px;
+  padding-left: 10px;
+}

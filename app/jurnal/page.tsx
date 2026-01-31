@@ -1209,23 +1209,25 @@ function JurnalContent({ user }: { user?: any }) {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #fff;
-    padding: 28px 32px;
-    border-radius: var(--jt-radius);
-    border: 1px solid rgba(15, 42, 86, 0.08);
-    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+    background: var(--n-hero-gradient);
+    padding: 32px 36px;
+    border-radius: 20px;
+    box-shadow: var(--n-shadow);
     margin-bottom: 20px;
+    color: white;
 }
+.jt__titleArea h1 { color: white !important; margin: 0; }
+.jt__titleArea p { color: rgba(255, 255, 255, 0.8) !important; margin: 4px 0 0; }
 
 .jt__toolbar {
     display: flex;
     flex-wrap: wrap;
     gap: 16px;
-    background: #fff;
+    background: var(--n-card);
     padding: 16px 20px;
-    border-radius: var(--jt-radius);
-    border: 1px solid var(--jt-line);
-    box-shadow: var(--jt-shadow2);
+    border-radius: 16px;
+    border: 1px solid var(--n-border);
+    box-shadow: var(--n-shadow);
     align-items: center;
 }
 
@@ -1312,10 +1314,10 @@ function JurnalContent({ user }: { user?: any }) {
 .jt__tableWrap {
   width: 100%;
   overflow-x: auto;
-  border-radius: var(--jt-radius);
-  border: 1px solid rgba(15, 42, 86, 0.08);
-  background: #fff;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+  border-radius: 20px;
+  border: 1px solid var(--n-border);
+  background: var(--n-card);
+  box-shadow: var(--n-shadow);
 }
 
 .jt__table {
@@ -1337,12 +1339,12 @@ function JurnalContent({ user }: { user?: any }) {
 }
 
 .jt__table thead th {
-  background: #f8fafc;
+  background: var(--n-soft);
   padding: 16px 18px;
   text-align: left;
-  border-bottom: 1px solid rgba(15, 42, 86, 0.08);
+  border-bottom: 1px solid var(--n-border);
   font-weight: 700;
-  color: #475569;
+  color: var(--n-muted);
   font-size: 0.75rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1350,14 +1352,15 @@ function JurnalContent({ user }: { user?: any }) {
 
 .jt__table td {
   padding: 16px 18px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--n-border);
   vertical-align: middle;
   font-size: 0.88rem;
+  color: var(--n-ink);
   transition: background 0.2s;
 }
 
 .jt__table tbody tr:hover td {
-    background: #fcfdfe;
+    background: rgba(58, 166, 255, 0.05);
 }
 
 .jt__day { font-weight: 500; color: var(--jt-navy-dark); font-size: 0.82rem; } /* Reduced from 0.9rem */
