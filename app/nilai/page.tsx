@@ -77,6 +77,11 @@ export default function NilaiPage() {
     const [showSumDropdown, setShowSumDropdown] = useState(false);
     const [newSumTopic, setNewSumTopic] = useState('');
 
+    const cleanTopic = (t?: string) => {
+        if (!t || t === 'Auto-Imported') return '';
+        return t;
+    };
+
     // FIX: Updated getNextAutoLabel to see empty columns correctly
     const getNextAutoLabel = () => {
         const typePrefix = activeMode.toUpperCase();
@@ -615,7 +620,7 @@ export default function NilaiPage() {
                             t.materi_tp === materi &&
                             t.jenis === jenisStr
                         );
-                        if (tag) topic = tag.topik || "";
+                        if (tag) topic = cleanTopic(tag.topik);
                     }
                 } else {
                     // In template, cleanName likely "SUM 1" or "TUGAS 1". Keep it pretty.
@@ -789,20 +794,20 @@ export default function NilaiPage() {
                     if (!validNISNs.has(rowNISN)) {
                         // CHECK FOR METADATA/TOPIC ROW
                         // Try to see if row["NO"] or first key corresponds to a Tag Name
-                        // Typically sheet_to_json keys are headers. 
+                        // Typically sheet_to_json keys are headers.
                         // If user used template, Col 0 is "NO", Col 1 is "NISN".
                         // Template Export writes: NO="TAG_NAME", NISN="TOPIC_TEXT"
 
                         const potentialTagName = (row["NO"] || "").toString().trim().toUpperCase();
-                        
+
                         // Find if this row identifies a tag
                         let matchedTag: any = null;
 
                         if (potentialTagName) {
                             const normalizedPot = potentialTagName.replace(/\s+/g, '_');
-                            matchedTag = currentConfig.find(t => 
-                                (t.nama_tagihan.toUpperCase() === normalizedPot || 
-                                 t.nama_tagihan.toUpperCase() === normalizedPot.replace('_', ' ')) && // Try both _ and space
+                            matchedTag = currentConfig.find(t =>
+                                (t.nama_tagihan.toUpperCase() === normalizedPot ||
+                                    t.nama_tagihan.toUpperCase() === normalizedPot.replace('_', ' ')) && // Try both _ and space
                                 t.materi_tp === materi
                             );
                         }
@@ -904,7 +909,7 @@ export default function NilaiPage() {
                             body: JSON.stringify({
                                 id: u.id,
                                 topik: u.topik,
-                                // Need to pass required fields to satisfy API upsert/update if needed, 
+                                // Need to pass required fields to satisfy API upsert/update if needed,
                                 // but ideally API handles partial update or we pass full obj
                                 nip: user.nip,
                                 kelas,
@@ -1187,8 +1192,8 @@ export default function NilaiPage() {
                                 .map(t => (
                                     <Fragment key={t.id || t.nama_tagihan}>
                                         <div className="font-bold text-sm text-slate-700 border-b border-slate-50 pb-1">{t.nama_tagihan}</div>
-                                        <div className={`text-sm border-b border-slate-50 pb-1 truncate ${t.topik ? 'text-slate-600' : 'text-slate-300 italic'}`} title={t.topik || ''}>
-                                            {t.topik || '-'}
+                                        <div className={`text-sm border-b border-slate-50 pb-1 truncate ${cleanTopic(t.topik) ? 'text-slate-600' : 'text-slate-300 italic'}`} title={cleanTopic(t.topik)}>
+                                            {cleanTopic(t.topik) || '-'}
                                         </div>
                                     </Fragment>
                                 ))
@@ -1354,7 +1359,7 @@ export default function NilaiPage() {
                                     <textarea
                                         className="nl__formInput"
                                         rows={3}
-                                        value={editingTagihan?.topik || ''}
+                                        value={cleanTopic(editingTagihan?.topik)}
                                         onChange={e => setEditingTagihan(editingTagihan ? { ...editingTagihan, topik: e.target.value } : null)}
                                         placeholder="Contoh: Aljabar Linear..."
                                     />
