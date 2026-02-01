@@ -22,10 +22,24 @@ interface RawSiswa {
   aktif: boolean;
 }
 
-export default function SiswaTab() {
+import { hasPermission } from '@/lib/permissions-client'
+
+export default function SiswaTab({ user }: { user?: any }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [allData, setAllData] = useState<RawSiswa[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Permissions Check
+  const permissions = user?.permissions || []
+  const isAdmin = user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false
+
+  const canView = hasPermission(permissions, 'master.siswa', 'view', isAdmin)
+  const canManage = hasPermission(permissions, 'master.siswa', 'manage', isAdmin)
+  const canExport = hasPermission(permissions, 'master.siswa', 'export', isAdmin)
+
+  if (!canView) {
+    return <div className="p-4 text-center text-red-500 font-bold">Akses Ditolak: Anda tidak memiliki izin melihat data ini.</div>
+  }
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1)
@@ -103,12 +117,14 @@ export default function SiswaTab() {
   }
 
   const handleAddNew = () => {
+    if (!canManage) return;
     setFormData({ gender: 'L', aktif: true })
     setIsEditMode(false)
     setShowModal(true)
   }
 
   const handleEdit = (siswa: RawSiswa) => {
+    if (!canManage) return;
     setFormData({ ...siswa })
     setIsEditMode(true)
     setShowModal(true)
@@ -121,6 +137,7 @@ export default function SiswaTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!canManage) return;
     setSaving(true)
 
     try {
@@ -163,6 +180,7 @@ export default function SiswaTab() {
   }
 
   const handleDelete = async (nisn: string) => {
+    if (!canManage) return;
     const result = await Swal.fire({
       title: 'Hapus Siswa?',
       text: "Data yang dihapus tidak dapat dikembalikan!",
@@ -208,6 +226,7 @@ export default function SiswaTab() {
 
   // Excel Functions
   const handleExport = () => {
+    if (!canExport) return;
     const dataToExport = siswaList.map((s, index) => ({
       'No': (currentPage - 1) * pageSize + index + 1,
       'NISN': s.nisn || '',
@@ -307,17 +326,23 @@ export default function SiswaTab() {
         </div>
 
         <div className="sk__actions">
-          <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
-            <i className="bi bi-upload" /> <span>Import</span>
-          </button>
+          {canManage && (
+            <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+              <i className="bi bi-upload" /> <span>Import</span>
+            </button>
+          )}
 
-          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
-            <i className="bi bi-download" /> <span>Export</span>
-          </button>
+          {canExport && (
+            <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
+              <i className="bi bi-download" /> <span>Export</span>
+            </button>
+          )}
 
-          <button className="sk__btn sk__btnPrimary" onClick={handleAddNew}>
-            <i className="bi bi-plus-lg" /> <span>Tambah</span>
-          </button>
+          {canManage && (
+            <button className="sk__btn sk__btnPrimary" onClick={handleAddNew}>
+              <i className="bi bi-plus-lg" /> <span>Tambah</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -9,13 +9,20 @@ import { ApiResponse } from '@/lib/types';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { nip, kelas, mapel, semester, config } = body;
+        const { nip, kelas, mapel, semester, config, tahun_ajaran } = body;
 
         if (!nip || !kelas || !mapel || !semester || !config) {
             return NextResponse.json<ApiResponse>({ ok: false, error: 'Parameter tidak lengkap' }, { status: 400 });
         }
 
-        const semInt = parseInt(semester);
+        const mapSemester = (s: string | number) => {
+            if (s === 'Ganjil' || s === '1') return 1;
+            if (s === 'Genap' || s === '2') return 2;
+            return typeof s === 'string' ? parseInt(s) : s;
+        };
+
+        const semInt = mapSemester(semester);
+        const ta = tahun_ajaran || '2024/2025';
 
         // Check if existing
         const { data: existing } = await supabase
@@ -25,6 +32,7 @@ export async function POST(request: NextRequest) {
             .eq('kelas', kelas)
             .eq('mapel', mapel)
             .eq('semester', semInt)
+            .eq('tahun_ajaran', ta)
             .maybeSingle();
 
         if (existing) {
@@ -41,7 +49,8 @@ export async function POST(request: NextRequest) {
                 .from('nilai_bobot')
                 .insert({
                     nip, kelas, mapel, semester: semInt,
-                    bobot_config: config
+                    bobot_config: config,
+                    tahun_ajaran: ta
                 });
             if (error) throw error;
         }

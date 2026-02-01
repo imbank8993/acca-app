@@ -9,9 +9,13 @@ interface AddModalProps {
     onClose: () => void;
     onSuccess: () => void;
     canDo: (res: string, act: string) => boolean;
+    allowedTypes?: {
+        IZIN: boolean;
+        SAKIT: boolean;
+    };
 }
 
-export default function AddModal({ isOpen, onClose, onSuccess, canDo }: AddModalProps) {
+export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTypes }: AddModalProps) {
     const [jenis, setJenis] = useState<'IZIN' | 'SAKIT'>('IZIN');
     const [status, setStatus] = useState('MADRASAH');
 
@@ -24,8 +28,18 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo }: AddModal
 
     useEffect(() => {
         if (isOpen) {
-            const allowedIzin = canDo('ketidakhadiran:IZIN', 'create');
-            const allowedSakit = canDo('ketidakhadiran:SAKIT', 'create');
+            // Priority: allowedTypes prop > canDo check
+            let allowedIzin = false;
+            let allowedSakit = false;
+
+            if (allowedTypes) {
+                allowedIzin = allowedTypes.IZIN;
+                allowedSakit = allowedTypes.SAKIT;
+            } else {
+                // Fallback if not passed (though we passed it in parent)
+                allowedIzin = canDo('ketidakhadiran.izin', 'manage');
+                allowedSakit = canDo('ketidakhadiran.sakit', 'manage');
+            }
 
             if (allowedIzin) {
                 setJenis('IZIN');
@@ -35,7 +49,7 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo }: AddModal
                 setStatus('Ringan');
             }
         }
-    }, [isOpen]);
+    }, [isOpen, allowedTypes]);
 
     const [submitting, setSubmitting] = useState(false);
 
@@ -169,8 +183,8 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo }: AddModal
                                     }}
                                     className="form-input"
                                 >
-                                    {canDo('ketidakhadiran:IZIN', 'create') && <option value="IZIN">IZIN</option>}
-                                    {canDo('ketidakhadiran:SAKIT', 'create') && <option value="SAKIT">SAKIT</option>}
+                                    {(allowedTypes?.IZIN || canDo('ketidakhadiran.izin', 'manage')) && <option value="IZIN">IZIN</option>}
+                                    {(allowedTypes?.SAKIT || canDo('ketidakhadiran.sakit', 'manage')) && <option value="SAKIT">SAKIT</option>}
                                 </select>
                                 <i className="bi bi-chevron-down select-icon"></i>
                             </div>

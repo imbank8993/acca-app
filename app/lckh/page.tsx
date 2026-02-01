@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Swal from 'sweetalert2';
+import PermissionGuard from '@/components/PermissionGuard';
 
 export default function LckhPage() {
     const [loading, setLoading] = useState(false);
@@ -280,418 +281,449 @@ export default function LckhPage() {
     const currentPeriodObj = periods.find(p => p.periode_kode === selectedPeriod);
 
     return (
-        <div className="flex h-[calc(100vh-80px)] bg-gray-50 overflow-hidden relative">
+        <PermissionGuard requiredPermission={{ resource: 'lckh', action: 'view' }}>
+            <div className="flex h-[calc(100vh-80px)] bg-gray-50 overflow-hidden relative">
 
-            {/* Left Sidebar: List */}
-            <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
-                <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-                    <h2 className="font-bold text-gray-800 text-sm">DAFTAR LCKH BULANAN</h2>
-                    <button
-                        onClick={handleCreateNew}
-                        className="text-xs border border-blue-500 text-blue-600 px-3 py-1 rounded-full hover:bg-blue-50 font-semibold transition-colors flex items-center gap-1">
-                        <i className="bi bi-plus-lg"></i> Buat
-                    </button>
-                </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                    {submissionsList.map(sub => {
-                        const pName = periods.find(p => p.periode_kode === sub.periode_kode)?.periode_nama || sub.periode_kode;
-                        const isActive = sub.periode_kode === selectedPeriod;
+                {/* Left Sidebar: List */}
+                <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
+                    <div className="p-4 border-b border-gray-100 flex justify-between items-center">
+                        <h2 className="font-bold text-gray-800 text-sm">DAFTAR LCKH BULANAN</h2>
+                        <button
+                            onClick={handleCreateNew}
+                            className="text-xs border border-[#0038A8] text-[#0038A8] px-3 py-1 rounded-full hover:bg-blue-50 font-semibold transition-colors flex items-center gap-1">
+                            <i className="bi bi-plus-lg"></i> Buat
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                        {submissionsList.map(sub => {
+                            const pName = periods.find(p => p.periode_kode === sub.periode_kode)?.periode_nama || sub.periode_kode;
+                            const isActive = sub.periode_kode === selectedPeriod;
 
-                        return (
-                            <div
-                                key={sub.id}
-                                onClick={() => setSelectedPeriod(sub.periode_kode)}
-                                className={`p-3 rounded-xl border cursor-pointer transition-all ${isActive ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-white border-gray-100 hover:border-blue-200'}`}
-                            >
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className="font-bold text-sm text-gray-800">{pName}</span>
-                                    {sub.status === 'Revisi' && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">REVISI</span>}
-                                    {sub.status === 'Submitted' && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-bold">DIAJUKAN</span>}
-                                    {sub.status === 'Draft' && <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-bold">DRAFT</span>}
-                                    {(sub.status === 'Approved_Waka' || sub.status === 'Approved_Kamad') && <span className="text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded font-bold">DISETUJUI</span>}
+                            return (
+                                <div
+                                    key={sub.id}
+                                    onClick={() => setSelectedPeriod(sub.periode_kode)}
+                                    className={`p-3 rounded-xl border cursor-pointer transition-all ${isActive ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-white border-gray-100 hover:border-blue-200'}`}
+                                >
+                                    <div className="flex justify-between items-start mb-1">
+                                        <span className="font-bold text-sm text-gray-800">{pName}</span>
+                                        {sub.status === 'Revisi' && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">REVISI</span>}
+                                        {sub.status === 'Submitted' && <span className="text-[10px] bg-blue-100 text-[#0038A8] px-1.5 py-0.5 rounded font-bold">DIAJUKAN</span>}
+                                        {sub.status === 'Draft' && <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-bold">DRAFT</span>}
+                                        {(sub.status === 'Approved_Waka' || sub.status === 'Approved_Kamad') && <span className="text-[10px] bg-green-100 text-green-600 px-1.5 py-0.5 rounded font-bold">DISETUJUI</span>}
+                                    </div>
+                                    <div className="text-xs text-gray-400">
+                                        {new Date(sub.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                                    </div>
                                 </div>
+                            );
+                        })}
+
+                        {/* If selected period has no submission yet (creation mode), show placeholder item */}
+                        {selectedPeriod && !submissionsList.find(s => s.periode_kode === selectedPeriod) && (
+                            <div className="p-3 rounded-xl border bg-blue-50 border-blue-200 shadow-sm">
+                                <div className="font-bold text-sm text-gray-800">{periods.find(p => p.periode_kode === selectedPeriod)?.periode_nama}</div>
+                                <div className="text-xs text-blue-500 italic mt-1">Draft Baru (Belum Disimpan)</div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Right Content: Detail */}
+                <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+                    {selectedPeriod ? (
+                        <>
+                            {/* Header */}
+                            <div className="p-6 bg-white border-b border-gray-200">
+                                <h2 className="text-sm font-bold text-gray-500 mb-1 flex items-center gap-2">
+                                    <i className="bi bi-calendar-event"></i> PERIODE: {currentPeriodObj?.periode_nama || selectedPeriod}
+                                </h2>
                                 <div className="text-xs text-gray-400">
-                                    {new Date(sub.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                                    {currentPeriodObj ? `${currentPeriodObj.tgl_awal} s/d ${currentPeriodObj.tgl_akhir}` : '-'}
                                 </div>
                             </div>
-                        );
-                    })}
 
-                    {/* If selected period has no submission yet (creation mode), show placeholder item */}
-                    {selectedPeriod && !submissionsList.find(s => s.periode_kode === selectedPeriod) && (
-                        <div className="p-3 rounded-xl border bg-blue-50 border-blue-200 shadow-sm">
-                            <div className="font-bold text-sm text-gray-800">{periods.find(p => p.periode_kode === selectedPeriod)?.periode_nama}</div>
-                            <div className="text-xs text-blue-500 italic mt-1">Draft Baru (Belum Disimpan)</div>
-                        </div>
-                    )}
-                </div>
-            </div>
+                            {/* Scrollable Body */}
+                            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
 
-            {/* Right Content: Detail */}
-            <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-                {selectedPeriod ? (
-                    <>
-                        {/* Header */}
-                        <div className="p-6 bg-white border-b border-gray-200">
-                            <h2 className="text-sm font-bold text-gray-500 mb-1 flex items-center gap-2">
-                                <i className="bi bi-calendar-event"></i> PERIODE: {currentPeriodObj?.periode_nama || selectedPeriod}
-                            </h2>
-                            <div className="text-xs text-gray-400">
-                                {currentPeriodObj ? `${currentPeriodObj.tgl_awal} s/d ${currentPeriodObj.tgl_akhir}` : '-'}
-                            </div>
-                        </div>
-
-                        {/* Scrollable Body */}
-                        <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-
-                            {/* Stats Box (Green) */}
-                            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mb-6">
-                                <div className="text-xs font-bold text-emerald-800 uppercase mb-3 text-center tracking-wide">Rekap Kegiatan Mengajar</div>
-                                <div className="grid grid-cols-3 gap-4 text-center divide-x divide-emerald-200">
-                                    <div>
-                                        <div className="text-2xl font-black text-emerald-700">{summary?.total_jam_mengajar || 0}</div>
-                                        <div className="text-[10px] uppercase font-bold text-emerald-600 mt-1">SESI<br />Absensi</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-2xl font-black text-emerald-700">{summary?.total_jurnal_isi || 0}</div>
-                                        <div className="text-[10px] uppercase font-bold text-emerald-600 mt-1">SESI<br />Jurnal</div>
-                                    </div>
-                                    <div className="flex items-center justify-center">
-                                        <div className="text-left text-xs text-emerald-800 font-medium leading-tight">
-                                            {summary ? (
-                                                <>
-                                                    <span className="font-bold">{summary.total_jurnal_isi} jurnal</span>, <span className="font-bold">{summary.rekap_absensi_siswa?.length || 0} mapel</span>
-                                                    <div className="text-[10px] opacity-70 mt-1">TOTAL REKAP</div>
-                                                </>
-                                            ) : 'Belum ada data'}
+                                {/* Stats Box (Green) */}
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mb-6">
+                                    <div className="text-xs font-bold text-emerald-800 uppercase mb-3 text-center tracking-wide">Rekap Kegiatan Mengajar</div>
+                                    <div className="grid grid-cols-3 gap-4 text-center divide-x divide-emerald-200">
+                                        <div>
+                                            <div className="text-2xl font-black text-emerald-700">{summary?.total_jam_mengajar || 0}</div>
+                                            <div className="text-[10px] uppercase font-bold text-emerald-600 mt-1">SESI<br />Absensi</div>
                                         </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Modules Selection */}
-                            <div className="mb-6">
-                                <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2">
-                                    <i className="bi bi-list-check"></i> PILIH MODUL LAPORAN
-                                </h3>
-                                <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-                                    {modules.map(m => (
-                                        <div key={m.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
-                                            <div className="flex items-center gap-3">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={m.checked}
-                                                    onChange={(e) => setModules(prev => prev.map(mm => mm.id === m.id ? { ...mm, checked: e.target.checked } : mm))}
-                                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                                                />
-                                                <label className="text-sm font-semibold text-gray-700">{m.label}</label>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-600">{m.count} data</span>
-                                                <button
-                                                    onClick={() => setPreviewModule(m.id)}
-                                                    className="text-xs bg-blue-500 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-blue-600 transition-colors">
-                                                    <i className="bi bi-eye-fill"></i> View
-                                                </button>
+                                        <div>
+                                            <div className="text-2xl font-black text-emerald-700">{summary?.total_jurnal_isi || 0}</div>
+                                            <div className="text-[10px] uppercase font-bold text-emerald-600 mt-1">SESI<br />Jurnal</div>
+                                        </div>
+                                        <div className="flex items-center justify-center">
+                                            <div className="text-left text-xs text-emerald-800 font-medium leading-tight">
+                                                {summary ? (
+                                                    <>
+                                                        <span className="font-bold">{summary.total_jurnal_isi} jurnal</span>, <span className="font-bold">{summary.rekap_absensi_siswa?.length || 0} mapel</span>
+                                                        <div className="text-[10px] opacity-70 mt-1">TOTAL REKAP</div>
+                                                    </>
+                                                ) : 'Belum ada data'}
                                             </div>
                                         </div>
-                                    ))}
+                                    </div>
                                 </div>
-                                <p className="text-[10px] text-gray-400 mt-2 px-1">
-                                    <i className="bi bi-info-circle"></i> Centang modul yang ingin ditampilkan dalam dokumen LCKH resmi.
-                                </p>
+
+                                {/* Modules Selection */}
+                                <div className="mb-6">
+                                    <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2">
+                                        <i className="bi bi-list-check"></i> PILIH MODUL LAPORAN
+                                    </h3>
+                                    <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                                        {modules.map(m => (
+                                            <div key={m.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
+                                                <div className="flex items-center gap-3">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={m.checked}
+                                                        onChange={(e) => setModules(prev => prev.map(mm => mm.id === m.id ? { ...mm, checked: e.target.checked } : mm))}
+                                                        className="w-4 h-4 text-[#0038A8] rounded focus:ring-[#0038A8]"
+                                                    />
+                                                    <label className="text-sm font-semibold text-gray-700">{m.label}</label>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded text-gray-600">{m.count} data</span>
+                                                    <button
+                                                        onClick={() => setPreviewModule(m.id)}
+                                                        className="text-xs bg-[#0038A8] text-white px-3 py-1.5 rounded-lg font-medium hover:bg-[#00287a] transition-colors">
+                                                        <i className="bi bi-eye-fill"></i> View
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-2 px-1">
+                                        <i className="bi bi-info-circle"></i> Centang modul yang ingin ditampilkan dalam dokumen LCKH resmi.
+                                    </p>
+                                </div>
+
+                                {/* Capaian Utama / Notes */}
+                                <div className="mb-20">
+                                    <h3 className="text-xs font-bold text-gray-500 mb-2 flex items-center gap-2">
+                                        <i className="bi bi-pencil-square"></i> RINGKASAN CAPAIAN UTAMA
+                                    </h3>
+                                    <textarea
+                                        className="w-full border border-gray-300 rounded-xl p-4 text-sm focus:ring-2 focus:ring-[#0038A8] outline-none transition-shadow h-32"
+                                        placeholder="Contoh: Mengajar kelas X dan XI, fokus pada materi persamaan kuadrat... Melaksanakan remedial..."
+                                        value={catatan}
+                                        onChange={(e) => setCatatan(e.target.value)}
+                                        disabled={submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status)}
+                                    ></textarea>
+                                </div>
+
                             </div>
 
-                            {/* Capaian Utama / Notes */}
-                            <div className="mb-20">
-                                <h3 className="text-xs font-bold text-gray-500 mb-2 flex items-center gap-2">
-                                    <i className="bi bi-pencil-square"></i> RINGKASAN CAPAIAN UTAMA
-                                </h3>
-                                <textarea
-                                    className="w-full border border-gray-300 rounded-xl p-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-shadow h-32"
-                                    placeholder="Contoh: Mengajar kelas X dan XI, fokus pada materi persamaan kuadrat... Melaksanakan remedial..."
-                                    value={catatan}
-                                    onChange={(e) => setCatatan(e.target.value)}
-                                    disabled={submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status)}
-                                ></textarea>
+                            {/* Bottom Action Bar */}
+                            <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 flex justify-between items-center z-10">
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={!submission || !['Draft', 'Revisi', 'Submitted'].includes(submission.status)}
+                                    className="px-4 py-2 rounded-lg border border-red-200 text-red-600 font-semibold hover:bg-red-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <i className="bi bi-trash"></i> Hapus
+                                </button>
+
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={generateSummary}
+                                        disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
+                                        className="px-4 py-2 rounded-lg text-gray-600 font-semibold hover:bg-gray-100 text-sm disabled:opacity-50"
+                                    >
+                                        <i className="bi bi-arrow-clockwise"></i> Generate Data
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleSave(false)}
+                                        disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
+                                        className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 text-sm disabled:opacity-50"
+                                    >
+                                        <i className="bi bi-save"></i> Simpan Draf
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            Swal.fire({
+                                                title: submission?.status === 'Submitted' ? 'Update Ajuan?' : 'Ajukan LCKH?',
+                                                text: 'Laporan akan dikirim ke verifikator.',
+                                                icon: 'question',
+                                                showCancelButton: true,
+                                                confirmButtonText: submission?.status === 'Submitted' ? 'Update' : 'Ajukan Sekarang'
+                                            }).then(r => { if (r.isConfirmed) handleSave(true); });
+                                        }}
+                                        disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
+                                        className="px-5 py-2 rounded-lg bg-[#0038A8] text-white font-semibold hover:bg-[#00287a] shadow-md shadow-blue-200 text-sm disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        <i className="bi bi-send-fill"></i> {submission?.status === 'Submitted' ? 'Update Ajuan' : 'Ajukan LCKH'}
+                                    </button>
+
+                                    <button
+                                        onClick={() => window.print()}
+                                        disabled={!summary}
+                                        className="px-4 py-2 rounded-lg bg-gray-800 text-white font-semibold hover:bg-gray-900 text-sm disabled:opacity-50"
+                                    >
+                                        <i className="bi bi-printer"></i> Cetak PDF
+                                    </button>
+                                </div>
                             </div>
 
-                        </div>
-
-                        {/* Bottom Action Bar */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 flex justify-between items-center z-10">
-                            <button
-                                onClick={handleDelete}
-                                disabled={!submission || !['Draft', 'Revisi', 'Submitted'].includes(submission.status)}
-                                className="px-4 py-2 rounded-lg border border-red-200 text-red-600 font-semibold hover:bg-red-50 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <i className="bi bi-trash"></i> Hapus
-                            </button>
-
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={generateSummary}
-                                    disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
-                                    className="px-4 py-2 rounded-lg text-gray-600 font-semibold hover:bg-gray-100 text-sm disabled:opacity-50"
-                                >
-                                    <i className="bi bi-arrow-clockwise"></i> Generate Data
-                                </button>
-
-                                <button
-                                    onClick={() => handleSave(false)}
-                                    disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
-                                    className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 text-sm disabled:opacity-50"
-                                >
-                                    <i className="bi bi-save"></i> Simpan Draf
-                                </button>
-
-                                <button
-                                    onClick={() => {
-                                        Swal.fire({
-                                            title: submission?.status === 'Submitted' ? 'Update Ajuan?' : 'Ajukan LCKH?',
-                                            text: 'Laporan akan dikirim ke verifikator.',
-                                            icon: 'question',
-                                            showCancelButton: true,
-                                            confirmButtonText: submission?.status === 'Submitted' ? 'Update' : 'Ajukan Sekarang'
-                                        }).then(r => { if (r.isConfirmed) handleSave(true); });
-                                    }}
-                                    disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
-                                    className="px-5 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 shadow-md shadow-blue-200 text-sm disabled:opacity-50 flex items-center gap-2"
-                                >
-                                    <i className="bi bi-send-fill"></i> {submission?.status === 'Submitted' ? 'Update Ajuan' : 'Ajukan LCKH'}
-                                </button>
-
-                                <button
-                                    onClick={() => window.print()}
-                                    disabled={!summary}
-                                    className="px-4 py-2 rounded-lg bg-gray-800 text-white font-semibold hover:bg-gray-900 text-sm disabled:opacity-50"
-                                >
-                                    <i className="bi bi-printer"></i> Cetak PDF
-                                </button>
-                            </div>
-                        </div>
-
-                    </>
-                ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-                        <i className="bi bi-arrow-left-circle text-4xl mb-2"></i>
-                        <p>Pilih periode atau buat laporan baru.</p>
-                    </div>
-                )}
-            </div>
-
-            {/* Professional Print Styles & Content */}
-            <div className="print-only hidden">
-                <div className="text-center mb-6 border-b-2 border-black pb-4">
-                    <div className="font-bold text-lg">KEMENTERIAN AGAMA REPUBLIK INDONESIA</div>
-                    <div className="font-bold text-xl">MAN INSAN CENDEKIA GOWA</div>
-                    <div className="text-sm">Jalan Insan Cendekia No. 1, Desa Belapunranga, Kec. Parangloe, Kab. Gowa</div>
-                    <div className="mt-4 font-bold text-lg underline">LAPORAN CAPAIAN KINERJA HARIAN (LCKH)</div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-sm mb-6">
-                    <div>
-                        <table className="w-full">
-                            <tbody>
-                                <tr><td className="w-24 py-1">Nama</td><td>: {userData?.nama_lengkap}</td></tr>
-                                <tr><td className="py-1">NIP</td><td>: {userData?.nip || '-'}</td></tr>
-                                <tr><td className="py-1">Jabatan</td><td>: Guru</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div>
-                        <table className="w-full">
-                            <tbody>
-                                <tr><td className="w-24 py-1">Periode</td><td>: {periods.find(p => p.periode_kode === selectedPeriod)?.periode_nama}</td></tr>
-                                <tr><td className="py-1">Status</td><td>: {submission?.status?.replace('_', ' ')}</td></tr>
-                                {submission?.approval_code && <tr><td className="py-1">Kode Dokumen</td><td className="font-mono">: {submission.approval_code}</td></tr>}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* Content Replica for Print */}
-                <div className="mb-6 p-2">
-
-                    {/* I. Uraian Kegiatan (Detailed List) - Check Module */}
-                    {modules.find(m => m.id === 'JURNAL')?.checked && (
-                        <>
-                            <div className="font-bold mb-2 border-b border-gray-400 pb-1">I. Uraian Kegiatan Pembelajaran</div>
-                            {(summary?.detail_jurnal && summary.detail_jurnal.length > 0) ? (
-                                <table className="w-full text-xs border-collapse border border-black mb-6">
-                                    <thead>
-                                        <tr className="bg-gray-100">
-                                            <th className="border border-black p-1 w-8">No</th>
-                                            <th className="border border-black p-1 w-24">Hari/Tgl</th>
-                                            <th className="border border-black p-1 w-12">Jam</th>
-                                            <th className="border border-black p-1 w-16">Kelas</th>
-                                            <th className="border border-black p-1 w-24">Mapel</th>
-                                            <th className="border border-black p-1">Materi Pokok / Bahasan</th>
-                                            <th className="border border-black p-1 w-8">H</th>
-                                            <th className="border border-black p-1 w-8">S</th>
-                                            <th className="border border-black p-1 w-8">I</th>
-                                            <th className="border border-black p-1 w-8">A</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {summary.detail_jurnal.map((j: any, idx: number) => (
-                                            <tr key={idx}>
-                                                <td className="border border-black p-1 text-center">{idx + 1}</td>
-                                                <td className="border border-black p-1">
-                                                    <div className="font-semibold">{j.hari}</div>
-                                                    <div className="text-[10px]">{new Date(j.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</div>
-                                                </td>
-                                                <td className="border border-black p-1 text-center">{j.jam_ke}</td>
-                                                <td className="border border-black p-1 text-center">{j.kelas}</td>
-                                                <td className="border border-black p-1">{j.mapel || j.mata_pelajaran}</td>
-                                                <td className="border border-black p-1">{j.materi}</td>
-                                                <td className="border border-black p-1 text-center">{j.H ?? j.jml_hadir ?? 0}</td>
-                                                <td className="border border-black p-1 text-center text-yellow-700 font-bold">{j.S ?? j.jml_sakit ?? 0}</td>
-                                                <td className="border border-black p-1 text-center text-blue-700 font-bold">{j.I ?? j.jml_izin ?? 0}</td>
-                                                <td className="border border-black p-1 text-center text-red-700 font-bold">{j.A ?? j.jml_alpa ?? 0}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            ) : <p className="text-xs italic mb-4">Tidak ada data kegiatan.</p>}
                         </>
-                    )}
-
-                    <div className="font-bold mb-2 border-b border-gray-400 pb-1">II. Ringkasan Kinerja</div>
-                    <div className="grid grid-cols-3 gap-4 text-center mb-4">
-                        <div className="border border-black p-2">
-                            <div className="text-xs text-gray-500">Total Jam Mengajar</div>
-                            <div className="font-bold">{summary?.total_jam_mengajar || 0} Jam</div>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+                            <i className="bi bi-arrow-left-circle text-4xl mb-2"></i>
+                            <p>Pilih periode atau buat laporan baru.</p>
                         </div>
-                        <div className="border border-black p-2">
-                            <div className="text-xs text-gray-500">Jurnal Terisi</div>
-                            <div className="font-bold">{summary?.total_jurnal_isi || 0} Pertemuan</div>
-                        </div>
-                        <div className="border border-black p-2">
-                            <div className="text-xs text-gray-500">Input Nilai</div>
-                            <div className="font-bold">{summary?.total_nilai_input || 0} Data</div>
-                        </div>
-                    </div>
-
-                    {/* III. Rekap Absensi Siswa - Check Module */}
-                    {modules.find(m => m.id === 'ABSENSI')?.checked && (
-                        <>
-                            <div className="font-bold mb-2 border-b border-gray-400 pb-1">III. Rekap Absensi Siswa</div>
-                            {(summary?.rekap_absensi_siswa && summary.rekap_absensi_siswa.length > 0) ? (
-                                <table className="w-full text-xs border-collapse border border-black mb-4">
-                                    <thead>
-                                        <tr className="bg-gray-100">
-                                            <th className="border border-black p-1">Kelas</th>
-                                            <th className="border border-black p-1">Mapel</th>
-                                            <th className="border border-black p-1">Sesi</th>
-                                            <th className="border border-black p-1">H</th>
-                                            <th className="border border-black p-1">S</th>
-                                            <th className="border border-black p-1">I</th>
-                                            <th className="border border-black p-1">A</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {summary.rekap_absensi_siswa.map((bg: any, idx: number) => (
-                                            <tr key={idx}>
-                                                <td className="border border-black p-1">{bg.kelas}</td>
-                                                <td className="border border-black p-1">{bg.mapel}</td>
-                                                <td className="border border-black p-1 text-center">{bg.meetings}</td>
-                                                <td className="border border-black p-1 text-center">{bg.H}</td>
-                                                <td className="border border-black p-1 text-center">{bg.S}</td>
-                                                <td className="border border-black p-1 text-center">{bg.I}</td>
-                                                <td className="border border-black p-1 text-center">{bg.A}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            ) : <p className="text-xs italic mb-4">Tidak ada data absensi siswa.</p>}
-                        </>
-                    )}
-
-                    {/* IV. Catatan Tambahan */}
-                    <div className="font-bold mb-2 border-b border-gray-400 pb-1">IV. Catatan Tambahan</div>
-                    <p className="text-sm italic border border-black p-2 min-h-[50px] mb-6">{catatan || '-'}</p>
-
-                    {/* V. Tugas Tambahan - Check Module */}
-                    {modules.find(m => m.id === 'TUGAS')?.checked && (
-                        <>
-                            <div className="font-bold mb-2 border-b border-gray-400 pb-1">V. Laporan Tugas Tambahan</div>
-                            {(summary?.detail_tugas && summary.detail_tugas.length > 0) ? (
-                                <table className="w-full text-xs border-collapse border border-black mb-6">
-                                    <thead>
-                                        <tr className="bg-gray-100">
-                                            <th className="border border-black p-1 w-8">No</th>
-                                            <th className="border border-black p-1 w-24">Tanggal</th>
-                                            <th className="border border-black p-1">Jabatan / Tugas</th>
-                                            <th className="border border-black p-1">Kegiatan</th>
-                                            <th className="border border-black p-1">Hasil / Output</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {summary.detail_tugas.map((t: any, idx: number) => (
-                                            <tr key={idx}>
-                                                <td className="border border-black p-1 text-center">{idx + 1}</td>
-                                                <td className="border border-black p-1">
-                                                    {new Date(t.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                                </td>
-                                                <td className="border border-black p-1 font-semibold">{t.tugas?.jabatan || '-'}</td>
-                                                <td className="border border-black p-1">{t.kegiatan}</td>
-                                                <td className="border border-black p-1">{t.hasil || '-'}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            ) : <p className="text-xs italic mb-4">Tidak ada laporan tugas tambahan.</p>}
-                        </>
                     )}
                 </div>
 
-                {/* Signatures */}
-                <div className="grid grid-cols-3 gap-8 mt-8 page-break-inside-avoid text-sm">
-                    <div className="text-center">
-                        <div className="mb-16">Mengetahui,<br />Kepala Madrasah</div>
-                        <div className="font-bold underline mb-1">( ....................................... )</div>
-                        <div className="text-xs">NIP. .......................................</div>
-                        {submission?.approved_by_kamad && <div className="text-[10px] text-green-700 font-bold border border-green-600 inline-block px-1 rounded mt-1">DISETUJUI ELEKTRONIK</div>}
+                {/* Professional Print Styles & Content */}
+                <div className="print-only hidden">
+                    <div className="text-center mb-6 border-b-2 border-black pb-4">
+                        <div className="font-bold text-lg">KEMENTERIAN AGAMA REPUBLIK INDONESIA</div>
+                        <div className="font-bold text-xl">MAN INSAN CENDEKIA GOWA</div>
+                        <div className="text-sm">Jalan Insan Cendekia No. 1, Desa Belapunranga, Kec. Parangloe, Kab. Gowa</div>
+                        <div className="mt-4 font-bold text-lg underline">LAPORAN CAPAIAN KINERJA HARIAN (LCKH)</div>
                     </div>
-                    <div className="text-center">
-                        <div className="mb-16">Diperiksa Oleh,<br />Waka Kurikulum</div>
-                        <div className="font-bold underline mb-1">( ....................................... )</div>
-                        <div className="text-xs">NIP. .......................................</div>
-                        {submission?.approved_by_waka && <div className="text-[10px] text-green-700 font-bold border border-green-600 inline-block px-1 rounded mt-1">DIVERIFIKASI ELEKTRONIK</div>}
+
+                    <div className="grid grid-cols-2 gap-4 text-sm mb-6">
+                        <div>
+                            <table className="w-full">
+                                <tbody>
+                                    <tr><td className="w-24 py-1">Nama</td><td>: {userData?.nama_lengkap}</td></tr>
+                                    <tr><td className="py-1">NIP</td><td>: {userData?.nip || '-'}</td></tr>
+                                    <tr><td className="py-1">Jabatan</td><td>: Guru</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div>
+                            <table className="w-full">
+                                <tbody>
+                                    <tr><td className="w-24 py-1">Periode</td><td>: {periods.find(p => p.periode_kode === selectedPeriod)?.periode_nama}</td></tr>
+                                    <tr><td className="py-1">Status</td><td>: {submission?.status?.replace('_', ' ')}</td></tr>
+                                    {submission?.approval_code && <tr><td className="py-1">Kode Dokumen</td><td className="font-mono">: {submission.approval_code}</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    <div className="text-center">
-                        <div className="mb-16">Gowa, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br />Guru Mata Pelajaran</div>
-                        <div className="font-bold underline mb-1">{userData?.nama_lengkap}</div>
-                        <div className="text-xs">NIP. {userData?.nip}</div>
+
+                    {/* Content Replica for Print */}
+                    <div className="mb-6 p-2">
+
+                        {/* I. Uraian Kegiatan (Detailed List) - Check Module */}
+                        {modules.find(m => m.id === 'JURNAL')?.checked && (
+                            <>
+                                <div className="font-bold mb-2 border-b border-gray-400 pb-1">I. Uraian Kegiatan Pembelajaran</div>
+                                {(summary?.detail_jurnal && summary.detail_jurnal.length > 0) ? (
+                                    <table className="w-full text-xs border-collapse border border-black mb-6">
+                                        <thead>
+                                            <tr className="bg-gray-100">
+                                                <th className="border border-black p-1 w-8">No</th>
+                                                <th className="border border-black p-1 w-24">Hari/Tgl</th>
+                                                <th className="border border-black p-1 w-12">Jam</th>
+                                                <th className="border border-black p-1 w-16">Kelas</th>
+                                                <th className="border border-black p-1 w-24">Mapel</th>
+                                                <th className="border border-black p-1">Materi Pokok / Bahasan</th>
+                                                <th className="border border-black p-1 w-8">H</th>
+                                                <th className="border border-black p-1 w-8">S</th>
+                                                <th className="border border-black p-1 w-8">I</th>
+                                                <th className="border border-black p-1 w-8">A</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {summary.detail_jurnal.map((j: any, idx: number) => (
+                                                <tr key={idx}>
+                                                    <td className="border border-black p-1 text-center">{idx + 1}</td>
+                                                    <td className="border border-black p-1">
+                                                        <div className="font-semibold">{j.hari}</div>
+                                                        <div className="text-[10px]">{new Date(j.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</div>
+                                                    </td>
+                                                    <td className="border border-black p-1 text-center">{j.jam_ke}</td>
+                                                    <td className="border border-black p-1 text-center">{j.kelas}</td>
+                                                    <td className="border border-black p-1">{j.mapel || j.mata_pelajaran}</td>
+                                                    <td className="border border-black p-1">{j.materi}</td>
+                                                    <td className="border border-black p-1 text-center">{j.H ?? j.jml_hadir ?? 0}</td>
+                                                    <td className="border border-black p-1 text-center text-yellow-700 font-bold">{j.S ?? j.jml_sakit ?? 0}</td>
+                                                    <td className="border border-black p-1 text-center text-blue-700 font-bold">{j.I ?? j.jml_izin ?? 0}</td>
+                                                    <td className="border border-black p-1 text-center text-red-700 font-bold">{j.A ?? j.jml_alpa ?? 0}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                ) : <p className="text-xs italic mb-4">Tidak ada data kegiatan.</p>}
+                            </>
+                        )}
+
+                        <div className="font-bold mb-2 border-b border-gray-400 pb-1">II. Ringkasan Kinerja</div>
+                        <div className="grid grid-cols-3 gap-4 text-center mb-4">
+                            <div className="border border-black p-2">
+                                <div className="text-xs text-gray-500">Total Jam Mengajar</div>
+                                <div className="font-bold">{summary?.total_jam_mengajar || 0} Jam</div>
+                            </div>
+                            <div className="border border-black p-2">
+                                <div className="text-xs text-gray-500">Jurnal Terisi</div>
+                                <div className="font-bold">{summary?.total_jurnal_isi || 0} Pertemuan</div>
+                            </div>
+                            <div className="border border-black p-2">
+                                <div className="text-xs text-gray-500">Input Nilai</div>
+                                <div className="font-bold">{summary?.total_nilai_input || 0} Data</div>
+                            </div>
+                        </div>
+
+                        {/* III. Rekap Absensi Siswa - Check Module */}
+                        {modules.find(m => m.id === 'ABSENSI')?.checked && (
+                            <>
+                                <div className="font-bold mb-2 border-b border-gray-400 pb-1">III. Rekap Absensi Siswa</div>
+                                {(summary?.rekap_absensi_siswa && summary.rekap_absensi_siswa.length > 0) ? (
+                                    <table className="w-full text-xs border-collapse border border-black mb-4">
+                                        <thead>
+                                            <tr className="bg-gray-100">
+                                                <th className="border border-black p-1">Kelas</th>
+                                                <th className="border border-black p-1">Mapel</th>
+                                                <th className="border border-black p-1">Sesi</th>
+                                                <th className="border border-black p-1">H</th>
+                                                <th className="border border-black p-1">S</th>
+                                                <th className="border border-black p-1">I</th>
+                                                <th className="border border-black p-1">A</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {summary.rekap_absensi_siswa.map((bg: any, idx: number) => (
+                                                <tr key={idx}>
+                                                    <td className="border border-black p-1">{bg.kelas}</td>
+                                                    <td className="border border-black p-1">{bg.mapel}</td>
+                                                    <td className="border border-black p-1 text-center">{bg.meetings}</td>
+                                                    <td className="border border-black p-1 text-center">{bg.H}</td>
+                                                    <td className="border border-black p-1 text-center">{bg.S}</td>
+                                                    <td className="border border-black p-1 text-center">{bg.I}</td>
+                                                    <td className="border border-black p-1 text-center">{bg.A}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                ) : <p className="text-xs italic mb-4">Tidak ada data absensi siswa.</p>}
+                            </>
+                        )}
+
+                        {/* IV. Catatan Tambahan */}
+                        <div className="font-bold mb-2 border-b border-gray-400 pb-1">IV. Catatan Tambahan</div>
+                        <p className="text-sm italic border border-black p-2 min-h-[50px] mb-6">{catatan || '-'}</p>
+
+                        {/* V. Tugas Tambahan - Check Module */}
+                        {modules.find(m => m.id === 'TUGAS')?.checked && (
+                            <>
+                                <div className="font-bold mb-2 border-b border-gray-400 pb-1">V. Laporan Tugas Tambahan</div>
+                                {(summary?.detail_tugas && summary.detail_tugas.length > 0) ? (
+                                    <table className="w-full text-xs border-collapse border border-black mb-6">
+                                        <thead>
+                                            <tr className="bg-gray-100">
+                                                <th className="border border-black p-1 w-8">No</th>
+                                                <th className="border border-black p-1 w-24">Tanggal</th>
+                                                <th className="border border-black p-1">Jabatan / Tugas</th>
+                                                <th className="border border-black p-1">Kegiatan</th>
+                                                <th className="border border-black p-1">Hasil / Output</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {summary.detail_tugas.map((t: any, idx: number) => (
+                                                <tr key={idx}>
+                                                    <td className="border border-black p-1 text-center">{idx + 1}</td>
+                                                    <td className="border border-black p-1">
+                                                        {new Date(t.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                    </td>
+                                                    <td className="border border-black p-1 font-semibold">{t.tugas?.jabatan || '-'}</td>
+                                                    <td className="border border-black p-1">{t.kegiatan}</td>
+                                                    <td className="border border-black p-1">{t.hasil || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                ) : <p className="text-xs italic mb-4">Tidak ada laporan tugas tambahan.</p>}
+                            </>
+                        )}
+                    </div>
+
+                    {/* Signatures */}
+                    <div className="grid grid-cols-3 gap-8 mt-8 page-break-inside-avoid text-sm">
+                        <div className="text-center">
+                            <div className="mb-16">Mengetahui,<br />Kepala Madrasah</div>
+                            <div className="font-bold underline mb-1">( ....................................... )</div>
+                            <div className="text-xs">NIP. .......................................</div>
+                            {submission?.approved_by_kamad && <div className="text-[10px] text-green-700 font-bold border border-green-600 inline-block px-1 rounded mt-1">DISETUJUI ELEKTRONIK</div>}
+                        </div>
+                        <div className="text-center">
+                            <div className="mb-16">Diperiksa Oleh,<br />Waka Kurikulum</div>
+                            <div className="font-bold underline mb-1">( ....................................... )</div>
+                            <div className="text-xs">NIP. .......................................</div>
+                            {submission?.approved_by_waka && <div className="text-[10px] text-green-700 font-bold border border-green-600 inline-block px-1 rounded mt-1">DIVERIFIKASI ELEKTRONIK</div>}
+                        </div>
+                        <div className="text-center">
+                            <div className="mb-16">Gowa, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br />Guru Mata Pelajaran</div>
+                            <div className="font-bold underline mb-1">{userData?.nama_lengkap}</div>
+                            <div className="text-xs">NIP. {userData?.nip}</div>
+                        </div>
+                    </div>
+
+                    <div className="mt-8 text-[10px] text-gray-400 text-center border-t py-2">
+                        Dokumen ini dicetak dari ACCA System pada {new Date().toLocaleString()}.
+                        {submission?.approval_code ? `Kode Validasi: ${submission.approval_code}` : 'Status: Draft (Belum Final)'}
                     </div>
                 </div>
 
-                <div className="mt-8 text-[10px] text-gray-400 text-center border-t py-2">
-                    Dokumen ini dicetak dari ACCA System pada {new Date().toLocaleString()}.
-                    {submission?.approval_code ? `Kode Validasi: ${submission.approval_code}` : 'Status: Draft (Belum Final)'}
-                </div>
-            </div>
+                {/* Preview Modal */}
+                {
+                    previewModule && (
+                        <ModulePreviewModal
+                            moduleCode={previewModule}
+                            data={summary}
+                            onClose={() => setPreviewModule(null)}
+                        />
+                    )
+                }
 
-            {/* Preview Modal */}
-            {previewModule && (
-                <ModulePreviewModal
-                    moduleCode={previewModule}
-                    data={summary}
-                    onClose={() => setPreviewModule(null)}
-                />
-            )}
-
-            <style jsx global>{`
+                <style jsx global>{`
                 /* Hide scrollbar for cleaner look if needed */
                 ::-webkit-scrollbar { width: 6px; }
                 ::-webkit-scrollbar-track { background: transparent; }
                 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
                 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+                :global(.dark) .bg-gray-50 {
+                    background-color: #020617 !important;
+                }
+                :global(.dark) .bg-white {
+                    background-color: #0f172a !important;
+                }
+                :global(.dark) .border-gray-200,
+                :global(.dark) .border-gray-100 {
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                }
+                :global(.dark) .text-gray-800,
+                :global(.dark) .text-gray-700 {
+                    color: #f8fafc !important;
+                }
+                :global(.dark) .text-gray-500,
+                :global(.dark) .text-gray-400 {
+                    color: #94a3b8 !important;
+                }
+                :global(.dark) .bg-blue-50 {
+                    background-color: rgba(59, 130, 246, 0.1) !important;
+                }
+                :global(.dark) .hover\:bg-gray-50:hover {
+                    background-color: rgba(255, 255, 255, 0.04) !important;
+                }
+                :global(.dark) .divide-gray-100 > * + * {
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                }
                 
                 @media print {
                     @page { size: A4 portrait; margin: 10mm; }
-                    body { background: white; -webkit-print-color-adjust: exact; font-family: 'Times New Roman', serif; }
+                    body { background: white; -webkit-print-color-adjust: exact; font-family: 'Poppins', sans-serif; }
                     nav, aside, header, .no-print, button, select, .hidden-print { display: none !important; }
                     .main-content { margin: 0 !important; width: 100% !important; padding: 0 !important; }
                     
@@ -706,7 +738,8 @@ export default function LckhPage() {
                     .print-only { display: block !important; width: 100%; }
                 }
             `}</style>
-        </div>
+            </div >
+        </PermissionGuard>
     );
 }
 
@@ -757,7 +790,7 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
         // Prepare Detail Data and Matrix Data
         const allLogs: any[] = [];
         const classes: string[] = [];
-        const matrixData: any = {}; // { [kelas]: { [nisn]: { name, logs: { [date]: status } } } }
+        const matrixData: any = {}; // {[kelas]: {[nisn]: {name, logs: {[date]: status } } } }
 
         // 1. Initialize Matrix from Roster (if available)
         if (data.class_roster) {
@@ -820,7 +853,7 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
             const students = Object.values(matrixData[cls] || {}).sort((a: any, b: any) => a.name.localeCompare(b.name));
             return (
                 <div key={cls} className="mb-8">
-                    <h4 className="font-bold text-gray-700 mb-2 px-1 border-l-4 border-blue-500 pl-2">{cls}</h4>
+                    <h4 className="font-bold text-gray-700 mb-2 px-1 border-l-4 border-[#0038A8] pl-2">{cls}</h4>
                     <div className="overflow-x-auto pb-2">
                         <table className="w-full text-xs border-collapse text-center">
                             <thead>
@@ -863,17 +896,17 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                 <div className="flex gap-2 mb-4 px-1 sticky top-0 bg-white z-20 py-2 border-b border-gray-100">
                     <button
                         onClick={() => setTab('RECAP')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === 'RECAP' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === 'RECAP' ? 'bg-blue-100 text-[#0038A8]' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                         <i className="bi bi-pie-chart-fill mr-1"></i> Rekapitulasi
                     </button>
                     <button
                         onClick={() => setTab('GRID')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === 'GRID' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === 'GRID' ? 'bg-blue-100 text-[#0038A8]' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                         <i className="bi bi-grid-3x3 mr-1"></i> Matriks Absensi
                     </button>
                     <button
                         onClick={() => setTab('DETAIL')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === 'DETAIL' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${tab === 'DETAIL' ? 'bg-blue-100 text-[#0038A8]' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                         <i className="bi bi-list-ul mr-1"></i> Riwayat Log
                     </button>
                 </div>
@@ -983,7 +1016,7 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                                 <td className="px-4 py-3 whitespace-nowrap align-top">
                                     <div className="font-medium text-gray-900">{new Date(t.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</div>
                                 </td>
-                                <td className="px-4 py-3 font-semibold text-blue-600 align-top">{t.tugas?.jabatan}</td>
+                                <td className="px-4 py-3 font-semibold text-[#0038A8] align-top">{t.tugas?.jabatan}</td>
                                 <td className="px-4 py-3 align-top">
                                     <div className="line-clamp-2" title={t.kegiatan}>{t.kegiatan}</div>
                                 </td>

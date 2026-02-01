@@ -46,6 +46,17 @@ export default function DeleteModal({ isOpen, onClose, onSuccess, data, canDo }:
   const handleSubmit = async () => {
     if (submitting) return;
 
+    // [CAPABILITY CHECK]
+    const jenis = String(data.jenis || "").toUpperCase();
+    if (!canDo(`ketidakhadiran.${jenis.toLowerCase()}`, "manage")) {
+      await Swal.fire({
+        title: "Ditolak",
+        text: `Anda tidak punya izin untuk menghapus data ${jenis}`,
+        icon: "error",
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       const { supabase } = await import("@/lib/supabase");

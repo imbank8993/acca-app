@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import ExportModal from './components/ExportModal';
 import { hasPermission } from '@/lib/permissions-client';
+import PermissionGuard from '@/components/PermissionGuard';
 import './absensi.css';
 
 // Types
@@ -65,6 +66,7 @@ export default function AbsensiPage() {
     const [roles, setRoles] = useState<string[]>([]);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [userRole, setUserRole] = useState<string>('GURU');
+    const [loggedInUser, setLoggedInUser] = useState({ nama: '', nip: '' });
 
     useEffect(() => {
         const today = new Date().toISOString().split('T')[0];
@@ -93,8 +95,11 @@ export default function AbsensiPage() {
                 setNip(userNip);
                 setNipDisplay(userNip);
 
-                // Ensure name is set
                 setNamaGuru(userData.nama || userData.nama_lengkap || 'Guru');
+                setLoggedInUser({
+                    nama: userData.nama || userData.nama_lengkap || 'Guru',
+                    nip: userNip
+                });
 
                 setUserPermissions(userData.permissions || []);
                 setRoles(userData.roles || []);
@@ -410,11 +415,22 @@ export default function AbsensiPage() {
         if (makeFinal) {
             const confirm = await Swal.fire({
                 title: 'Finalkan Absensi?',
-                html: 'Setelah <b>FINAL</b>, data sesi akan <b>dikunci</b> dan tidak dapat diubah.',
+                html: '<p class="text-sm text-slate-600 mb-2">Setelah <b>FINAL</b>, data sesi akan <b>dikunci</b> dan tidak dapat diubah.</p>',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Ya, Finalkan',
-                cancelButtonText: 'Batal'
+                cancelButtonText: 'Batal',
+                confirmButtonColor: '#1e3a8a', // Navy Blue
+                cancelButtonColor: '#64748b',
+                reverseButtons: true,
+                padding: '2rem',
+                customClass: {
+                    popup: 'rounded-[2rem] shadow-xl border border-slate-100',
+                    title: 'text-xl font-bold text-slate-800',
+                    actions: 'gap-3',
+                    confirmButton: 'rounded-xl px-6 py-3 font-semibold shadow-lg shadow-blue-900/20',
+                    cancelButton: 'rounded-xl px-6 py-3 font-semibold'
+                }
             });
             if (!confirm.isConfirmed) return;
         }
@@ -599,238 +615,241 @@ export default function AbsensiPage() {
     };
 
     return (
-        <div className="max-w-7xl mx-auto p-4 md:p-6">
+        <PermissionGuard requiredPermission={{ resource: 'absensi', action: 'view' }}>
+            <div className="max-w-7xl mx-auto p-4 md:p-6">
 
-            {/* PREMIUM HEADER */}
-            <div className="absensi-header flex justify-between items-start">
-                <div>
-                    <h1 className="absensi-title">Absensi Guru Mata Pelajaran</h1>
-                    <p className="absensi-subtitle">
-                        Login: {namaGuru || '...'} · NIP: {nipDisplay || nip}
-                    </p>
-                </div>
-            </div>
-
-            {/* FILTER CARD */}
-            <div className="filter-card">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
-                    <div className="md:col-span-3">
-                        <div className="form-group">
-                            <label className="form-label">Kelas</label>
-                            <select
-                                className="form-select"
-                                value={kelas}
-                                onChange={e => setKelas(e.target.value)}
-                            >
-                                {scope?.kelasList.map(k => <option key={k} value={k}>{k}</option>)}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="md:col-span-3">
-                        <div className="form-group">
-                            <label className="form-label">Mata Pelajaran</label>
-                            <select
-                                className="form-select"
-                                value={mapel}
-                                onChange={e => setMapel(e.target.value)}
-                            >
-                                {(scope?.mapelByKelas[kelas] || []).map(m => <option key={m} value={m}>{m}</option>)}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="md:col-span-3">
-                        <div className="form-group">
-                            <label className="form-label">Tanggal Mengajar</label>
-                            <input
-                                type="date"
-                                className="form-input"
-                                value={tanggal}
-                                onChange={e => setTanggal(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="md:col-span-1">
-                        <div className="form-group">
-                            <label className="form-label">Jam Ke</label>
-                            <select
-                                className="form-select"
-                                value={jamKe}
-                                onChange={e => setJamKe(e.target.value)}
-                            >
-                                {formatJamRange((scope && scope.jamKeByKelasMapel[`${kelas}||${mapel}`]) || ['1']).map(j => (
-                                    <option key={j} value={j}>{j}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="md:col-span-1">
-                        <div className="form-group">
-                            <label className="form-label" style={{ opacity: 0 }}>-</label>
-                            <button
-                                className="btn btn-primary w-full"
-                                onClick={bukaSesi}
-                                disabled={loading || !canDo('take')}
-                            >
-                                <i className="bi bi-box-arrow-in-right"></i>
-                                Buka
-                            </button>
-                        </div>
+                {/* PREMIUM HEADER */}
+                <div className="absensi-header flex justify-between items-start">
+                    <div>
+                        <h1 className="absensi-title">Absensi Guru Mata Pelajaran</h1>
+                        <p className="absensi-subtitle">
+                            {loggedInUser.nama || '...'} / {loggedInUser.nip || '...'}
+                        </p>
                     </div>
                 </div>
 
-                <div style={{ height: '1rem' }}></div>
+                {/* FILTER CARD */}
+                <div className="filter-card">
 
-                <div className="flex flex-wrap gap-3">
-                    <button
-                        className="btn btn-outline"
-                        onClick={refreshKetidakhadiran}
-                        disabled={!currentSesi || isFinal || !canDo('refresh_ketidakhadiran')}
-                        title="Ambil data terbaru dari modul ketidakhadiran"
-                    >
-                        <i className="bi bi-arrow-clockwise"></i>
-                        Refresh Izin/Sakit
-                    </button>
-                    <button
-                        className="btn btn-success"
-                        disabled={!currentSesi || isFinal || !canDo('save_draft')}
-                        onClick={() => handleSimpan(false)}
-                    >
-                        <i className="bi bi-check-circle-fill"></i>
-                        Simpan Draft
-                    </button>
-                    <button
-                        className="btn btn-dark"
-                        disabled={!currentSesi || isFinal || !canDo('finalize')}
-                        onClick={() => handleSimpan(true)}
-                    >
-                        <i className="bi bi-lock-fill"></i>
-                        Finalkan Sesi
-                    </button>
-                    <button
-                        onClick={() => setIsExportModalOpen(true)}
-                        disabled={!canDo('export')}
-                        className="btn bg-[#1D6F42] hover:bg-[#155230] text-white shadow-lg shadow-green-900/20 border-none"
-                        title="Export Data Absensi ke Excel"
-                    >
-                        <i className="bi bi-file-earmark-excel-fill"></i>
-                        Export Excel
-                    </button>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
+                        <div className="md:col-span-2">
+                            <div className="form-group">
+                                <label className="form-label">Kelas</label>
+                                <select
+                                    className="form-select"
+                                    value={kelas}
+                                    onChange={e => setKelas(e.target.value)}
+                                >
+                                    {scope?.kelasList.map(k => <option key={k} value={k}>{k}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-3">
+                            <div className="form-group">
+                                <label className="form-label">Mata Pelajaran</label>
+                                <select
+                                    className="form-select"
+                                    value={mapel}
+                                    onChange={e => setMapel(e.target.value)}
+                                >
+                                    {(scope?.mapelByKelas[kelas] || []).map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <div className="form-group">
+                                <label className="form-label">Tanggal Mengajar</label>
+                                <input
+                                    type="date"
+                                    className="form-input"
+                                    value={tanggal}
+                                    onChange={e => setTanggal(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <div className="form-group">
+                                <label className="form-label">Jam Ke</label>
+                                <select
+                                    className="form-select"
+                                    value={jamKe}
+                                    onChange={e => setJamKe(e.target.value)}
+                                >
+                                    {formatJamRange((scope && scope.jamKeByKelasMapel[`${kelas}||${mapel}`]) || ['1']).map(j => (
+                                        <option key={j} value={j}>{j}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-3">
+                            <div className="form-group">
+                                <label className="form-label" style={{ opacity: 0 }}>-</label>
+                                <div className="flex gap-2">
+                                    <button
+                                        className="btn btn-primary w-full"
+                                        onClick={bukaSesi}
+                                        disabled={loading || !canDo('take')}
+                                    >
+                                        <i className="bi bi-box-arrow-in-right"></i>
+                                        Buka
+                                    </button>
+                                    <button
+                                        onClick={() => setIsExportModalOpen(true)}
+                                        disabled={!canDo('export')}
+                                        className="btn bg-[#1D6F42] hover:bg-[#155230] text-white shadow-lg shadow-green-900/20 border-none w-full"
+                                        title="Export Data Absensi ke Excel"
+                                    >
+                                        <i className="bi bi-file-earmark-excel-fill"></i>
+                                        Export
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="absensi-actions-wrap">
+                        <button
+                            className="btn btn-outline"
+                            onClick={refreshKetidakhadiran}
+                            disabled={!currentSesi || isFinal || !canDo('refresh_ketidakhadiran')}
+                            title="Ambil data terbaru dari modul ketidakhadiran"
+                        >
+                            <i className="bi bi-arrow-clockwise"></i>
+                            <span>Refresh Data</span>
+                        </button>
+                        <button
+                            className="btn btn-success"
+                            disabled={!currentSesi || isFinal || !canDo('save_draft')}
+                            onClick={() => handleSimpan(false)}
+                        >
+                            <i className="bi bi-check-circle-fill"></i>
+                            <span>Simpan Draft</span>
+                        </button>
+                        <button
+                            className="btn btn-dark"
+                            disabled={!currentSesi || isFinal || !canDo('finalize')}
+                            onClick={() => handleSimpan(true)}
+                        >
+                            <i className="bi bi-lock-fill"></i>
+                            <span>Finalkan Sesi</span>
+                        </button>
+                    </div>
+
+                    {currentSesi && (
+                        <div className="session-info">
+                            <strong>{currentSesi.kelas}</strong> · {currentSesi.mapel} ·
+                            {currentSesi.tanggal} · Jam {currentSesi.jam_ke} ·
+                            <span className={`badge ${currentSesi.status_sesi === 'FINAL' ? 'badge-success' : 'badge-warning'}`}>
+                                {currentSesi.status_sesi}
+                            </span> ·
+                            Guru: {currentSesi.nama_guru}
+                        </div>
+                    )}
                 </div>
 
-                {currentSesi && (
-                    <div className="session-info">
-                        <strong>{currentSesi.kelas}</strong> · {currentSesi.mapel} ·
-                        {currentSesi.tanggal} · Jam {currentSesi.jam_ke} ·
-                        <span className={`badge ${currentSesi.status_sesi === 'FINAL' ? 'badge-success' : 'badge-warning'}`}>
-                            {currentSesi.status_sesi}
-                        </span> ·
-                        Guru: {currentSesi.nama_guru}
-                    </div>
-                )}
-            </div>
-
-            {/* DATA TABLE */}
-            <div className="data-table">
-                <table>
-                    <thead>
-                        <tr>
-                            <th style={{ width: '50px', textAlign: 'center' }}>No</th>
-                            <th style={{ width: '120px' }}>NISN</th>
-                            <th>Nama Siswa</th>
-                            <th style={{ minWidth: '350px' }}>Status Kehadiran</th>
-                            <th style={{ width: '60px', textAlign: 'center' }}>Ket.</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {rows.length === 0 ? (
+                {/* DATA TABLE */}
+                <div className="data-table">
+                    <table>
+                        <thead>
                             <tr>
-                                <td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-                                    <i className="bi bi-inbox" style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}></i>
-                                    Silakan pilih kelas dan klik <strong>Buka</strong> untuk memuat data siswa
-                                </td>
+                                <th style={{ width: '60px', textAlign: 'center' }}>No</th>
+                                <th style={{ width: '150px' }}>NISN</th>
+                                <th style={{ width: '400px' }}>Nama Siswa</th>
+                                <th style={{ minWidth: '400px' }}>Status Kehadiran</th>
+                                <th style={{ width: '60px', textAlign: 'center' }}>Ket.</th>
                             </tr>
-                        ) : (
-                            rows.map((r, idx) => (
-                                <tr key={r.nisn} className={getRowClass(r)}>
-                                    <td data-label="No" style={{ textAlign: 'center', fontWeight: 600, color: '#64748b' }}>
-                                        {idx + 1}
-                                    </td>
-                                    <td data-label="NISN" style={{ fontFamily: 'monospace', fontWeight: 700, color: '#334155' }}>
-                                        {r.nisn}
-                                    </td>
-                                    <td data-label="Nama Siswa" style={{ fontWeight: 600, color: '#0f172a' }}>
-                                        {r.nama_snapshot}
-                                        {isChanged(r) && (
-                                            <span className="badge badge-warning" style={{ marginLeft: '0.5rem' }}>
-                                                <i className="bi bi-pencil-fill"></i>
-                                            </span>
-                                        )}
-                                        {/* Show truncated note preview if exists */}
-                                        {r.catatan && (
-                                            <div className="text-xs text-slate-500 mt-1 italic truncate max-w-[200px] flex items-center gap-1">
-                                                {r.ref_ketidakhadiran_id && <i className="bi bi-link-45deg text-blue-500"></i>}
-                                                {r.source_type && (
-                                                    <span
-                                                        className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold rounded bg-slate-200 text-slate-600 border border-slate-300"
-                                                        title={`Sumber: ${r.source_type}`}
-                                                    >
-                                                        {r.source_type.charAt(0).toUpperCase()}
-                                                    </span>
-                                                )}
-                                                <span className="truncate">{r.catatan}</span>
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td data-label="Status Kehadiran">
-                                        <StatusRadios
-                                            nisn={r.nisn}
-                                            index={idx}
-                                            currentStatus={r.status}
-                                            disabled={isFinal}
-                                            onChange={handleStatusChange}
-                                        />
-                                    </td>
-                                    <td data-label="Ket." style={{ textAlign: 'center' }}>
-                                        <button
-                                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors 
-                                                ${r.ref_ketidakhadiran_id
-                                                    ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                                                    : r.catatan
-                                                        ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
-                                                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                                            onClick={() => handleEditKeterangan(r)}
-                                            disabled={isFinal}
-                                            title={r.ref_ketidakhadiran_id ? "Lihat Keterangan (Terintegrasi)" : "Edit Keterangan"}
-                                        >
-                                            {r.ref_ketidakhadiran_id ? (
-                                                <i className="bi bi-info-circle-fill"></i>
-                                            ) : (
-                                                <i className="bi bi-pencil-fill" style={{ fontSize: '0.8rem' }}></i>
-                                            )}
-                                        </button>
+                        </thead>
+                        <tbody>
+                            {rows.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+                                        <i className="bi bi-inbox" style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}></i>
+                                        Silakan pilih kelas dan klik <strong>Buka</strong> untuk memuat data siswa
                                     </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+                            ) : (
+                                rows.map((r, idx) => (
+                                    <tr key={r.nisn} className={getRowClass(r)}>
+                                        <td data-label="No" style={{ textAlign: 'center', fontWeight: 600 }}>
+                                            {idx + 1}
+                                        </td>
+                                        <td data-label="NISN" style={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                                            {r.nisn}
+                                        </td>
+                                        <td data-label="Nama Siswa" style={{ fontWeight: 600 }}>
+                                            {r.nama_snapshot}
+                                            {isChanged(r) && (
+                                                <span className="badge badge-warning" style={{ marginLeft: '0.5rem' }}>
+                                                    <i className="bi bi-pencil-fill"></i>
+                                                </span>
+                                            )}
+                                            {/* Show truncated note preview if exists */}
+                                            {r.catatan && (
+                                                <div className="text-xs text-slate-500 mt-1 italic truncate max-w-[200px] flex items-center gap-1">
+                                                    {r.ref_ketidakhadiran_id && <i className="bi bi-link-45deg text-blue-500"></i>}
+                                                    {r.source_type && (
+                                                        <span
+                                                            className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold rounded bg-slate-200 text-slate-600 border border-slate-300"
+                                                            title={`Sumber: ${r.source_type}`}
+                                                        >
+                                                            {r.source_type.charAt(0).toUpperCase()}
+                                                        </span>
+                                                    )}
+                                                    <span className="truncate">{r.catatan}</span>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td data-label="Status Kehadiran">
+                                            <StatusRadios
+                                                nisn={r.nisn}
+                                                index={idx}
+                                                currentStatus={r.status}
+                                                disabled={isFinal}
+                                                onChange={handleStatusChange}
+                                            />
+                                        </td>
+                                        <td data-label="Ket." style={{ textAlign: 'center' }}>
+                                            <button
+                                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 border 
+                                                ${r.ref_ketidakhadiran_id
+                                                        ? 'bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500/20'
+                                                        : r.catatan
+                                                            ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20'
+                                                            : 'bg-slate-500/10 text-slate-400 border-slate-500/10 hover:bg-slate-500/20'}`}
+                                                onClick={() => handleEditKeterangan(r)}
+                                                disabled={isFinal}
+                                                title={r.ref_ketidakhadiran_id ? "Lihat Keterangan (Terintegrasi)" : "Edit Keterangan"}
+                                            >
+                                                {r.ref_ketidakhadiran_id ? (
+                                                    <i className="bi bi-info-circle-fill"></i>
+                                                ) : (
+                                                    <i className="bi bi-pencil-fill" style={{ fontSize: '0.8rem' }}></i>
+                                                )}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
 
 
 
-            <ExportModal
-                isOpen={isExportModalOpen}
-                onClose={() => setIsExportModalOpen(false)}
-                userRole={userRole}
-                nip={nip}
-                permissions={userPermissions}
-                isAdmin={isAdmin}
-            />
-        </div >
+                <ExportModal
+                    isOpen={isExportModalOpen}
+                    onClose={() => setIsExportModalOpen(false)}
+                    userRole={userRole}
+                    nip={nip}
+                    permissions={userPermissions}
+                    isAdmin={isAdmin}
+                />
+            </div >
+        </PermissionGuard>
     );
 }
 

@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '@/components/ui/ImportModal'
 
+import { hasPermission } from '@/lib/permissions-client'
+
 interface Libur {
   id?: number
   tanggal: string
@@ -13,7 +15,12 @@ interface Libur {
   tahun?: string
 }
 
-export default function LiburTab() {
+export default function LiburTab({ user }: { user?: any }) {
+  // Permission Check
+  const permissions = user?.permissions || []
+  const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
+  const canManage = hasPermission(permissions, 'pengaturan_data:libur', 'manage', isAdmin)
+
   // Local Filter
   const [tahun, setTahun] = useState('2026')
 
@@ -105,6 +112,8 @@ export default function LiburTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!canManage) return
+
     setSaving(true)
 
     try {
@@ -178,6 +187,7 @@ export default function LiburTab() {
   }
 
   const handleEdit = (item: Libur) => {
+    if (!canManage) return
     setEditId(item.id!)
     setStartDate(item.tanggal)
     setEndDate('')
@@ -187,6 +197,7 @@ export default function LiburTab() {
   }
 
   const handleDelete = async (id: number) => {
+    if (!canManage) return
     if (confirm('Hapus data libur ini?')) {
       await fetch(`/api/settings/libur?id=${id}`, { method: 'DELETE' })
       fetchData()
@@ -280,15 +291,19 @@ export default function LiburTab() {
         </div>
 
         <div className="lb__row2">
-          <button className="lb__btn lb__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
-            <i className="bi bi-upload" /> <span>Import</span>
-          </button>
+          {canManage && (
+            <button className="lb__btn lb__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+              <i className="bi bi-upload" /> <span>Import</span>
+            </button>
+          )}
           <button className="lb__btn lb__btnExport" onClick={handleExport} title="Export Data">
             <i className="bi bi-file-earmark-excel" /> <span>Export</span>
           </button>
-          <button className="lb__btn lb__btnPrimary" onClick={openAdd}>
-            <i className="bi bi-plus-lg" /> <span>Tambah</span>
-          </button>
+          {canManage && (
+            <button className="lb__btn lb__btnPrimary" onClick={openAdd}>
+              <i className="bi bi-plus-lg" /> <span>Tambah</span>
+            </button>
+          )}
         </div>
       </div>
 

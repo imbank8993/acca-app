@@ -29,47 +29,47 @@ const customSelectStyles = {
         ...base,
         minHeight: 34,
         borderRadius: 10,
-        borderColor: state.isFocused ? 'rgba(58, 166, 255, 0.55)' : 'rgba(148, 163, 184, 0.35)',
-        boxShadow: state.isFocused ? '0 0 0 4px rgba(58, 166, 255, 0.14)' : 'none',
-        '&:hover': { borderColor: 'rgba(58, 166, 255, 0.4)' },
+        borderColor: state.isFocused ? 'var(--n-primary)' : 'var(--n-border)',
+        boxShadow: state.isFocused ? 'var(--n-ring)' : 'none',
+        '&:hover': { borderColor: 'var(--n-primary-light)' },
         paddingLeft: 2,
         paddingRight: 2,
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        backgroundColor: 'var(--n-card)',
         fontSize: '0.82rem',
     }),
     valueContainer: (base: any) => ({ ...base, padding: '0px 8px' }),
-    placeholder: (base: any) => ({ ...base, color: '#94a3b8' }),
-    singleValue: (base: any) => ({ ...base, color: '#0f172a', fontWeight: 500 }),
-    input: (base: any) => ({ ...base, color: '#0f172a' }),
+    placeholder: (base: any) => ({ ...base, color: 'var(--n-muted)' }),
+    singleValue: (base: any) => ({ ...base, color: 'var(--n-ink)', fontWeight: 500 }),
+    input: (base: any) => ({ ...base, color: 'var(--n-ink)' }),
     option: (base: any, state: any) => ({
         ...base,
         padding: '8px 12px',
-        backgroundColor: state.isSelected ? '#f1f5f9' : state.isFocused ? '#f8fafc' : '#fff',
-        color: '#0f172a',
+        backgroundColor: state.isSelected ? 'var(--n-primary)' : state.isFocused ? 'var(--n-soft)' : 'var(--n-card)',
+        color: state.isSelected ? '#fff' : 'var(--n-ink)',
         cursor: 'pointer',
         fontSize: '0.82rem',
         fontWeight: state.isSelected ? 600 : 500,
     }),
     multiValue: (base: any) => ({
         ...base,
-        backgroundColor: '#f1f5f9',
+        backgroundColor: 'var(--n-soft)',
         borderRadius: 6,
         padding: '1px',
         margin: '2px',
     }),
     multiValueLabel: (base: any) => ({
         ...base,
-        color: '#334155',
+        color: 'var(--n-ink)',
         fontWeight: 600,
         fontSize: '0.75rem',
         padding: '2px 6px',
     }),
     multiValueRemove: (base: any) => ({
         ...base,
-        color: '#94a3b8',
+        color: 'var(--n-muted)',
         borderRadius: 6,
         ':hover': {
-            backgroundColor: '#fee2e2',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
             color: '#ef4444',
         },
     }),
@@ -77,8 +77,9 @@ const customSelectStyles = {
         ...base,
         zIndex: 9999,
         borderRadius: 12,
-        border: '1px solid #e2e8f0',
-        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+        backgroundColor: 'var(--n-card)',
+        border: '1px solid var(--n-border)',
+        boxShadow: 'var(--n-shadow)',
         marginTop: 4,
     }),
     menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
@@ -97,7 +98,9 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
     const [mapelOptions, setMapelOptions] = useState<any[]>([]);
     const [kelasOptions, setKelasOptions] = useState<any[]>([]);
     const [selectedHours, setSelectedHours] = useState<number[]>([]);
+
     const [teacherDaySchedule, setTeacherDaySchedule] = useState<any[]>([]); // Added state for schedule
+    const [loading, setLoading] = useState(false); // Loading state added
 
     const guruOptions = useMemo(
         () => masterData.guru.map(g => ({ value: g.nama_lengkap, label: g.nama_lengkap, nip: g.nip })),
@@ -212,6 +215,28 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                     });
             }
         }
+        // Merge selectedHours (if any) that are not in availableJams
+        // This is critical for editing past journals that might deviate from current schedule
+        if (selectedHours.length > 0) {
+            const classProgram = masterData.kelas.find((k: any) => k.nama === formData.kelas)?.program || 'Reguler';
+
+            selectedHours.forEach(hId => {
+                if (!availableJams.find(j => j.id === hId)) {
+                    const slot = (masterData.waktu || []).find((w: any) =>
+                        w.jam_ke == hId && w.hari === dayName && (w.program || 'Reguler') === (classProgram || 'Reguler')
+                    );
+                    availableJams.push({
+                        value: hId.toString(),
+                        label: `Jam Ke-${hId}`,
+                        id: hId,
+                        timeStr: slot ? `${slot.mulai?.slice(0, 5)} - ${slot.selesai?.slice(0, 5)}` : '(Diluar Jadwal)'
+                    });
+                }
+            });
+            // Re-sort after merging
+            availableJams.sort((a, b) => a.id - b.id);
+        }
+
         // Add "Select All" if multiple hours available
         if (availableJams.length > 1) {
             setJamOptions([
@@ -235,19 +260,28 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
             }
 
             // 2. Initial Hours selection logic
-            const classProgram = masterData.kelas.find((k: any) => k.nama === initialData.kelas)?.program || 'Reguler';
-
-            if (initialData.jam_ke) {
-                const parts = String(initialData.jam_ke).split('-').map(s => s.trim());
+            if (initialData.jamIds && Array.isArray(initialData.jamIds) && initialData.jamIds.length > 0) {
+                setSelectedHours(initialData.jamIds);
+            } else if (initialData.jam_ke) {
+                // Fallback for legacy or non-grouped data
+                const txt = String(initialData.jam_ke).trim();
                 const decodedIds: number[] = [];
-                parts.forEach(part => {
-                    const foundWaktu = masterData.waktu.find(
-                        (w: any) => `${w.mulai?.slice(0, 5)} - ${w.selesai?.slice(0, 5)}` === part &&
-                            w.hari === dayName &&
-                            (w.program || 'Reguler') === (classProgram || 'Reguler')
-                    );
-                    if (foundWaktu) decodedIds.push(parseInt(foundWaktu.jam_ke));
-                });
+
+                if (txt.includes('-') && !txt.includes(':')) { // Range like "1-3"
+                    const [s, e] = txt.split('-').map(x => parseInt(x));
+                    if (!isNaN(s) && !isNaN(e)) {
+                        for (let i = s; i <= e; i++) decodedIds.push(i);
+                    }
+                } else if (txt.includes(',')) { // List like "1, 2, 4"
+                    txt.split(',').forEach(p => {
+                        const n = parseInt(p.trim());
+                        if (!isNaN(n)) decodedIds.push(n);
+                    });
+                } else {
+                    const n = parseInt(txt);
+                    if (!isNaN(n)) decodedIds.push(n);
+                }
+
                 if (decodedIds.length > 0) setSelectedHours(decodedIds);
             }
         }
@@ -258,6 +292,7 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
 
         if (!formData.nip || !formData.tanggal || selectedHours.length === 0 || !formData.kelas || !formData.mata_pelajaran) {
             Swal.fire('Perhatian', 'Mohon lengkapi semua data wajib (Guru, Tanggal, Jam, Kelas, Mapel)!', 'warning');
+            setLoading(false);
             return;
         }
 
@@ -268,11 +303,13 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
         if (isPenggantiRequired) {
             if (!formData.guru_pengganti || !formData.status_pengganti) {
                 Swal.fire('Perhatian', 'Guru Pengganti dan Status Kehadiran wajib diisi!', 'warning');
+                setLoading(false);
                 return;
             }
         }
 
         try {
+            setLoading(true); // Start loading
             const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
             const hari = days[new Date(formData.tanggal).getDay()];
 
@@ -292,6 +329,8 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
             });
             const result = await res.json();
 
+            setLoading(false); // Stop loading
+
             if (result.success) {
                 Swal.fire({
                     icon: 'success',
@@ -306,6 +345,7 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                 throw new Error(result.error);
             }
         } catch (err: any) {
+            setLoading(false); // Stop loading
             Swal.fire('Gagal', err.message, 'error');
         }
     };
@@ -361,11 +401,11 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                 {/* Header */}
                 <div className="jm__head">
                     <div className="jm__title">
-                        <h2 className="text-[#1e3a8a] flex items-center gap-2 text-base font-bold">
+                        <h2 className="text-[var(--n-primary)] flex items-center gap-2 text-base font-bold">
                             <i className={`bi ${mode === 'add' ? 'bi-journal-plus' : 'bi-pencil-square'} text-blue-600`}></i>
                             {mode === 'add' ? 'Tulis Jurnal Baru' : 'Edit Jurnal'}
                         </h2>
-                        <p className="text-slate-400 text-[10px] mt-0.5">
+                        <p className="text-[var(--n-muted)] text-[10px] mt-0.5">
                             {mode === 'add'
                                 ? 'Lengkapi form untuk mencatat pembelajaran.'
                                 : 'Perbarui data jurnal yang tersimpan.'}
@@ -628,8 +668,9 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                                 </div>
 
                                 <div className="jm__sectionTitle mt-1">Informasi Lain</div>
-                                <div className="jm__grid2">
-                                    <div className="jm__field">
+                                {/* REMOVED jm__grid2 CLASS to stack items vertically */}
+                                <div className="">
+                                    <div className="jm__field mb-2">
                                         <label>Guru Piket (Opsional)</label>
                                         <Select
                                             options={guruOptions}
@@ -660,8 +701,14 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                         <button type="button" className="jm__btn jm__btnGhost" onClick={onClose}>
                             Batal
                         </button>
-                        <button type="submit" className="jm__btn jm__btnPrimary">
-                            Simpan Data
+                        <button type="submit" className="jm__btn jm__btnPrimary" disabled={loading}>
+                            {loading ? (
+                                <span className="flex items-center gap-2">
+                                    <i className="bi bi-arrow-repeat animate-spin"></i> Menyimpan...
+                                </span>
+                            ) : (
+                                "Simpan Data"
+                            )}
                         </button>
                     </div>
                 </form>
@@ -681,10 +728,10 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
 
                 .jm__modal {
                     width: min(900px, 100%);
-                    background: rgba(255, 255, 255, 0.96);
-                    border: 1px solid rgba(148, 163, 184, 0.22);
+                    background: var(--n-card);
+                    border: 1px solid var(--n-border);
                     border-radius: 16px;
-                    box-shadow: 0 28px 80px rgba(2, 6, 23, 0.35);
+                    box-shadow: var(--n-shadow);
                     display: flex;
                     flex-direction: column;
                     height: auto;
@@ -697,9 +744,9 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                     align-items: flex-start;
                     justify-content: space-between;
                     gap: 6px;
-                    padding: 8px 16px;
-                    background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
-                    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+                    padding: 12px 16px;
+                    background: var(--n-soft);
+                    border-bottom: 1px solid var(--n-border);
                     flex: 0 0 auto;
                     flex-shrink: 0;
                 }
@@ -753,8 +800,8 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
                     font-weight: 700;
-                    color: rgba(51, 65, 85, 1);
-                    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+                    color: var(--n-muted);
+                    border-bottom: 1px solid var(--n-border);
                     padding-bottom: 2px;
                     margin-bottom: 4px;
                     margin-top: 4px;
@@ -770,7 +817,7 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                     display: block;
                     font-size: 0.72rem; 
                     font-weight: 650;
-                    color: rgba(7, 22, 46, 0.88);
+                    color: var(--n-muted);
                     margin-bottom: 1px;
                 }
 
@@ -778,23 +825,38 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                 .jm__field select,
                 .jm__textarea {
                     width: 100%;
-                    padding: 5px 8px;
-                    border-radius: 8px; 
-                    border: 1px solid rgba(148, 163, 184, 0.35);
-                    background: rgba(255, 255, 255, 0.9);
-                    color: rgba(15, 23, 42, 0.92);
+                    padding: 4px 10px; /* Adjusted padding for height */
+                    height: 38px; /* Fixed height to match Select */
+                    min-height: 38px;
+                    border-radius: 10px;
+                    border: 1px solid var(--n-border);
+                    background: var(--n-card);
+                    color: var(--n-ink);
                     font-weight: 500;
                     outline: none;
                     font-size: 0.82rem;
                     transition: all 0.2s;
+                    box-sizing: border-box; /* Ensure padding doesn't add to height */
+                } 
+
+                /* Specific for Date Input */
+                .jm__field input[type="date"] {
+                    padding-top: 7px; /* Center text vertically */
+                    padding-bottom: 7px;
+                    line-height: 1.2;
+                }
+                
+                .jm__field input:hover,
+                .jm__field select:hover,
+                .jm__textarea:hover {
+                    border-color: rgba(58, 166, 255, 0.4);
                 }
 
                 .jm__field input:focus,
                 .jm__field select:focus,
                 .jm__textarea:focus {
-                    border-color: rgba(58, 166, 255, 0.55);
-                    box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.14);
-                    background: #fff;
+                    border-color: var(--n-primary);
+                    box-shadow: var(--n-ring);
                 }
 
                 .jm__textarea {
@@ -812,8 +874,8 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                 .jm__subSection {
                     margin-top: 8px;
                     padding: 10px;
-                    background: rgba(241, 245, 249, 0.5);
-                    border: 1px dashed rgba(148, 163, 184, 0.4);
+                    background: var(--n-soft);
+                    border: 1px dashed var(--n-border);
                     border-radius: 10px;
                 }
 
@@ -822,11 +884,11 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                     align-items: center;
                     gap: 8px;
                     padding: 6px 10px;
-                    background: rgba(59, 130, 246, 0.08);
-                    border: 1px solid rgba(59, 130, 246, 0.2);
+                    background: var(--n-soft);
+                    border: 1px solid var(--n-primary);
                     border-radius: 8px;
                     font-size: 0.75rem;
-                    color: rgba(30, 64, 175, 0.95);
+                    color: var(--n-primary);
                     margin-bottom: 8px;
                 }
 
@@ -835,8 +897,8 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                     justify-content: flex-end;
                     gap: 8px;
                     padding: 8px 16px;
-                    border-top: 1px solid rgba(148, 163, 184, 0.18);
-                    background: rgba(255, 255, 255, 0.92);
+                    border-top: 1px solid var(--n-border);
+                    background: var(--n-card);
                     flex: 0 0 auto;
                     flex-shrink: 0;
                 }
@@ -865,14 +927,20 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                 }
 
                 .jm__btnPrimary {
-                    background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
+                    background-color: #0038A8; /* Ultramarine Blue as requested */
                     color: white;
-                    border: 1px solid rgba(58, 166, 255, 0.32);
+                    border: 1px solid rgba(0, 56, 168, 0.5); /* Matching border */
                     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
                 }
                 .jm__btnPrimary:hover {
+                    background-color: #002a80; /* Slightly darker on hover */
                     transform: translateY(-1px);
-                    box-shadow: 0 8px 12px -2px rgba(58, 166, 255, 0.25);
+                    box-shadow: 0 8px 12px -2px rgba(0, 56, 168, 0.25);
+                }
+                .jm__btnPrimary:disabled {
+                    opacity: 0.7;
+                    cursor: not-allowed;
+                    transform: none;
                 }
 
                 @media (max-width: 640px) {

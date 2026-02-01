@@ -29,7 +29,7 @@ interface Guru {
 
 const PENDIDIKAN_LEVELS = ['SD', 'SMP', 'SMA', 'S1', 'S2', 'S3'];
 
-export default function GuruTab() {
+export default function GuruTab({ user }: { user?: any }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [allData, setAllData] = useState<Guru[]>([])
   const [loading, setLoading] = useState(true)
@@ -67,20 +67,12 @@ export default function GuruTab() {
 
   const [pendidikanState, setPendidikanState] = useState<{ [key: string]: { nama_sekolah: string, tahun_lulus: string } }>({})
 
-  // Dynamic Permissions
-  const [permissions, setPermissions] = useState<any[]>([])
-  const [isAdmin, setIsAdmin] = useState(false)
-
   useEffect(() => {
-    // In a real app, this would come from a Context, but let's use localStorage for now
-    const storedUser = localStorage.getItem('user')
-    if (storedUser) {
-      const userData = JSON.parse(storedUser)
-      setPermissions(userData.permissions || [])
-      setIsAdmin(userData.roles?.includes('ADMIN'))
-    }
     fetchGuru()
   }, [])
+
+  const permissions = user?.permissions || []
+  const isAdmin = user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false
 
   // Helper to check permission
   const canEditField = (resource: string, action: string) => {

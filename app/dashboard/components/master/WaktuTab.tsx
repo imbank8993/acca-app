@@ -19,7 +19,9 @@ interface Waktu {
 const HARI_LIST = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 const PROGRAM_LIST = ['Reguler', 'UTBK'];
 
-export default function WaktuTab() {
+import { hasPermission } from '@/lib/permissions-client'
+
+export default function WaktuTab({ user }: { user?: any }) {
   const [allData, setAllData] = useState<Waktu[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -66,6 +68,14 @@ export default function WaktuTab() {
     fetchWaktu()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, pageSize])
+
+  // Permissions Check
+  const permissions = user?.permissions || []
+  const isAdmin = user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false
+
+  const canView = hasPermission(permissions, 'master.waktu', 'view', isAdmin)
+  const canManage = hasPermission(permissions, 'master.waktu', 'manage', isAdmin)
+  const canExport = hasPermission(permissions, 'master.waktu', 'export', isAdmin)
 
   const fetchWaktu = async () => {
     setLoading(true)
@@ -291,13 +301,17 @@ export default function WaktuTab() {
             <i className="bi bi-upload" /> <span>Import</span>
           </button>
 
-          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
-            <i className="bi bi-download" /> <span>Export</span>
-          </button>
+          {canExport && (
+            <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
+              <i className="bi bi-download" /> <span>Export</span>
+            </button>
+          )}
 
-          <button className="sk__btn sk__btnPrimary" onClick={handleAddNew}>
-            <i className="bi bi-plus-lg" /> <span>Tambah</span>
-          </button>
+          {canManage && (
+            <button className="sk__btn sk__btnPrimary" onClick={handleAddNew}>
+              <i className="bi bi-plus-lg" /> <span>Tambah</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -313,11 +327,17 @@ export default function WaktuTab() {
               <th className="cMulai">Waktu Mulai</th>
               <th className="cSelesai">Waktu Selesai</th>
               <th className="cTipe">Tipe</th>
-              <th className="cAksi">Aksi</th>
+              {canManage && <th className="cAksi">Aksi</th>}
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {!canView ? (
+              <tr>
+                <td colSpan={8} className="sk__empty sk__muted">
+                  Anda tidak memiliki akses untuk melihat data ini.
+                </td>
+              </tr>
+            ) : loading ? (
               <tr>
                 <td colSpan={8} className="sk__empty">
                   Memuat data...
@@ -345,20 +365,22 @@ export default function WaktuTab() {
                       <span className="sk__badgeKBM">KBM</span>
                     )}
                   </td>
-                  <td>
-                    <div className="sk__rowActions">
-                      <button className="sk__iconBtn" onClick={() => handleEdit(waktu)} title="Edit">
-                        <i className="bi bi-pencil" />
-                      </button>
-                      <button
-                        className="sk__iconBtn danger"
-                        onClick={() => handleDelete(waktu.id)}
-                        title="Hapus"
-                      >
-                        <i className="bi bi-trash" />
-                      </button>
-                    </div>
-                  </td>
+                  {canManage && (
+                    <td>
+                      <div className="sk__rowActions">
+                        <button className="sk__iconBtn" onClick={() => handleEdit(waktu)} title="Edit">
+                          <i className="bi bi-pencil" />
+                        </button>
+                        <button
+                          className="sk__iconBtn danger"
+                          onClick={() => handleDelete(waktu.id)}
+                          title="Hapus"
+                        >
+                          <i className="bi bi-trash" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))
             )}

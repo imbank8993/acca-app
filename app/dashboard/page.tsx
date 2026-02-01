@@ -10,7 +10,6 @@ import Header from '@/components/Header'
 import AbsensiPage from '../absensi/page'
 import KetidakhadiranPage from '../ketidakhadiran/page'
 import JurnalPage from '../jurnal/page'
-import PengaturanJurnalPage from '../jurnal/pengaturan/page'
 import MasterDataPage from './components/master/MasterDataPage'
 import DataSettingsPage from './components/settings/DataSettingsPage'
 import TaskSettingsPage from './components/settings/TaskSettingsPage'
@@ -37,7 +36,7 @@ export default function DashboardPage() {
               display: flex;
               align-items: center;
               justify-content: center;
-              background: linear-gradient(135deg, #061126, #0b1b3a, #0f2a56);
+              background: #020617;
             }
             .loading-content {
               text-align: center;
@@ -48,7 +47,7 @@ export default function DashboardPage() {
               width: 48px;
               height: 48px;
               border: 4px solid rgba(58, 166, 255, 0.2);
-              border-top-color: #3aa6ff;
+              border-top-color: #0038A8;
               border-radius: 50%;
               animation: spin 0.8s linear infinite;
               margin-bottom: 16px;
@@ -168,7 +167,7 @@ function DashboardLogic() {
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #061126, #0b1b3a, #0f2a56);
+            background: #020617;
           }
 
           .loading-content {
@@ -201,7 +200,7 @@ function DashboardLogic() {
 
   return (
     <>
-      <div className="dashboard-layout">
+      <div className={`dashboard-layout ${sidebarOpen ? 'sidebar-mobile-open' : ''}`}>
         <Sidebar
           user={user}
           currentPage={currentPage}
@@ -291,9 +290,6 @@ function renderPageContent(page: string, user: User) {
     // === JURNAL MODULE ===
     case 'jurnal':
       return <JurnalPage user={user} />
-
-    case 'jurnal/pengaturan':
-      return <PengaturanJurnalPage />
 
     // === LAYANAN GURU ===
     case 'AbsensiSiswa':
@@ -486,16 +482,23 @@ function DashboardContent({ user }: { user: User }) {
         /* HERO CARD */
         .db__hero {
           position: relative;
-          background: var(--n-hero-gradient, linear-gradient(135deg, #003f88 0%, #0056b3 100%));
+          background: var(--n-primary);
           color: white;
-          padding: 32px 36px;
-          border-radius: 24px;
-          box-shadow: 0 15px 40px rgba(0, 63, 136, 0.15);
+          padding: 3rem 3.5rem;
+          border-radius: 28px;
+          box-shadow: 0 15px 45px -10px rgba(0, 56, 168, 0.25);
           display: flex;
           justify-content: space-between;
           align-items: center;
           overflow: hidden;
+          transition: background 0.3s ease;
         }
+
+        :global(.dark) .db__hero {
+          background: #0f172a;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
         .db__hero::after {
           content: "";
           position: absolute;
@@ -506,81 +509,154 @@ function DashboardContent({ user }: { user: User }) {
           background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
           pointer-events: none;
         }
-        .db__heroBadge {
-          display: inline-block;
-          background: rgba(255, 255, 255, 0.12);
-          backdrop-filter: blur(8px);
-          padding: 6px 16px;
-          border-radius: 999px;
-          font-size: 0.8rem;
-          font-weight: 700;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          margin-bottom: 20px;
+
+        .db__hero::before {
+          content: "";
+          position: absolute;
+          bottom: -30%;
+          left: -5%;
+          width: 300px;
+          height: 300px;
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
+          pointer-events: none;
         }
-        .db__heroTitle { font-size: 1.75rem; font-weight: 850; margin: 0 0 8px; letter-spacing: -0.01em; }
-        .db__heroSub { font-size: 0.95rem; opacity: 0.85; max-width: 500px; font-weight: 400; line-height: 1.5; }
-        .db__heroIcon { font-size: 3.5rem; opacity: 0.15; transform: rotate(-15deg); }
+
+        .db__heroTitle { 
+          font-family: 'Poppins', sans-serif;
+          font-size: 2.1rem; 
+          font-weight: 750; 
+          margin: 0 0 10px; 
+          letter-spacing: -0.01em; 
+          line-height: 1.2;
+        }
+
+        .db__heroSub { 
+          font-size: 1rem; 
+          opacity: 0.9; 
+          max-width: 550px; 
+          font-weight: 400; 
+          line-height: 1.6; 
+          letter-spacing: 0.01em;
+        }
+
+        .db__heroIcon { 
+          font-size: 4rem; 
+          opacity: 0.2; 
+          transform: rotate(-10deg); 
+          filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.2));
+        }
  
         /* STATS */
         .db__stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
         .db__statCard {
           position: relative;
           background: var(--n-card);
-          padding: 28px;
-          border-radius: 20px;
+          padding: 2.2rem;
+          border-radius: 24px;
           border: 1px solid var(--n-border);
-          box-shadow: var(--n-shadow);
+          box-shadow: 0 4px 15px rgba(0, 56, 168, 0.03);
           display: flex;
           align-items: center;
           gap: 20px;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
           overflow: hidden;
         }
-        .db__statCard:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0, 63, 136, 0.1); }
+        .db__statCard:hover { 
+          transform: translateY(-6px); 
+          box-shadow: 0 15px 30px rgba(0, 56, 168, 0.08); 
+          border-color: rgba(0, 56, 168, 0.1);
+        }
         .db__statIcon {
           width: 56px;
           height: 56px;
-          border-radius: 16px;
+          border-radius: 18px;
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 1.8rem;
           z-index: 1;
+          transition: all 0.3s ease;
         }
-        .db__statCard.blue .db__statIcon { background: #eff6ff; color: #003f88; }
+        .db__statCard.blue .db__statIcon { background: #eff6ff; color: #0038A8; }
         .db__statCard.green .db__statIcon { background: #f0fdf4; color: #10b981; }
         .db__statCard.purple .db__statIcon { background: #f5f3ff; color: #8b5cf6; }
- 
-        .db__statLabel { display: block; font-size: 0.75rem; font-weight: 700; color: var(--n-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
-        .db__statValue { font-size: 1.8rem; font-weight: 800; color: var(--n-ink); }
- 
+
+        .db__statCard:hover .db__statIcon {
+          transform: scale(1.1) rotate(-5deg);
+        }
+
+        .db__statLabel { 
+          display: block; 
+          font-size: 0.72rem; 
+          font-weight: 700; 
+          color: var(--n-muted); 
+          text-transform: uppercase; 
+          letter-spacing: 0.06em; 
+          margin-bottom: 6px; 
+          opacity: 0.8;
+        }
+        .db__statValue { 
+          font-size: 1.9rem; 
+          font-weight: 850; 
+          color: var(--n-ink); 
+          letter-spacing: -0.02em; 
+          line-height: 1;
+        }
+
         .db__statDecor {
           position: absolute;
           bottom: -20px;
           right: -20px;
-          width: 100px;
-          height: 100px;
+          width: 120px;
+          height: 120px;
           background: currentColor;
-          opacity: 0.03;
+          opacity: 0.02;
           border-radius: 50%;
         }
  
         /* META CARDS */
         .db__metaGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
-        .db__metaCard { background: var(--n-card); border-radius: 20px; border: 1px solid var(--n-border); box-shadow: var(--n-shadow); overflow: hidden; }
+        .db__metaCard { 
+          background: var(--n-card); 
+          border-radius: 24px; 
+          border: 1px solid var(--n-border); 
+          box-shadow: 0 4px 15px rgba(0, 56, 168, 0.02); 
+          overflow: hidden; 
+        }
         .db__metaHead {
           background: var(--n-soft);
-          padding: 20px 24px;
+          padding: 24px 28px;
           border-bottom: 1px solid var(--n-border);
           display: flex;
           align-items: center;
           gap: 16px;
         }
-        .db__metaHeadIcon { width: 44px; height: 44px; border-radius: 12px; background: var(--n-card); border: 1px solid var(--n-border); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; color: var(--n-primary); box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
-        .db__metaHeadText h3 { margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--n-ink); }
-        .db__metaHeadText span { font-size: 0.8rem; color: var(--n-muted); font-weight: 500; }
+        .db__metaHeadIcon { 
+          width: 48px; 
+          height: 48px; 
+          border-radius: 15px; 
+          background: var(--n-card); 
+          border: 1px solid var(--n-border); 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          font-size: 1.3rem; 
+          color: var(--n-primary); 
+          box-shadow: 0 4px 10px rgba(0,0,0,0.02); 
+        }
+        .db__metaHeadText h3 { 
+          margin: 0; 
+          font-size: 1.1rem; 
+          font-weight: 750; 
+          color: var(--n-ink); 
+          letter-spacing: -0.01em;
+        }
+        .db__metaHeadText span { 
+          font-size: 0.82rem; 
+          color: var(--n-muted); 
+          font-weight: 500; 
+          opacity: 0.8;
+        }
  
         .db__metaBody { padding: 24px; }
         .db__dataRow { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--n-soft); }
@@ -633,11 +709,12 @@ function PagePlaceholder({ title, icon, description }: { title: string; icon: st
           align-items: center;
           justify-content: center;
           min-height: 400px;
-          background: #fff;
+          background: var(--n-card);
           border-radius: 16px;
           padding: 48px 24px;
           text-align: center;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+          box-shadow: var(--n-shadow);
+          border: 1px solid var(--n-border);
         }
 
         .placeholder-icon {
@@ -668,7 +745,7 @@ function PagePlaceholder({ title, icon, description }: { title: string; icon: st
 
         .coming-soon {
           padding: 8px 24px;
-          background: linear-gradient(135deg, #f59e0b, #d97706);
+          background: #d97706;
           color: #fff;
           border-radius: 999px;
           font-weight: 600;

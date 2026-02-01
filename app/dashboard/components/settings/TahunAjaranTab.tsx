@@ -11,13 +11,22 @@ interface TahunAjaran {
     created_at: string;
 }
 
-export default function TahunAjaranTab() {
+import { hasPermission } from '@/lib/permissions-client'
+
+export default function TahunAjaranTab({ user }: { user?: any }) {
     const [list, setList] = useState<TahunAjaran[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [newTahun, setNewTahun] = useState('');
     const [newSemester, setNewSemester] = useState('Ganjil');
     const [saving, setSaving] = useState(false);
+
+    // Permissions Check
+    const permissions = user?.permissions || []
+    const isAdmin = user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false
+
+    const canView = hasPermission(permissions, 'master.tahun_ajaran', 'view', isAdmin)
+    const canManage = hasPermission(permissions, 'master.tahun_ajaran', 'manage', isAdmin)
 
     useEffect(() => {
         fetchData();
@@ -125,9 +134,11 @@ export default function TahunAjaranTab() {
                     <h3>Pengaturan Tahun Ajaran</h3>
                     <p>Kelola daftar tahun ajaran dan pilih yang aktif untuk sistem.</p>
                 </div>
-                <button className="ta__addBtn" onClick={() => setShowModal(true)}>
-                    <i className="bi bi-plus-lg"></i> Tambah Tahun
-                </button>
+                {canManage && (
+                    <button className="ta__addBtn" onClick={() => setShowModal(true)}>
+                        <i className="bi bi-plus-lg"></i> Tambah Tahun
+                    </button>
+                )}
             </div>
 
             <div className="ta__tableWrap">
@@ -138,14 +149,16 @@ export default function TahunAjaranTab() {
                             <th>Tahun Ajaran</th>
                             <th>Semester</th>
                             <th style={{ width: '200px' }}>Status</th>
-                            <th style={{ width: '100px' }}>Aksi</th>
+                            {canManage && <th style={{ width: '100px' }}>Aksi</th>}
                         </tr>
                     </thead>
                     <tbody>
-                        {loading ? (
-                            <tr><td colSpan={4} className="ta__empty">Memuat data...</td></tr>
+                        {!canView ? (
+                            <tr><td colSpan={5} className="ta__empty">Anda tidak memiliki akses untuk melihat data ini.</td></tr>
+                        ) : loading ? (
+                            <tr><td colSpan={5} className="ta__empty">Memuat data...</td></tr>
                         ) : list.length === 0 ? (
-                            <tr><td colSpan={4} className="ta__empty">Belum ada data tahun ajaran.</td></tr>
+                            <tr><td colSpan={5} className="ta__empty">Belum ada data tahun ajaran.</td></tr>
                         ) : (
                             list.map((item, idx) => (
                                 <tr key={item.id}>
@@ -155,8 +168,8 @@ export default function TahunAjaranTab() {
                                     <td>
                                         <div className="ta__status">
                                             <div
-                                                className={`ta__toggle ${item.is_active ? 'isActive' : ''}`}
-                                                onClick={() => handleToggle(item)}
+                                                className={`ta__toggle ${item.is_active ? 'isActive' : ''} ${!canManage ? 'isReadOnly' : ''}`}
+                                                onClick={() => canManage && handleToggle(item)}
                                             >
                                                 <div className="ta__toggleDot"></div>
                                             </div>
@@ -165,11 +178,13 @@ export default function TahunAjaranTab() {
                                             </span>
                                         </div>
                                     </td>
-                                    <td>
-                                        <button className="ta__delBtn" onClick={() => handleDelete(item.id)}>
-                                            <i className="bi bi-trash"></i>
-                                        </button>
-                                    </td>
+                                    {canManage && (
+                                        <td>
+                                            <button className="ta__delBtn" onClick={() => handleDelete(item.id)}>
+                                                <i className="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    )}
                                 </tr>
                             ))
                         )}
@@ -178,71 +193,72 @@ export default function TahunAjaranTab() {
             </div>
 
             {/* Modal Tambah */}
-            {showModal && (
-                <div className="ta__modalOverlay">
-                    <div className="ta__modal">
-                        <div className="ta__modalHead">
-                            <h4>Tambah Tahun Ajaran</h4>
-                            <button onClick={() => setShowModal(false)}><i className="bi bi-x-lg"></i></button>
+            {
+                showModal && (
+                    <div className="ta__modalOverlay">
+                        <div className="ta__modal">
+                            <div className="ta__modalHead">
+                                <h4>Tambah Tahun Ajaran</h4>
+                                <button onClick={() => setShowModal(false)}><i className="bi bi-x-lg"></i></button>
+                            </div>
+                            <form onSubmit={handleAdd}>
+                                <div className="ta__modalBody">
+                                    <div className="ta__field">
+                                        <label>Tahun Ajaran</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Contoh: 2025/2026"
+                                            value={newTahun}
+                                            onChange={e => setNewTahun(e.target.value)}
+                                            required
+                                            autoFocus
+                                        />
+                                        <p className="ta__hint">Gunakan format YYYY/YYYY (contoh: 2025/2026)</p>
+                                    </div>
+                                    <div className="ta__field mt-4">
+                                        <label>Semester</label>
+                                        <select
+                                            value={newSemester}
+                                            onChange={e => setNewSemester(e.target.value)}
+                                            required
+                                        >
+                                            <option value="Ganjil">Ganjil</option>
+                                            <option value="Genap">Genap</option>
+                                            <option value="Semua">Semua</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="ta__modalFoot">
+                                    <button type="button" className="ta__btnCancel" onClick={() => setShowModal(false)}>Batal</button>
+                                    <button type="submit" className="ta__btnSave" disabled={saving || !newTahun}>
+                                        {saving ? 'Menyimpan...' : 'Simpan Tahun'}
+                                    </button>
+                                </div>
+                            </form>
                         </div>
-                        <form onSubmit={handleAdd}>
-                            <div className="ta__modalBody">
-                                <div className="ta__field">
-                                    <label>Tahun Ajaran</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Contoh: 2025/2026"
-                                        value={newTahun}
-                                        onChange={e => setNewTahun(e.target.value)}
-                                        required
-                                        autoFocus
-                                    />
-                                    <p className="ta__hint">Gunakan format YYYY/YYYY (contoh: 2025/2026)</p>
-                                </div>
-                                <div className="ta__field mt-4">
-                                    <label>Semester</label>
-                                    <select
-                                        value={newSemester}
-                                        onChange={e => setNewSemester(e.target.value)}
-                                        required
-                                    >
-                                        <option value="Ganjil">Ganjil</option>
-                                        <option value="Genap">Genap</option>
-                                        <option value="Semua">Semua</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div className="ta__modalFoot">
-                                <button type="button" className="ta__btnCancel" onClick={() => setShowModal(false)}>Batal</button>
-                                <button type="submit" className="ta__btnSave" disabled={saving || !newTahun}>
-                                    {saving ? 'Menyimpan...' : 'Simpan Tahun'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div >
-            )
+                    </div >
+                )
             }
 
             <style jsx>{`
                 .ta { display: flex; flex-direction: column; gap: 20px; animation: fadeIn 0.3s ease-out; }
                 @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-                .ta__header { display: flex; justify-content: space-between; align-items: center; background: white; padding: 20px 24px; border-radius: 16px; border: 1px solid rgba(15, 42, 86, 0.08); }
-                .ta__info h3 { margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a; }
+                .ta__header { display: flex; justify-content: space-between; align-items: center; background: transparent; padding: 0 0 10px 0; border: none; }
+                .ta__info h3 { margin: 0; font-size: 1.15rem; font-weight: 800; color: #0038A8; }
                 .ta__info p { margin: 4px 0 0; font-size: 0.9rem; color: #64748b; }
 
                 .ta__addBtn { 
-                    padding: 10px 18px; background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; border: none; 
+                    padding: 10px 18px; background: #0038A8; color: white; border: none; 
                     border-radius: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;
-                    transition: all 0.2s; box-shadow: 0 4px 12px rgba(30, 64, 175, 0.2);
+                    transition: all 0.2s; box-shadow: 0 4px 12px rgba(0, 56, 168, 0.2);
                 }
-                .ta__addBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(30, 64, 175, 0.3); }
+                .ta__addBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0, 56, 168, 0.3); }
 
-                .ta__tableWrap { background: white; border-radius: 16px; border: 1px solid rgba(15, 42, 86, 0.08); overflow: hidden; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03); }
+                .ta__tableWrap { background: rgba(255, 255, 255, 0.8); border-radius: 20px; border: 1px solid rgba(0, 56, 168, 0.1); overflow: hidden; box-shadow: 0 10px 30px rgba(0, 56, 168, 0.05); }
                 .ta__table { width: 100%; border-collapse: collapse; }
-                .ta__table th { padding: 16px; text-align: left; background: #f8fafc; color: #64748b; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid #f1f5f9; }
-                .ta__table td { padding: 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+                .ta__table th { padding: 16px; text-align: left; background: rgba(0, 56, 168, 0.02); color: #0038A8; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid rgba(0, 56, 168, 0.08); }
+                .ta__table td { padding: 16px; border-bottom: 1px solid rgba(0, 56, 168, 0.05); vertical-align: middle; }
                 .ta__table tr:last-child td { border-bottom: none; }
                 
                 .tCenter { text-align: center; }
@@ -256,6 +272,7 @@ export default function TahunAjaranTab() {
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 }
                 .ta__toggle.isActive { background: #3b82f6; }
+                .ta__toggle.isReadOnly { cursor: default; opacity: 0.8; }
                 .ta__toggleDot { 
                     width: 18px; height: 18px; background: white; border-radius: 50%; position: absolute; 
                     top: 3px; left: 3px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

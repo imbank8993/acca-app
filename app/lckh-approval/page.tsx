@@ -182,7 +182,7 @@ export default function LckhApprovalPage() {
 
     const getStatusBadge = (s: string) => {
         const cls: any = {
-            'Submitted': 'bg-blue-100 text-blue-700',
+            'Submitted': 'bg-blue-50 text-[#0038A8] border border-blue-100',
             'Approved_Waka': 'bg-emerald-100 text-emerald-700',
             'Approved_Kamad': 'bg-green-100 text-green-700',
             'Revisi': 'bg-red-100 text-red-700',
@@ -195,7 +195,7 @@ export default function LckhApprovalPage() {
         <div className="container mx-auto px-4 py-8 max-w-6xl">
             <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-navy-900">Approval LCKH</h1>
+                    <h1 className="text-2xl font-bold text-[#0038A8]">Approval LCKH</h1>
                     <p className="text-gray-500">Verifikasi Laporan Kinerja Harian Guru</p>
                 </div>
 
@@ -247,7 +247,7 @@ export default function LckhApprovalPage() {
                         {submissions.map((sub: any) => (
                             <tr key={sub.id} className="hover:bg-gray-50 transition-colors">
                                 <td className="px-6 py-4">
-                                    <div className="font-bold text-navy-900">{sub.nama_guru_snap}</div>
+                                    <div className="font-bold text-[#0038A8]">{sub.nama_guru_snap}</div>
                                     <div className="text-xs text-gray-500">NIP. {sub.nip}</div>
                                     <div className="text-xs text-gray-400 mt-1">
                                         <i className="bi bi-clock"></i> {new Date(sub.submitted_at).toLocaleDateString()}
@@ -423,6 +423,42 @@ export default function LckhApprovalPage() {
                     </div>
                 </div>
             )}
+            <style jsx global>{`
+                :global(.dark) body {
+                    background-color: #020617 !important;
+                }
+                :global(.dark) .bg-white {
+                    background-color: #0f172a !important;
+                }
+                :global(.dark) .bg-gray-50 {
+                    background-color: rgba(255, 255, 255, 0.03) !important;
+                }
+                :global(.dark) .border-gray-100,
+                :global(.dark) .border-gray-200 {
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                }
+                :global(.dark) .text-gray-900,
+                :global(.dark) .text-gray-800,
+                :global(.dark) .text-gray-700 {
+                    color: #f8fafc !important;
+                }
+                :global(.dark) .text-gray-600,
+                :global(.dark) .text-gray-500 {
+                    color: #94a3b8 !important;
+                }
+                :global(.dark) .hover\:bg-gray-50:hover {
+                    background-color: rgba(255, 255, 255, 0.05) !important;
+                }
+                :global(.dark) .divide-gray-100 > * + * {
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                }
+                :global(.dark) select,
+                :global(.dark) textarea {
+                    background-color: rgba(255, 255, 255, 0.04) !important;
+                    border-color: rgba(255, 255, 255, 0.1) !important;
+                    color: white !important;
+                }
+            `}</style>
         </div>
     );
 }

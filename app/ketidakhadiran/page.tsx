@@ -90,6 +90,17 @@ export default function KetidakhadiranPage() {
     const [userPermissions, setUserPermissions] = useState<any[]>([]);
     const [isAdmin, setIsAdmin] = useState(false);
 
+    // GRANULAR PERMISSIONS
+    const [canViewIzin, setCanViewIzin] = useState(false);
+    const [canManageIzin, setCanManageIzin] = useState(false);
+    const [canExportIzin, setCanExportIzin] = useState(false);
+
+    const [canViewSakit, setCanViewSakit] = useState(false);
+    const [canManageSakit, setCanManageSakit] = useState(false);
+    const [canExportSakit, setCanExportSakit] = useState(false);
+
+    const [authCheckComplete, setAuthCheckComplete] = useState(false);
+
     useEffect(() => {
         fetchClasses();
         fetchUserData();
@@ -99,23 +110,43 @@ export default function KetidakhadiranPage() {
         try {
             const { supabase } = await import('@/lib/supabase');
             const { getUserByAuthId } = await import('@/lib/auth');
+            const { hasPermission } = require('@/lib/permissions-client'); // Dynamic import to avoid SSR issues if any
             const { data: { user: authUser } } = await supabase.auth.getUser();
 
-            if (!authUser) return;
+            if (!authUser) {
+                setAuthCheckComplete(true);
+                return;
+            }
 
             const userData = await getUserByAuthId(authUser.id);
             if (userData) {
                 setUserRole(userData.role || null);
-                setUserPermissions(userData.permissions || []);
-                setIsAdmin(userData.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false);
+                const perms = userData.permissions || [];
+                setUserPermissions(perms);
+                const adminStatus = userData.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false;
+                setIsAdmin(adminStatus);
+
+                // Calculate granular permissions
+                const viewIzin = hasPermission(perms, 'ketidakhadiran.izin', 'view', adminStatus);
+                const viewSakit = hasPermission(perms, 'ketidakhadiran.sakit', 'view', adminStatus);
+
+                setCanViewIzin(viewIzin);
+                setCanManageIzin(hasPermission(perms, 'ketidakhadiran.izin', 'manage', adminStatus));
+                setCanExportIzin(hasPermission(perms, 'ketidakhadiran.izin', 'export', adminStatus));
+
+                setCanViewSakit(viewSakit);
+                setCanManageSakit(hasPermission(perms, 'ketidakhadiran.sakit', 'manage', adminStatus));
+                setCanExportSakit(hasPermission(perms, 'ketidakhadiran.sakit', 'export', adminStatus));
             }
         } catch (e) {
             console.error('Error fetching user data', e);
+        } finally {
+            setAuthCheckComplete(true);
         }
     };
 
     const canDo = (resource: string, action: string) => {
-        // Use the common hasPermission helper
+        // Fallback or specific checks if needed elsewhere
         const { hasPermission } = require('@/lib/permissions-client');
         return hasPermission(userPermissions, resource, action, isAdmin);
     }
@@ -133,36 +164,24 @@ export default function KetidakhadiranPage() {
 
     useEffect(() => {
         loadData();
-    }, [filterKelas, filterJenis, filterMonths, searchQuery]);
+    }, [filterKelas, filterJenis, filterMonths, searchQuery, canViewIzin, canViewSakit]); // Reload when permissions ready
 
     const handleExport = async () => {
+        // ... (Export Logic with permission checks)
         try {
-            // Use xlsx-js-style for styling support
             const XLSX = await import('xlsx-js-style');
 
-            // Define Styles
+            // Define Styles (Same as before)
             const headerStyle = {
-                fill: { fgColor: { rgb: "0B1B3A" } }, // Navy Theme
+                fill: { fgColor: { rgb: "0B1B3A" } },
                 font: { color: { rgb: "FFFFFF" }, bold: true, sz: 12 },
                 alignment: { horizontal: "center", vertical: "center" },
-                border: {
-                    top: { style: "thin", color: { rgb: "000000" } },
-                    bottom: { style: "thin", color: { rgb: "000000" } },
-                    left: { style: "thin", color: { rgb: "000000" } },
-                    right: { style: "thin", color: { rgb: "000000" } }
-                }
+                border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }
             };
-
             const cellStyle = {
-                border: {
-                    top: { style: "thin", color: { rgb: "CCCCCC" } },
-                    bottom: { style: "thin", color: { rgb: "CCCCCC" } },
-                    left: { style: "thin", color: { rgb: "CCCCCC" } },
-                    right: { style: "thin", color: { rgb: "CCCCCC" } }
-                }
+                border: { top: { style: "thin", color: { rgb: "CCCCCC" } }, bottom: { style: "thin", color: { rgb: "CCCCCC" } }, left: { style: "thin", color: { rgb: "CCCCCC" } }, right: { style: "thin", color: { rgb: "CCCCCC" } } }
             };
 
-            // Helper to format data
             const formatData = (dataRows: KetidakhadiranRow[]) => {
                 return dataRows.map((row, index) => ({
                     No: index + 1,
@@ -178,38 +197,18 @@ export default function KetidakhadiranPage() {
                 }));
             };
 
-            // Helper to create and style sheet
             const createStyledSheet = (data: any[]) => {
                 const ws = XLSX.utils.json_to_sheet(data);
-
-                // Column Widths
-                const colWidths = [
-                    { wch: 5 },  // No
-                    { wch: 15 }, // NISN
-                    { wch: 35 }, // Nama
-                    { wch: 10 }, // Kelas
-                    { wch: 10 }, // Jenis
-                    { wch: 15 }, // Status
-                    { wch: 15 }, // Tgl Mulai
-                    { wch: 15 }, // Tgl Selesai
-                    { wch: 50 }, // Keterangan
-                    { wch: 20 }  // Created At
-                ];
+                const colWidths = [{ wch: 5 }, { wch: 15 }, { wch: 35 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 50 }, { wch: 20 }];
                 ws['!cols'] = colWidths;
-
-                // Row Heights (Header taller)
                 if (!ws['!rows']) ws['!rows'] = [];
-                ws['!rows'][0] = { hpt: 30 }; // Header height
-
-                // Apply Styles
+                ws['!rows'][0] = { hpt: 30 };
                 const range = XLSX.utils.decode_range(ws['!ref'] as string);
                 for (let C = range.s.c; C <= range.e.c; ++C) {
                     const address = XLSX.utils.encode_cell({ r: 0, c: C });
                     if (!ws[address]) continue;
                     ws[address].s = headerStyle;
                 }
-
-                // Apply cell border to data
                 for (let R = 1; R <= range.e.r; ++R) {
                     for (let C = range.s.c; C <= range.e.c; ++C) {
                         const address = XLSX.utils.encode_cell({ r: R, c: C });
@@ -217,44 +216,38 @@ export default function KetidakhadiranPage() {
                         ws[address].s = cellStyle;
                     }
                 }
-
                 return ws;
             };
 
-            // Filter Data
-            const allData = formatData(rows);
-            const izinData = formatData(rows.filter(r => r.jenis === 'IZIN'));
-            const sakitData = formatData(rows.filter(r => r.jenis === 'SAKIT'));
+            // Filter Data based on Permission
+            const visibleRows = rows.filter(r => {
+                if (r.jenis === 'IZIN' && !canExportIzin) return false;
+                if (r.jenis === 'SAKIT' && !canExportSakit) return false;
+                return true;
+            });
 
-            // Create Workbook
+            const allData = formatData(visibleRows);
+            const izinData = formatData(visibleRows.filter(r => r.jenis === 'IZIN'));
+            const sakitData = formatData(visibleRows.filter(r => r.jenis === 'SAKIT'));
+
             const wb = XLSX.utils.book_new();
 
-            // Append Sheets based on Role
-            if (userRole === 'OP_Izin') {
-                // OP_Izin: Only Izin sheet
-                if (izinData.length > 0) XLSX.utils.book_append_sheet(wb, createStyledSheet(izinData), "Izin");
-                else XLSX.utils.book_append_sheet(wb, createStyledSheet([{ Info: "Tidak ada data" }]), "Izin");
-
-            } else if (userRole === 'OP_UKS') {
-                // OP_UKS: Only Sakit sheet
-                if (sakitData.length > 0) XLSX.utils.book_append_sheet(wb, createStyledSheet(sakitData), "Sakit");
-                else XLSX.utils.book_append_sheet(wb, createStyledSheet([{ Info: "Tidak ada data" }]), "Sakit");
-
-            } else {
-                // Admin / Default: All Sheets
+            if (canExportIzin && canExportSakit) {
                 if (allData.length > 0) XLSX.utils.book_append_sheet(wb, createStyledSheet(allData), "Semua Data");
-                else XLSX.utils.book_append_sheet(wb, createStyledSheet([{ Info: "Tidak ada data" }]), "Semua Data");
-
+            }
+            if (canExportIzin) {
                 if (izinData.length > 0) XLSX.utils.book_append_sheet(wb, createStyledSheet(izinData), "Izin");
+            }
+            if (canExportSakit) {
                 if (sakitData.length > 0) XLSX.utils.book_append_sheet(wb, createStyledSheet(sakitData), "Sakit");
             }
 
-            // Generate filename based on role
-            let fileName = `Ketidakhadiran_${new Date().toISOString().split('T')[0]}.xlsx`;
-            if (userRole === 'OP_Izin') fileName = `Ketidakhadiran_Izin_${new Date().toISOString().split('T')[0]}.xlsx`;
-            if (userRole === 'OP_UKS') fileName = `Ketidakhadiran_Sakit_${new Date().toISOString().split('T')[0]}.xlsx`;
+            if (wb.SheetNames.length === 0) {
+                Swal.fire({ title: 'Info', text: 'Tidak ada data yang dapat diexport sesuai izin akses Anda.', icon: 'info' });
+                return;
+            }
 
-            XLSX.writeFile(wb, fileName);
+            XLSX.writeFile(wb, `Ketidakhadiran_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
 
             Swal.fire({
                 title: 'Berhasil',
@@ -269,9 +262,8 @@ export default function KetidakhadiranPage() {
             console.error('Export error:', error);
             Swal.fire({
                 title: 'Gagal',
-                text: 'Gagal mengexport data. Pastikan library terinstall.',
-                icon: 'error',
-                confirmButtonColor: '#0b1b3a'
+                text: 'Gagal mengexport data.',
+                icon: 'error'
             });
         }
     };
@@ -285,7 +277,6 @@ export default function KetidakhadiranPage() {
             if (filterMonths.length > 0) params.append('months', filterMonths.join(','));
             if (searchQuery) params.append('q', searchQuery);
 
-            // Get auth token
             const { data: { session } } = await supabase.auth.getSession();
             const headers: HeadersInit = {};
             if (session?.access_token) {
@@ -296,9 +287,17 @@ export default function KetidakhadiranPage() {
             const data = await res.json();
 
             if (data.ok) {
-                console.log('Sample row:', data.data ? data.data[0] : 'No data'); // Debug: check if 'id' exists
-                setRows(data.data || []);
-                calculateKPI(data.data || []);
+                let fetchedRows = data.data || [];
+
+                // Client-side filtering based on Granular "View" Permission
+                fetchedRows = fetchedRows.filter((r: KetidakhadiranRow) => {
+                    if (r.jenis === 'IZIN') return canViewIzin;
+                    if (r.jenis === 'SAKIT') return canViewSakit;
+                    return false;
+                });
+
+                setRows(fetchedRows);
+                calculateKPI(fetchedRows);
             }
         } catch (error) {
             console.error('Load error:', error);
@@ -306,23 +305,6 @@ export default function KetidakhadiranPage() {
             setLoading(false);
         }
     };
-
-    // ... (rest of the file)
-
-    // In return statement:
-    /*
-                    <div className="kh-toolbar">
-                        <button className="btn-kh-soft" onClick={loadData}>
-                            <i className="bi bi-arrow-clockwise"></i>
-                        </button>
-                        <button className="btn-kh-soft" onClick={handleExport} title="Export Excel">
-                            <i className="bi bi-file-earmark-excel"></i> Export
-                        </button>
-                        <button className="btn-kh-navy" onClick={() => setIsAddModalOpen(true)}>
-                            + Tambah
-                        </button>
-                    </div>
-    */
 
     const calculateKPI = (data: KetidakhadiranRow[]) => {
         const stats: KPIStats = {
@@ -360,20 +342,12 @@ export default function KetidakhadiranPage() {
         return `${d}-${m}-${y}`;
     };
 
-    // ========== BULK ADD MODAL ==========
-    const openBulkAddModal = () => {
-        setIsAddModalOpen(true);
-    };
-
-    // ========== PRINT LOGIC ==========
-    // ========== PRINT LOGIC ==========
     // ========== PRINT LOGIC ==========
     const handlePrintSingle = (row: KetidakhadiranRow) => {
         setPrintRow(row);
         setIsPrintModalOpen(true);
     };
 
-    // Helper functions for actual printing (passed to modal)
     const printSingle = (row: KetidakhadiranRow, type: 'SAKIT' | 'TUGAS' | 'IZIN') => {
         let template = '';
         let prefix = '';
@@ -408,7 +382,6 @@ export default function KetidakhadiranPage() {
             prefix = 'Surat_Izin_Grup';
         }
 
-        // Data payload must include { list: [...] } for the table loop in Word
         const data = {
             ...formatDataForPrint(representative),
             list: groupRows.map((r, i) => ({ ...formatDataForPrint(r), no: i + 1 }))
@@ -418,17 +391,40 @@ export default function KetidakhadiranPage() {
         generateFromTemplate(template, data, filename);
     };
 
-    // ========== EDIT MODAL ==========
+    // ========== MODAL HANDLERS ==========
     const openEditModal = (row: KetidakhadiranRow) => {
         setEditRow(row);
         setIsEditModalOpen(true);
     };
 
-    // ========== DELETE MODAL ==========
     const openDeleteModal = (row: KetidakhadiranRow) => {
         setDeleteRow(row);
         setIsDeleteModalOpen(true);
     };
+
+    // BLOCKING LOGIC IF NO PERMISSION
+    if (authCheckComplete && !canViewIzin && !canViewSakit && !isAdmin) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-slate-50 rounded-xl m-6 border border-slate-200 shadow-sm">
+                <div className="w-20 h-20 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                    <i className="bi bi-shield-lock-fill text-4xl"></i>
+                </div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-3">Akses Dibatasi</h2>
+                <p className="text-slate-600 max-w-lg leading-relaxed mb-6">
+                    Maaf, Anda tidak memiliki izin untuk mengakses halaman <b>Ketidakhadiran</b>.<br />
+                    Silakan hubungi Administrator jika Anda memerlukan akses ke modul ini.
+                </p>
+                <div className="flex gap-3">
+                    <button onClick={() => window.history.back()} className="px-5 py-2.5 rounded-lg bg-white border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors shadow-sm">
+                        Kembali
+                    </button>
+                    <button onClick={() => window.location.href = '/dashboard'} className="px-5 py-2.5 rounded-lg bg-[#0b1b3a] text-white font-medium hover:bg-[#1e3a8a] transition-colors shadow-md">
+                        Ke Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="kh-wrap">
@@ -436,22 +432,30 @@ export default function KetidakhadiranPage() {
                 isOpen={isAddModalOpen}
                 onClose={() => setIsAddModalOpen(false)}
                 onSuccess={loadData}
-                canDo={canDo}
+                canDo={canDo} // Pass generic if needed or remove if updated to specific
+                allowedTypes={{
+                    IZIN: canManageIzin,
+                    SAKIT: canManageSakit
+                }}
             />
-            <EditModal
-                isOpen={isEditModalOpen}
-                onClose={() => setIsEditModalOpen(false)}
-                onSuccess={loadData}
-                data={editRow}
-                canDo={canDo}
-            />
-            <DeleteModal
-                isOpen={isDeleteModalOpen}
-                onClose={() => setIsDeleteModalOpen(false)}
-                onSuccess={loadData}
-                data={deleteRow}
-                canDo={canDo}
-            />
+            {editRow && (
+                <EditModal
+                    isOpen={isEditModalOpen}
+                    onClose={() => setIsEditModalOpen(false)}
+                    onSuccess={loadData}
+                    data={editRow}
+                    canDo={canDo}
+                />
+            )}
+            {deleteRow && (
+                <DeleteModal
+                    isOpen={isDeleteModalOpen}
+                    onClose={() => setIsDeleteModalOpen(false)}
+                    onSuccess={loadData}
+                    data={deleteRow}
+                    canDo={canDo}
+                />
+            )}
             <PrintModal
                 isOpen={isPrintModalOpen}
                 onClose={() => setIsPrintModalOpen(false)}
@@ -475,17 +479,18 @@ export default function KetidakhadiranPage() {
                             className="btn-kh-excel"
                             onClick={handleExport}
                             title="Export to Excel"
-                            disabled={!canDo('ketidakhadiran', 'export')}
+                            disabled={!canExportIzin && !canExportSakit}
                         >
                             <i className="bi bi-file-earmark-excel-fill"></i>Export
                         </button>
-                        <button
-                            className="btn-kh-navy"
-                            onClick={() => setIsAddModalOpen(true)}
-                            disabled={!canDo('ketidakhadiran', 'create')}
-                        >
-                            + Tambah
-                        </button>
+                        {(canManageIzin || canManageSakit) && (
+                            <button
+                                className="btn-kh-navy"
+                                onClick={() => setIsAddModalOpen(true)}
+                            >
+                                + Tambah
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -539,15 +544,7 @@ export default function KetidakhadiranPage() {
                                 placeholder="Ketik untuk mencari..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: '0.4rem 0.7rem',
-                                    borderRadius: '999px',
-                                    border: '1px solid #d1d5db',
-                                    fontSize: '0.84rem',
-                                    color: '#1e293b',
-                                    fontWeight: 500
-                                }}
+                                style={{ width: '100%', padding: '0.4rem 0.7rem', borderRadius: '999px', border: '1px solid #d1d5db', fontSize: '0.84rem', color: '#1e293b', fontWeight: 500 }}
                             />
                         </div>
 
@@ -559,13 +556,7 @@ export default function KetidakhadiranPage() {
                                 className="form-select"
                                 value={filterKelas}
                                 onChange={(e) => setFilterKelas(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: '0.4rem 0.7rem',
-                                    borderRadius: '999px',
-                                    border: '1px solid #d1d5db',
-                                    fontSize: '0.84rem'
-                                }}
+                                style={{ width: '100%', padding: '0.4rem 0.7rem', borderRadius: '999px', border: '1px solid #d1d5db', fontSize: '0.84rem' }}
                             >
                                 <option value="">Semua</option>
                                 {availableClasses.map(cls => (
@@ -582,13 +573,7 @@ export default function KetidakhadiranPage() {
                                 className="form-select"
                                 value={filterJenis}
                                 onChange={(e) => setFilterJenis(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: '0.4rem 0.7rem',
-                                    borderRadius: '999px',
-                                    border: '1px solid #d1d5db',
-                                    fontSize: '0.84rem'
-                                }}
+                                style={{ width: '100%', padding: '0.4rem 0.7rem', borderRadius: '999px', border: '1px solid #d1d5db', fontSize: '0.84rem' }}
                             >
                                 <option value="">Semua</option>
                                 <option value="IZIN">IZIN</option>
@@ -634,7 +619,7 @@ export default function KetidakhadiranPage() {
                                 ) : rows.length === 0 ? (
                                     <tr>
                                         <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-                                            Tidak ada data
+                                            {!canViewIzin && !canViewSakit ? 'Anda tidak memiliki hak akses untuk melihat data ini.' : 'Tidak ada data'}
                                         </td>
                                     </tr>
                                 ) : (
@@ -678,22 +663,25 @@ export default function KetidakhadiranPage() {
                                                     >
                                                         <i className="bi bi-printer"></i>
                                                     </button>
-                                                    <button
-                                                        className="btn-icon-soft"
-                                                        title="Edit"
-                                                        onClick={() => openEditModal(row)}
-                                                        disabled={!canDo('ketidakhadiran', 'update')}
-                                                    >
-                                                        <i className="bi bi-pencil"></i>
-                                                    </button>
-                                                    <button
-                                                        className="btn-icon-delete"
-                                                        title="Hapus"
-                                                        onClick={() => openDeleteModal(row)}
-                                                        disabled={!canDo('ketidakhadiran', 'delete')}
-                                                    >
-                                                        <i className="bi bi-trash"></i>
-                                                    </button>
+
+                                                    {((row.jenis === 'IZIN' && canManageIzin) || (row.jenis === 'SAKIT' && canManageSakit)) && (
+                                                        <>
+                                                            <button
+                                                                className="btn-icon-soft"
+                                                                title="Edit"
+                                                                onClick={() => openEditModal(row)}
+                                                            >
+                                                                <i className="bi bi-pencil"></i>
+                                                            </button>
+                                                            <button
+                                                                className="btn-icon-delete"
+                                                                title="Hapus"
+                                                                onClick={() => openDeleteModal(row)}
+                                                            >
+                                                                <i className="bi bi-trash"></i>
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

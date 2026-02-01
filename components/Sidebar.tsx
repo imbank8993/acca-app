@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import type { User, PageNode } from '@/lib/types'
 import './sidebar.css'
 
@@ -14,61 +14,19 @@ interface SidebarProps {
   onCollapse: () => void
 }
 
-// Icon mapping
-const getMenuIcon = (name: string): string => {
-  const key = String(name || '').toLowerCase().trim()
-
-  const icons: Record<string, string> = {
-    'dashboard': 'fa-gauge-high',
-    'nilai': 'fa-chart-line',
-    'lckh': 'fa-book-open',
-    'lckh approval': 'fa-circle-check',
-    'lckhapproval': 'fa-circle-check',
-    'walikelas': 'fa-school',
-    'wali kelas': 'fa-school',
-    'guruasuh': 'fa-user-tie',
-    'guru asuh': 'fa-user-tie',
-    'kelas': 'fa-door-open',
-    'jurnal': 'fa-file-lines',
-    'jurnal guru': 'fa-file-lines',
-    'form siswa': 'fa-file-lines',
-    'absensi': 'fa-clipboard-check',
-    'absensi guru': 'fa-clipboard-check',
-    'absensisiswa': 'fa-clipboard-check',
-    'ketidakhadiran': 'fa-user-xmark',
-    'sosialisasi': 'fa-bullhorn',
-    'user': 'fa-user-gear',
-    'status user': 'fa-user-gear',
-    'loglogin': 'fa-user-gear',
-    'jadwal guru': 'fa-calendar-days',
-    'jadwalguru': 'fa-calendar-days',
-    'statussiswa': 'fa-user-clock',
-    'status siswa': 'fa-user-clock',
-    'rekap data': 'fa-chart-simple',
-    'rekap absen&jurnal': 'fa-chart-simple',
-    'rekapabsensi': 'fa-chart-simple',
-    'rekapjurnal': 'fa-chart-simple',
-    'rekapkehadiranjurnal': 'fa-chart-simple',
-    'master data': 'fa-database',
-    'pengaturan data': 'fa-sliders',
-    'pengaturan tugas': 'fa-list-check',
-    'pengaturan users': 'fa-users-gear',
-    'pengaturan jurnal': 'fa-sliders',
-    'konfigurasi data': 'fa-cog',
-    'export data': 'fa-file-export',
-    'exportabsensi': 'fa-file-export',
-    'exportjurnal': 'fa-file-export',
-    'layanan guru': 'fa-hands-helping',
-    'jurnalguru': 'fa-file-lines',
-    'pengaturan akun': 'fa-gear',
-    'reset data': 'fa-triangle-exclamation',
-    'tugastambahan': 'fa-file-signature',
-    'admintugastambahan': 'fa-user-gear',
-    'tugas tambahan': 'fa-briefcase',
-  }
-
-
-  return icons[key] || 'fa-circle'
+const getMenuIcon = (path: string) => {
+  const p = path.toLowerCase()
+  if (p.includes('dashboard')) return 'fa-chart-pie'
+  if (p.includes('jurnal')) return 'fa-book'
+  if (p.includes('absensi')) return 'fa-clipboard-user'
+  if (p.includes('nilai')) return 'fa-graduation-cap'
+  if (p.includes('lckh')) return 'fa-file-signature'
+  if (p.includes('konfigurasi') || p.includes('master') || p.includes('pengaturan')) return 'fa-gear'
+  if (p.includes('jadwal')) return 'fa-calendar-days'
+  if (p.includes('user')) return 'fa-user-group'
+  if (p.includes('rekap')) return 'fa-chart-line'
+  if (p.includes('status')) return 'fa-user-check'
+  return 'fa-folder'
 }
 
 export default function Sidebar({
@@ -80,99 +38,90 @@ export default function Sidebar({
   isCollapsed,
   onCollapse
 }: SidebarProps) {
-  const [openMenus, setOpenMenus] = useState<Record<number, boolean>>({})
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([])
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const hoverTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
 
-  const toggleMenu = (index: number) => {
-    setOpenMenus(prev => ({
-      ...prev,
-      [index]: !prev[index]
-    }))
+  const handleMouseEnter = (index: number) => {
+    if (!isCollapsed) return
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+    setHoveredIdx(index)
+  }
+
+  const handleMouseLeave = () => {
+    if (!isCollapsed) return
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredIdx(null)
+    }, 150) // 150ms grace period
+  }
+
+  const toggleSubmenu = (title: string) => {
+    if (expandedMenus.includes(title)) {
+      setExpandedMenus(expandedMenus.filter(m => m !== title))
+    } else {
+      setExpandedMenus([...expandedMenus, title])
+    }
+  }
+
+  const isMenuExpanded = (title: string) => expandedMenus.includes(title)
+
+  const handleMenuClick = (item: PageNode) => {
+    if (item.children && item.children.length > 0) {
+      toggleSubmenu(item.title)
+    } else if (item.page) {
+      onNavigate(item.page)
+      if (window.innerWidth < 992) {
+        onToggle()
+      }
+    }
   }
 
   return (
     <>
-      {/* Mobile Overlay */}
-      {isOpen && (
-        <div
-          onClick={onToggle}
-          className="sidebar-overlay"
-        />
-      )}
-
-      {/* Sidebar */}
+      <div className={`sidebar-overlay ${isOpen ? 'show' : ''}`} onClick={onToggle}></div>
       <aside className={`sidebar ${isOpen ? 'open' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
-        {/* Header */}
         <div className="sidebar-header">
           <div className="brand">
-            {/* <img
-              src="https://drive.google.com/thumbnail?id=1dB7qVU5MT9HuPgSSLf6ZMIHcQDC6nJh3&sz=w100"
-              alt="ACCA Logo"
-              className="brand-logo"
-            /> */}
-            <div className="brand-logo-placeholder" style={{
-              width: 40,
-              height: 40,
-              backgroundColor: '#3aa6ff',
-              borderRadius: 8,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '1.2rem',
-              marginRight: 10
-            }}>
+            <div className="brand-logo-placeholder">
               <i className="fa-solid fa-graduation-cap"></i>
             </div>
-            {!isCollapsed && <h2 className="sidebar-title">ACCA</h2>}
+            {!isCollapsed && <h1 className="sidebar-title">ACCA</h1>}
           </div>
-
-          {/* Desktop Toggle Button */}
-          <button
-            onClick={onCollapse}
-            className="toggle-btn"
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
+          <button className="collapse-toggle" onClick={onCollapse}>
             <i className={`fa-solid fa-chevron-${isCollapsed ? 'right' : 'left'}`}></i>
           </button>
         </div>
 
-        {/* Navigation */}
         <nav className="sidebar-nav">
-          {(user.pagesTree || []).map((node, index) => {
-            const title = node?.title || '-'
-            const page = node?.page || ''
-            const children = Array.isArray(node?.children) ? node.children : []
-            const hasSubmenu = !page && children.length > 0
-            const isExpanded = openMenus[index]
-            const isActive = page === currentPage
+          {user.pagesTree?.map((item, index) => {
+            const { title, page, children } = item
+            const hasSubmenu = children && children.length > 0
+            const isActive = page === currentPage || (children?.some(c => c.page === currentPage))
+            const isExpanded = isMenuExpanded(title)
 
             return (
-              <div key={index}>
+              <div
+                key={index}
+                className="menu-group"
+                onMouseEnter={() => handleMouseEnter(index)}
+                onMouseLeave={handleMouseLeave}
+              >
                 {/* Menu Button */}
                 <button
-                  onClick={() => {
-                    if (hasSubmenu) {
-                      toggleMenu(index)
-                    } else if (page) {
-                      onNavigate(page)
-                      if (window.innerWidth < 992) {
-                        onToggle()
-                      }
-                    }
-                  }}
-                  className={`menu-btn ${isActive ? 'active' : ''}`}
+                  onClick={() => handleMenuClick(item)}
+                  className={`menu-btn ${isActive ? 'active' : ''} ${hasSubmenu && isExpanded ? 'expanded' : ''}`}
                 >
                   <div className="menu-content">
                     <i className={`fa-solid ${getMenuIcon(page || title)} menu-icon`}></i>
-                    <span className="menu-label">{title}</span>
+                    {!isCollapsed && <span className="menu-label">{title}</span>}
                   </div>
-                  {hasSubmenu && (
+                  {!isCollapsed && hasSubmenu && (
                     <i className={`fa-solid fa-chevron-down chevron ${isExpanded ? 'rotate' : ''}`}></i>
                   )}
                 </button>
 
-                {/* Submenu */}
-                {hasSubmenu && (
+                {/* Submenu (Visible normally) */}
+                {!isCollapsed && hasSubmenu && (
                   <div className={`submenu ${isExpanded ? 'open' : ''}`}>
                     {children.map((child, subIndex) => {
                       const childActive = child.page === currentPage
@@ -189,11 +138,44 @@ export default function Sidebar({
                           }}
                           className={`submenu-btn ${childActive ? 'active' : ''}`}
                         >
-                          <i className={`fa-solid ${getMenuIcon(child.page || '')} menu-icon`}></i>
                           <span className="menu-label">{child.title}</span>
                         </button>
                       )
                     })}
+                  </div>
+                )}
+
+                {/* Tooltip/Popover for Collapsed State */}
+                {isCollapsed && hoveredIdx === index && (
+                  <div
+                    className="sidebar-tooltip"
+                    onMouseEnter={() => handleMouseEnter(index)}
+                    onMouseLeave={handleMouseLeave}
+                  >
+                    {!hasSubmenu ? (
+                      <button
+                        onClick={() => handleMenuClick(item)}
+                        className={`tooltip-sub-btn ${isActive ? 'active' : ''}`}
+                      >
+                        {title}
+                      </button>
+                    ) : (
+                      <div className="tooltip-submenu">
+                        {children.map((child, subIndex) => (
+                          <button
+                            key={subIndex}
+                            onClick={() => {
+                              if (child.page) {
+                                onNavigate(child.page)
+                              }
+                            }}
+                            className={`tooltip-sub-btn ${child.page === currentPage ? 'active' : ''}`}
+                          >
+                            {child.title}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

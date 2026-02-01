@@ -738,10 +738,8 @@ export default function GuruMapelTab() {
                     flex-direction: column;
                     gap: 10px;
                     font-size: var(--gm-fs);
-                    padding: 16px;
-                    background: #f5f7fb;
-                    border-radius: 16px;
-                    padding-bottom: calc(16px + var(--gm-safe-b));
+                    padding: 0;
+                    background: transparent;
                 }
 
                 .gm__bar {
@@ -763,7 +761,7 @@ export default function GuruMapelTab() {
                     flex-wrap: wrap;
                     padding: 8px;
                     border-radius: var(--gm-radius);
-                    background: rgba(255, 255, 255, 0.72);
+                    background: rgba(255, 255, 255, 0.05);
                     border: 1px solid var(--gm-line);
                     box-shadow: var(--gm-shadow2);
                 }
@@ -862,7 +860,7 @@ export default function GuruMapelTab() {
                 }
 
                 .gm__btnPrimary {
-                    background: linear-gradient(135deg, rgba(58, 166, 255, 0.92), rgba(15, 42, 86, 0.92));
+                    background: #0038A8;
                     border-color: rgba(58, 166, 255, 0.32);
                     color: #fff;
                     font-weight: 700;
@@ -886,7 +884,7 @@ export default function GuruMapelTab() {
                     overflow: auto;
                     border-radius: var(--gm-radius);
                     border: 1px solid var(--gm-line);
-                    background: var(--gm-card);
+                    background: rgba(255, 255, 255, 0.85);
                     box-shadow: var(--gm-shadow);
                 }
 

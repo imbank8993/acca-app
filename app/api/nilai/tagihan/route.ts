@@ -9,13 +9,20 @@ import { ApiResponse } from '@/lib/types';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { nip, kelas, mapel, semester, materi, jenis, nama, topik, tanggal, deskripsi } = body;
+        const { nip, kelas, mapel, semester, materi, jenis, nama, topik, tanggal, deskripsi, tahun_ajaran } = body;
 
         if (!nip || !kelas || !mapel || !semester || !materi || !jenis || !nama) {
             return NextResponse.json<ApiResponse>({ ok: false, error: 'Parameter tidak lengkap' }, { status: 400 });
         }
 
-        const semInt = parseInt(semester);
+        const mapSemester = (s: string | number) => {
+            if (s === 'Ganjil' || s === '1') return 1;
+            if (s === 'Genap' || s === '2') return 2;
+            return typeof s === 'string' ? parseInt(s) : s;
+        };
+
+        const semInt = mapSemester(semester);
+        const ta = tahun_ajaran || '2024/2025'; // Default value for tahun_ajaran
 
         const { data: existing } = await supabase
             .from('nilai_tagihan')
@@ -27,6 +34,7 @@ export async function POST(request: NextRequest) {
             .eq('materi_tp', materi)
             .eq('jenis', jenis)
             .eq('nama_tagihan', nama)
+            .eq('tahun_ajaran', ta) // Include tahun_ajaran in the check
             .maybeSingle();
 
         if (existing) {
@@ -50,7 +58,8 @@ export async function POST(request: NextRequest) {
                     nama_tagihan: nama,
                     topik: topik || null,
                     tanggal: tanggal || null,
-                    deskripsi: deskripsi || null
+                    deskripsi: deskripsi || null,
+                    tahun_ajaran: ta // Include tahun_ajaran in the insert
                 });
             if (error) throw error;
         }
@@ -90,7 +99,8 @@ export async function DELETE(request: NextRequest) {
             .eq('semester', target.semester)
             .eq('materi_tp', target.materi_tp)
             .eq('jenis', target.jenis)
-            .eq('tagihan', target.nama_tagihan);
+            .eq('tagihan', target.nama_tagihan)
+            .eq('tahun_ajaran', target.tahun_ajaran || '2024/2025');
 
         // 4. RE-INDEX Remaining Columns
         // Fetch all remaining of the same genre/materi
@@ -103,6 +113,7 @@ export async function DELETE(request: NextRequest) {
             .eq('semester', target.semester)
             .eq('materi_tp', target.materi_tp)
             .eq('jenis', target.jenis)
+            .eq('tahun_ajaran', target.tahun_ajaran || '2024/2025')
             .order('created_at', { ascending: true }); // Keep original order
 
         if (remaining && remaining.length > 0) {
@@ -121,7 +132,8 @@ export async function DELETE(request: NextRequest) {
                         .eq('semester', target.semester)
                         .eq('materi_tp', target.materi_tp)
                         .eq('jenis', target.jenis)
-                        .eq('tagihan', item.nama_tagihan);
+                        .eq('tagihan', item.nama_tagihan)
+                        .eq('tahun_ajaran', target.tahun_ajaran || '2024/2025');
 
                     if (errUpdScores) console.warn('Error updating score labels during re-index:', errUpdScores);
 

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { supabase } from '@/lib/supabase';
 import { ApiResponse, Siswa } from '@/lib/types';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
+import PermissionGuard from '@/components/PermissionGuard';
 import './nilai.css';
 
 // --- Types ---
@@ -46,9 +47,17 @@ export default function NilaiPage() {
     // States
     const [kelas, setKelas] = useState('');
     const [mapel, setMapel] = useState('');
-    const [semester, setSemester] = useState('2');
+    const [semester, setSemester] = useState('Ganjil');
+    const [tahunAjaran, setTahunAjaran] = useState('');
+    const [tahunAjaranList, setTahunAjaranList] = useState<string[]>([]);
     const [materi, setMateri] = useState('SUM 1');
-    const [activeMode, setActiveMode] = useState<'REKAP' | 'KUIS' | 'TUGAS' | 'UH' | 'PAS'>('REKAP');
+    const modes = ['KUIS', 'TUGAS', 'UH', 'PAS', 'REKAP'];
+    const [modeIndex, setModeIndex] = useState(0);
+    const activeMode = modes[modeIndex] as 'REKAP' | 'KUIS' | 'TUGAS' | 'UH' | 'PAS';
+
+    useEffect(() => {
+        setModeIndex(modes.indexOf(activeMode));
+    }, []);
     const [searchTerm, setSearchTerm] = useState('');
 
     const [siswa, setSiswa] = useState<Siswa[]>([]);
@@ -62,32 +71,84 @@ export default function NilaiPage() {
     const [showTagihanModal, setShowTagihanModal] = useState(false);
     const [editingTagihan, setEditingTagihan] = useState<TagihanConfig | null>(null);
     const [showImportModal, setShowImportModal] = useState(false);
+    const [applyToClasses, setApplyToClasses] = useState<string[]>([]);
     const tableRef = useRef<HTMLTableElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [showSumDropdown, setShowSumDropdown] = useState(false);
+    const [newSumTopic, setNewSumTopic] = useState('');
 
+    // FIX: Updated getNextAutoLabel to see empty columns correctly
     const getNextAutoLabel = () => {
         const typePrefix = activeMode.toUpperCase();
-        // Only count columns that actually have data (visible in UI)
-        const visibleTags = tagihanConfig.filter(t => {
-            const isMatch = t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi;
-            if (!isMatch) return false;
-            const hasData = nilaiData.some(d => d.jenis === t.jenis && d.tagihan === t.nama_tagihan && d.materi_tp === t.materi_tp && d.nilai !== null);
-            const hasChange = Object.keys(changes).some(k => k.includes(`||${t.jenis}||${t.materi_tp}||${t.nama_tagihan}`));
-            return hasData || hasChange;
+        // Find all tags for this type/materi, regardless of data
+        const relevantTags = tagihanConfig.filter(t =>
+            t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) &&
+            t.materi_tp === materi
+        );
+
+        // Find max index based on name pattern "TYPE_X"
+        let maxIndex = 0;
+        relevantTags.forEach(t => {
+            const parts = t.nama_tagihan.split('_');
+            if (parts.length === 2 && parts[0] === typePrefix) {
+                const idx = parseInt(parts[1]);
+                if (!isNaN(idx) && idx > maxIndex) maxIndex = idx;
+            }
         });
-        return `${typePrefix}_${visibleTags.length + 1}`;
+
+        return `${typePrefix}_${maxIndex + 1}`;
     };
 
     const filteredSiswa = useMemo(() => {
         if (!searchTerm) return siswa;
         const low = searchTerm.toLowerCase();
-        return siswa.filter(s => s.nama_siswa.toLowerCase().includes(low) || s.nisn.includes(low));
+        return siswa.filter(s => {
+            const name = (s.nama_siswa || (s as any).nama || "").toLowerCase();
+            const nisn = (s.nisn || "").toLowerCase();
+            return name.includes(low) || nisn.includes(low);
+        });
     }, [siswa, searchTerm]);
+
+    // Identifying Active Columns (Columns with at least one value across all students)
+    const activeTags = useMemo(() => {
+        const actives = new Set<string>();
+        // Check local changes first
+        Object.keys(changes).forEach(k => {
+            if (changes[k] !== "") {
+                const parts = k.split('||'); // [nisn, jenis, materi, tag]
+                actives.add(`${parts[1]}||${parts[2]}||${parts[3]}`);
+            }
+        });
+        // Check DB data
+        nilaiData.forEach(d => {
+            if (d.nilai !== null && d.nilai !== "") {
+                const tag = d.tagihan || '';
+                actives.add(`${d.jenis}||${d.materi_tp}||${tag}`);
+            }
+        });
+        return actives;
+    }, [nilaiData, changes]);
 
     useEffect(() => {
         const fetchInitial = async () => {
             setLoading(true);
             try {
+                const { getAllAcademicYears, getActiveSettings } = await import('@/lib/settings-client');
+                const [years, active] = await Promise.all([
+                    getAllAcademicYears(),
+                    getActiveSettings()
+                ]);
+
+                setTahunAjaranList(years);
+                if (active) {
+                    setTahunAjaran(active.tahun_ajaran);
+                    // Standardize semester to Label
+                    const semLabel = (active.semester === 1 || active.semester === '1') ? 'Ganjil' : (active.semester === 2 || active.semester === '2') ? 'Genap' : active.semester;
+                    setSemester(semLabel);
+                } else if (years.length > 0) {
+                    setTahunAjaran(years[0]);
+                }
+
                 const { data: { user: authUser } } = await supabase.auth.getUser();
                 if (!authUser) return;
                 const { data: userData } = await supabase.from('users').select('*').eq('auth_id', authUser.id).maybeSingle();
@@ -117,16 +178,18 @@ export default function NilaiPage() {
 
     // Auto-load data when filters change
     useEffect(() => {
-        if (user && kelas && mapel) {
+        // Only load if essential filters are set
+        if (user && kelas && mapel && tahunAjaran && semester) {
             loadData();
         }
-    }, [user, kelas, mapel, semester]);
+    }, [user, kelas, mapel, semester, tahunAjaran]);
 
     const loadData = async () => {
-        if (!kelas || !mapel) return;
+        if (!user || !user.nip || !kelas || !mapel || !tahunAjaran || !semester) return;
         setLoading(true);
         try {
-            const res = await fetch(`/api/nilai?nip=${user.nip}&kelas=${encodeURIComponent(kelas)}&mapel=${encodeURIComponent(mapel)}&semester=${semester}`);
+            // Updated API call structure
+            const res = await fetch(`/api/nilai?nip=${user.nip}&kelas=${encodeURIComponent(kelas)}&mapel=${encodeURIComponent(mapel)}&semester=${semester}&tahun_ajaran=${encodeURIComponent(tahunAjaran)}`);
             const json = await res.json();
             if (json.ok && json.data) {
                 setNilaiData(json.data.nilai || []);
@@ -134,7 +197,11 @@ export default function NilaiPage() {
                 setTagihanConfig(json.data.tagihan || []);
                 setBobot(json.data.bobot || DEFAULT_BOBOT);
                 setChanges({});
+            } else {
+                console.error('Failed to load nilai:', json.error);
             }
+        } catch (err: any) {
+            console.error('Error loading data:', err);
         } finally { setLoading(false); }
     };
 
@@ -147,25 +214,68 @@ export default function NilaiPage() {
 
     const getAvg = (nisn: string, jenis: string, curMateri: string) => {
         const tags = tagihanConfig.filter(t => t.jenis === jenis && t.materi_tp === curMateri);
-        if (tags.length === 0) return null;
+
         let sum = 0, count = 0;
+        let hasActive = false;
+
         tags.forEach(t => {
-            const s = parseFloat(getScore(nisn, jenis, curMateri, t.nama_tagihan).toString());
-            if (!isNaN(s)) { sum += s; count++; }
+            const tagKey = `${jenis}||${curMateri}||${t.nama_tagihan}`;
+            const isActive = activeTags.has(tagKey);
+
+            if (isActive) {
+                hasActive = true;
+                const valStr = getScore(nisn, jenis, curMateri, t.nama_tagihan).toString();
+                const val = valStr === "" ? 0 : parseFloat(valStr);
+                sum += val;
+                count++;
+            }
         });
-        return count > 0 ? (sum / count) : null;
+
+        // If no active columns at all for this category, return null (ignored)
+        if (!hasActive) return null;
+
+        // If active columns exist, return average (empty treated as 0)
+        return count > 0 ? (sum / count) : 0;
     };
 
     const calculateNABab = (nisn: string, curMateri: string) => {
-        const ak = getAvg(nisn, 'Kuis', curMateri);
-        const at = getAvg(nisn, 'Tugas', curMateri);
-        const vu = parseFloat(getScore(nisn, 'UH', curMateri).toString());
-        let { kuis: rK, tugas: rT, uh: rU } = bobot.ratioHarian;
-        if (!tagihanConfig.some(t => t.jenis === 'Kuis' && t.materi_tp === curMateri)) rK = 0;
-        if (!tagihanConfig.some(t => t.jenis === 'Tugas' && t.materi_tp === curMateri)) rT = 0;
-        const totalR = rK + rT + rU;
-        if (totalR === 0) return "-";
-        return (((ak || 0) * rK) + ((at || 0) * rT) + ((isNaN(vu) ? 0 : vu) * rU)) / totalR;
+        let totalWeighted = 0;
+        let totalRatio = 0;
+
+        // Weights (Check if ratioHarian exists, default to 1 if not to prevent errors)
+        const { kuis: wK, tugas: wT, uh: wU } = bobot.ratioHarian || { kuis: 1, tugas: 1, uh: 1 };
+
+        // 1. Rata-rata TUGAS
+        if (tagihanConfig.some(t => t.jenis === 'Tugas' && t.materi_tp === curMateri)) {
+            const val = getAvg(nisn, 'Tugas', curMateri);
+            if (val !== null) {
+                totalWeighted += (val * wT);
+                totalRatio += wT;
+            }
+        }
+
+        // 2. Rata-rata KUIS
+        if (tagihanConfig.some(t => t.jenis === 'Kuis' && t.materi_tp === curMateri)) {
+            const val = getAvg(nisn, 'Kuis', curMateri);
+            if (val !== null) {
+                totalWeighted += (val * wK);
+                totalRatio += wK;
+            }
+        }
+
+        // 3. Nilai UH
+        // Check if UH is "Active" for this materi (anyone has a grade?)
+        const uhKey = `UH||${curMateri}||`;
+        const uhActive = activeTags.has(uhKey);
+
+        if (uhActive) {
+            const uhStr = getScore(nisn, 'UH', curMateri).toString();
+            const uhVal = uhStr === "" ? 0 : parseFloat(uhStr);
+            totalWeighted += (uhVal * wU);
+            totalRatio += wU;
+        }
+
+        return totalRatio === 0 ? "-" : (totalWeighted / totalRatio);
     };
 
     const isDiffFromDB = (nisn: string, jenis: string, curMateri: string, tag: string = '') => {
@@ -188,10 +298,31 @@ export default function NilaiPage() {
             const na = calculateNABab(nisn, s);
             if (na !== "-") { sSum += (na as number); sCount++; }
         });
-        const avgS = sCount > 0 ? (sSum / sCount) : 0;
-        const vPas = parseFloat(getScore(nisn, 'PAS', '-', '').toString()) || 0;
+
+        const avgS = sCount > 0 ? (sSum / sCount) : null;
+
+        const pasStr = getScore(nisn, 'PAS', '-', '').toString();
+        const vPas = pasStr !== "" ? parseFloat(pasStr) : null;
+
         const { sums: rS, pas: rP } = bobot.ratioRapor;
-        return rS + rP === 0 ? "0" : (((avgS * rS) + (vPas * rP)) / (rS + rP)).toFixed(0);
+
+        let finalScore = 0;
+        let finalDiv = 0;
+
+        // Component 1: Average of Sums
+        if (avgS !== null) {
+            finalScore += (avgS * rS);
+            finalDiv += rS;
+        }
+
+        // Component 2: PAS
+        if (vPas !== null) {
+            finalScore += (vPas * rP);
+            finalDiv += rP;
+        }
+
+        if (finalDiv === 0) return "0";
+        return ((finalScore / finalDiv)).toFixed(0);
     };
 
     const handleDeleteTagihan = async (id: string, name: string) => {
@@ -227,7 +358,7 @@ export default function NilaiPage() {
             }
             const newCount = Math.max(1, bobot.sumCount - 1);
             const newBobot = { ...bobot, sumCount: newCount };
-            await fetch('/api/nilai/bobot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, config: newBobot }) });
+            await fetch('/api/nilai/bobot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, config: newBobot, tahun_ajaran: tahunAjaran }) });
             setBobot(newBobot);
             loadData();
         }
@@ -236,32 +367,66 @@ export default function NilaiPage() {
     const handleAddSum = async () => {
         const newCount = bobot.sumCount + 1;
         const newBobot = { ...bobot, sumCount: newCount };
-        await fetch('/api/nilai/bobot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, config: newBobot }) });
+        await fetch('/api/nilai/bobot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, config: newBobot, tahun_ajaran: tahunAjaran }) });
         setBobot(newBobot);
         loadData();
     };
 
+    const handleAddNewSumWithTopic = async () => {
+        if (!newSumTopic.trim()) {
+            Swal.fire({ icon: 'warning', text: 'Mohon isi topik materi' });
+            return;
+        }
+        setLoading(true);
+        try {
+            // 1. Update Bobot (Add SUM Count)
+            const newCount = bobot.sumCount + 1;
+            const newBobot = { ...bobot, sumCount: newCount };
+            const newSumName = `SUM ${newCount}`;
+
+            await fetch('/api/nilai/bobot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, config: newBobot, tahun_ajaran: tahunAjaran })
+            });
+
+            // 2. Create Tagihan for Topic
+            await fetch('/api/nilai/tagihan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nip: user.nip, kelas, mapel, semester, tahun_ajaran: tahunAjaran,
+                    materi: newSumName,
+                    jenis: 'Sum',
+                    nama: newSumName,
+                    topik: newSumTopic
+                })
+            });
+
+            setNewSumTopic('');
+            setShowSumDropdown(false);
+            setMateri(newSumName); // Switch to new SUM
+
+            // Reload to get everything synced
+            await loadData();
+            Swal.fire({ icon: 'success', title: 'Materi Berhasil Ditambahkan', timer: 1000, showConfirmButton: false });
+        } catch (e: any) {
+            Swal.fire({ icon: 'error', text: e.message });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleScoreChange = (nisn: string, jenis: string, mtr: string, tag: string, val: string) => {
         let raw = val.replace(',', '.');
-
-        // 1. Allow empty for deletion
         if (raw === "") {
             setChanges({ ...changes, [`${nisn}||${jenis}||${mtr}||${tag}`]: "" });
             return;
         }
-
-        // 2. Strict Regex: At least one digit before optional dot, max 2 decimal places
         if (!/^\d+\.?\d{0,2}$/.test(raw)) return;
-
-        // 3. Strict Blocking Check: If number > 100, do not update (stop at 100)
-        // Special case: "100." is allowed temporarily to type "100.x" if we allowed more than 100, 
-        // but since 100 is max, we only allow exactly "100" or values < 100.
         const num = parseFloat(raw);
         if (!isNaN(num) && num > 100) return;
-
-        // 4. Formatting: Prevent multiple leading zeros like 007
         if (raw.length > 1 && raw.startsWith('0') && raw[1] !== '.') raw = raw.substring(1);
-
         setChanges({ ...changes, [`${nisn}||${jenis}||${mtr}||${tag}`]: raw });
     };
 
@@ -272,12 +437,12 @@ export default function NilaiPage() {
         });
         setLoading(true);
         try {
-            const res = await fetch('/api/nilai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, updates }) });
-            if (res.ok) { Swal.fire({ icon: 'success', title: 'Secured', timer: 1000, showConfirmButton: false }); loadData(); }
+            const res = await fetch('/api/nilai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, updates, tahun_ajaran: tahunAjaran }) });
+            if (res.ok) { Swal.fire({ icon: 'success', title: 'Perubahan Disimpan', timer: 1000, showConfirmButton: false }); loadData(); }
         } finally { setLoading(false); }
     };
 
-    const handleExport = async () => {
+    const handleExport = async (isTemplate: boolean = false) => {
         // Use xlsx-js-style for professional styling
         const XLSXStyle = await import('xlsx-js-style');
 
@@ -286,30 +451,73 @@ export default function NilaiPage() {
             const row: any = {
                 "NO": idx + 1,
                 "NISN": s.nisn,
-                "NAMA": s.nama_siswa,
-                "KELAS": s.kelas || kelas // Use s.kelas or fallback to active filter
+                "NAMA": s.nama_siswa || (s as any).nama,
+                "KELAS": s.kelas || kelas
             };
 
             if (activeMode === 'REKAP') {
-                Array.from({ length: bobot.sumCount }, (_, i) => {
+                const count = isTemplate ? 10 : bobot.sumCount; // Force 10 for template
+                Array.from({ length: count }, (_, i) => {
                     const sumName = `SUM ${i + 1}`;
                     const customTag = tagihanConfig.find(t => t.jenis === 'Sum' && t.materi_tp === sumName);
-                    const key = customTag ? `${sumName} (${customTag.topik || ''})`.toUpperCase() : sumName;
-                    row[key] = "";
+                    // Use standard UNDERSCORE name for template and export (e.g. SUM_1)
+                    const standardName = sumName.replace(/\s+/g, '_').toUpperCase();
+                    const key = (!isTemplate && customTag) ? `${standardName} (${customTag.topik || ''})`.toUpperCase() : standardName;
+
+                    if (isTemplate) {
+                        row[key] = "";
+                    } else {
+                        const val = calculateNABab(s.nisn, sumName);
+                        row[key] = val !== '-' ? Math.round(val as number) : "";
+                    }
                 });
-                row["PAS"] = "";
-                row["RAPOR"] = "";
+                if (isTemplate) {
+                    row["PAS"] = "";
+                    row["RAPOR"] = "";
+                } else {
+                    const pasVal = getScore(s.nisn, 'PAS', '-');
+                    row["PAS"] = pasVal !== null && pasVal !== "" ? pasVal : "";
+                    row["RAPOR"] = calculateRapor(s.nisn);
+                }
             } else if (activeMode === 'UH') {
-                row[`UH_${materi}`.toUpperCase()] = "";
+                // UH usually just has 1 column per materi, but let's keep it simple
+                const headKey = `UH_${materi}`.toUpperCase();
+                if (isTemplate) {
+                    row[headKey] = "";
+                } else {
+                    const val = getScore(s.nisn, 'UH', materi);
+                    row[headKey] = val !== null && val !== "" ? val : "";
+                }
             } else if (activeMode === 'PAS') {
-                row["PAS"] = "";
+                if (isTemplate) {
+                    row["PAS"] = "";
+                } else {
+                    const val = getScore(s.nisn, 'PAS', '-');
+                    row["PAS"] = val !== null && val !== "" ? val : "";
+                }
             } else {
                 const jenisStr = activeMode.toUpperCase();
                 const tags = tagihanConfig.filter(t => t.jenis === activeMode.charAt(0) + activeMode.slice(1).toLowerCase() && t.materi_tp === materi);
-                for (let i = 1; i <= 10; i++) {
-                    const tag = tags[i - 1];
-                    const key = tag ? `${tag.nama_tagihan} (${tag.topik || ''})`.toUpperCase() : `${jenisStr}_${i}`;
-                    row[key] = "";
+
+                // Force 10 cols for Template, otherwise just whats needed or min 5
+                const loopLimit = isTemplate ? 10 : Math.max(tags.length, 5);
+
+                for (let i = 0; i < loopLimit; i++) {
+                    const tag = tags[i];
+                    if (tag) {
+                        // Standardize: KUIS_1, TUGAS_1, etc.
+                        const cleanTagName = tag.nama_tagihan.toUpperCase().replace(/\s+/g, '_');
+                        const key = (!isTemplate) ? `${cleanTagName} (${tag.topik || ''})`.toUpperCase() : cleanTagName;
+
+                        if (isTemplate) {
+                            row[key] = "";
+                        } else {
+                            const val = getScore(s.nisn, (tag as any).jenis, materi, tag.nama_tagihan);
+                            row[key] = val !== null && val !== "" ? val : "";
+                        }
+                    } else {
+                        row[`${jenisStr}_${i + 1}`] = "";
+                    }
                 }
             }
             return row;
@@ -322,7 +530,7 @@ export default function NilaiPage() {
 
         // Styles Configuration
         const headerStyle = {
-            fill: { fgColor: { rgb: "0F172A" } }, // Navy Slate
+            fill: { fgColor: { rgb: "0F172A" } },
             font: { color: { rgb: "FFFFFF" }, bold: true, sz: 11 },
             alignment: { horizontal: "center", vertical: "center" },
             border: {
@@ -334,7 +542,7 @@ export default function NilaiPage() {
         };
 
         const identityStyle = {
-            fill: { fgColor: { rgb: "F8FAFC" } }, // Very light Slate
+            fill: { fgColor: { rgb: "F8FAFC" } },
             font: { color: { rgb: "1E293B" }, sz: 10 },
             alignment: { horizontal: "left", vertical: "center" },
             border: {
@@ -343,59 +551,108 @@ export default function NilaiPage() {
             }
         };
 
-        const scoreAreaStyle = {
-            fill: { fgColor: { rgb: "FFFFFF" } },
-            font: { color: { rgb: "0F172A" }, bold: true },
-            alignment: { horizontal: "center" },
-            border: {
-                bottom: { style: "thin", color: { rgb: "E2E8F0" } },
-                right: { style: "thin", color: { rgb: "E2E8F0" } }
-            }
-        };
-
-        // Apply Styles
+        // Apply Styles to Main Data
         for (let R = range.s.r; R <= range.e.r; ++R) {
             for (let C = range.s.c; C <= range.e.c; ++C) {
                 const addr = XLSXStyle.utils.encode_cell({ r: R, c: C });
                 if (!ws[addr]) continue;
 
                 if (R === 0) {
-                    // Header Row
                     ws[addr].s = headerStyle;
                 } else {
-                    // Data Rows
-                    if (C <= 3) { // NO, NISN, NAMA, KELAS
+                    if (C <= 3) {
                         const style: any = { ...identityStyle };
-                        if (C <= 1 || C === 3) { // Center Align for NO, NISN, and KELAS
-                            style.alignment = { horizontal: "center", vertical: "center" };
-                        }
+                        if (C <= 1 || C === 3) style.alignment = { horizontal: "center", vertical: "center" };
                         ws[addr].s = style;
-                    } else {
-                        ws[addr].s = scoreAreaStyle;
                     }
                 }
             }
         }
 
-        // Define Column Widths
-        ws['!cols'] = [
-            { wch: 6 },  // NO
-            { wch: 18 }, // NISN
-            { wch: 40 }, // NAMA
-            { wch: 12 }  // KELAS
-        ];
-        for (let i = 4; i <= range.e.c; i++) ws['!cols'].push({ wch: 15 });
+        // --- FOOTER: TOPIC DESCRIPTIONS (Vertical Layout) ---
+        if (activeMode !== 'PAS') {
+            let footerRowIndex = range.e.r + 2; // Leave one empty row
 
-        // Row Heights
-        ws['!rows'] = [{ hpt: 30 }]; // Header taller
+            // Section Header
+            const headerAddr = XLSXStyle.utils.encode_cell({ r: footerRowIndex, c: 0 });
+            XLSXStyle.utils.sheet_add_aoa(ws, [["KETERANGAN"]], { origin: headerAddr });
+            if (!ws[headerAddr]) ws[headerAddr] = {};
+            ws[headerAddr].s = {
+                fill: { fgColor: { rgb: "FEF9C3" } },
+                font: { bold: true, color: { rgb: "854D0E" } },
+                border: { bottom: { style: "thin" } }
+            };
+            footerRowIndex++;
+
+            // Gather Columns that need descriptions
+            const headerRow = data[0] ? Object.keys(data[0]) : [];
+            const targetCols = headerRow.filter((k, i) => i >= 4 && k !== 'PAS' && k !== 'RAPOR');
+
+            targetCols.forEach(colKey => {
+                // Clean Name (Remove Topic from Header)
+                let cleanName = colKey;
+                const match = colKey.match(/^(.+?)\s*\((.*?)\)$/);
+                if (match) cleanName = match[1].trim();
+
+                // Ensure it uses UNDERSCORES for consistency in Footer (e.g. KUIS_1)
+                cleanName = cleanName.replace(/\s+/g, '_').toUpperCase();
+
+                // Find Topic
+                let topic = "";
+                if (!isTemplate) {
+                    cleanName = cleanName.replace(/\s/g, '_');
+                    if (activeMode === 'REKAP') {
+                        const sumMatch = cleanName.match(/^SUM_(\d+)/);
+                        if (sumMatch) {
+                            const tagName = `SUM ${sumMatch[1]}`;
+                            const tag = tagihanConfig.find(t => t.jenis === 'Sum' && t.materi_tp === tagName);
+                            if (tag) topic = tag.topik || "";
+                        }
+                    } else {
+                        const jenisStr = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
+                        const tag = tagihanConfig.find(t =>
+                            (t.nama_tagihan.toUpperCase() === cleanName || t.nama_tagihan === cleanName.replace('_', ' ')) &&
+                            t.materi_tp === materi &&
+                            t.jenis === jenisStr
+                        );
+                        if (tag) topic = tag.topik || "";
+                    }
+                } else {
+                    // In template, cleanName likely "SUM 1" or "TUGAS 1". Keep it pretty.
+                    // cleanName is already good from the map loop
+                }
+
+                // Write Row: [NAME] [TOPIC]
+                const nameAddr = XLSXStyle.utils.encode_cell({ r: footerRowIndex, c: 0 });
+                const topicAddr = XLSXStyle.utils.encode_cell({ r: footerRowIndex, c: 1 });
+
+                XLSXStyle.utils.sheet_add_aoa(ws, [[cleanName, topic]], { origin: nameAddr });
+
+                // Styles
+                if (!ws[nameAddr]) ws[nameAddr] = {};
+                ws[nameAddr].s = { font: { bold: true }, alignment: { horizontal: "left" } };
+
+                if (!ws[topicAddr]) ws[topicAddr] = {};
+                ws[topicAddr].s = {
+                    font: { italic: true },
+                    border: { bottom: { style: "dotted", color: { rgb: "CBD5E1" } } }
+                };
+
+                footerRowIndex++;
+            });
+        }
+
+        // Define Column Widths
+        ws['!cols'] = [{ wch: 6 }, { wch: 18 }, { wch: 40 }, { wch: 12 }];
+        for (let i = 4; i <= range.e.c; i++) ws['!cols'].push({ wch: 15 });
 
         const wb = XLSXStyle.utils.book_new();
         XLSXStyle.utils.book_append_sheet(wb, ws, activeMode.toUpperCase());
-
-        const filename = `TEMPLATE_${activeMode}_${materi}_${kelas}_${mapel}.xlsx`.toUpperCase().replace(/\s+/g, '_');
+        const prefix = isTemplate ? 'TEMPLATE' : 'EXPORT_DATA';
+        const filename = `${prefix}_${activeMode}_${materi}_${kelas}_${mapel}.xlsx`.toUpperCase().replace(/\s+/g, '_');
         XLSXStyle.writeFile(wb, filename);
-        Swal.fire({ icon: 'info', title: 'Premium Template Exported', text: `Stylized template created. Identity columns are now clearly marked.`, timer: 1500, showConfirmButton: false });
     };
+
 
     const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -404,6 +661,7 @@ export default function NilaiPage() {
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
+                // 1. Read File
                 const bstr = evt.target?.result;
                 const wb = XLSX.read(bstr, { type: 'binary' });
                 const ws = wb.Sheets[wb.SheetNames[0]];
@@ -411,116 +669,292 @@ export default function NilaiPage() {
 
                 if (data.length === 0) throw new Error("File Excel kosong atau format salah.");
 
-                const newChanges = { ...changes };
-                let matchCount = 0;
-                let errorLogs: string[] = [];
+                Swal.fire({ title: 'Processing Import...', text: 'Validating data structure...', didOpen: () => Swal.showLoading() });
+
+                // 2. Analyze Structure & Validate Data
                 const columns = Object.keys(data[0]);
+                const validNISNs = new Set(siswa.map(s => s.nisn)); // Source of Truth
+                let validRows = 0;
+                let skippedRows = 0;
+                let newColumnsCreated = 0;
+                let newSumCount = bobot.sumCount;
 
-                // 1. STRICT HEADER VALIDATION (Must be UPPERCASE)
-                const invalidHeaders = columns.filter(c => c !== "NO" && c !== c.toUpperCase());
-                if (invalidHeaders.length > 0) {
-                    throw new Error(`Import ditolak. Nama kolom harus KAPITAL semua: ${invalidHeaders.join(', ')}`);
-                }
+                const newChanges = { ...changes };
+                const newTagihansToCreate: any[] = [];
+                const topicUpdates: { id: string, topik: string }[] = [];
 
-                // 2. STRUCTURAL VALIDATION (Cannot use Tugas template for Kuis, etc)
-                if (activeMode === 'KUIS' || activeMode === 'TUGAS') {
+                // 3. Scan for New Columns (Metadata Analysis)
+                if (activeMode === 'REKAP') {
+                    // Check for higher SUMs
+                    columns.forEach(col => {
+                        const sumMatch = col.toUpperCase().match(/^SUM\s*(\d+)/);
+                        if (sumMatch) {
+                            const idx = parseInt(sumMatch[1]);
+                            if (idx > newSumCount) newSumCount = idx;
+                        }
+                    });
+                } else if (activeMode === 'KUIS' || activeMode === 'TUGAS') {
                     const jenisStr = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
-                    const scoreCols = columns.filter(c => !["NO", "NISN", "NAMA", "KELAS", "RAPOR"].includes(c));
+                    const scoreCols = columns.filter(c => !["NO", "NISN", "NAMA", "KELAS", "RAPOR", "PAS"].includes(c.toUpperCase()));
 
-                    for (const col of scoreCols) {
-                        // Extract Name and Topic from "NAME (TOPIC)"
+                    scoreCols.forEach(col => {
                         let finalName = col;
                         let finalTopic = "Auto-Imported";
                         const match = col.match(/^(.+?)\s*\((.*?)\)$/);
                         if (match) {
                             finalName = match[1].trim();
-                            finalTopic = match[2].trim() || finalTopic;
+                            // If topic is present in parens, extract it. Otherwise default.
+                            if (match[2]) finalTopic = match[2].trim();
                         }
 
-                        const exists = tagihanConfig.find(t => t.nama_tagihan.toUpperCase() === finalName.toUpperCase() && t.materi_tp === materi && t.jenis === jenisStr);
+                        // Clean name key for matching
+                        const cleanName = finalName.toUpperCase().replace(/\s/g, '_');
+
+                        // Check if exists in current config
+                        const exists = tagihanConfig.find(t =>
+                            t.nama_tagihan.toUpperCase() === cleanName &&
+                            t.materi_tp === materi &&
+                            t.jenis === jenisStr
+                        );
+
                         if (!exists) {
-                            await fetch('/api/nilai/tagihan', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, materi, jenis: jenisStr, nama: finalName.toUpperCase(), topik: finalTopic })
-                            });
+                            // Add to creation queue if unique
+                            if (!newTagihansToCreate.some(t => t.nama === cleanName)) {
+                                newTagihansToCreate.push({
+                                    nama: cleanName,
+                                    materi: materi,
+                                    jenis: jenisStr,
+                                    topik: finalTopic,
+                                    label_raw: col // Keep original label to map data later
+                                });
+                            }
                         }
-                    }
-                    const res = await fetch(`/api/nilai?nip=${user.nip}&kelas=${encodeURIComponent(kelas)}&mapel=${encodeURIComponent(mapel)}&semester=${semester}`);
-                    const json = await res.json();
-                    if (json.ok) setTagihanConfig(json.data.tagihan || []);
+                    });
                 }
 
-                // 2. Process data with STRICT VALIDATION
+                // 4. Execute Structural Updates (Async)
+
+                // A. Update Bobot if new SUMs found
+                if (newSumCount > bobot.sumCount) {
+                    const updatedBobot = { ...bobot, sumCount: newSumCount };
+                    await fetch('/api/nilai/bobot', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, config: updatedBobot, tahun_ajaran: tahunAjaran })
+                    });
+                    // Locally update for immediate processing
+                    setBobot(updatedBobot);
+                    newColumnsCreated += (newSumCount - bobot.sumCount);
+                }
+
+                // B. Create New Tagihans
+                for (const t of newTagihansToCreate) {
+                    await fetch('/api/nilai/tagihan', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            nip: user.nip, kelas, mapel, semester,
+                            materi: t.materi, jenis: t.jenis, nama: t.nama, topik: t.topik, tahun_ajaran: tahunAjaran
+                        })
+                    });
+                    newColumnsCreated++;
+                }
+
+                // REFRESH CONFIG if changes made
+                let currentConfig = tagihanConfig;
+                if (newColumnsCreated > 0) {
+                    const res = await fetch(`/api/nilai?nip=${user.nip}&kelas=${encodeURIComponent(kelas)}&mapel=${encodeURIComponent(mapel)}&semester=${semester}&tahun_ajaran=${encodeURIComponent(tahunAjaran)}`);
+                    const json = await res.json();
+                    if (json.ok) {
+                        currentConfig = json.data.tagihan || [];
+                        setTagihanConfig(currentConfig); // Async state update
+                    }
+                }
+
+                // 5. Process Data Rows (Strict Validation)
+                const errors: string[] = [];
                 data.forEach((row, rowIdx) => {
-                    const nisn = row["NISN"]?.toString().trim();
-                    const nama = row["NAMA"]?.toString().trim();
-                    const kls = row["KELAS"]?.toString().trim();
+                    // Strict Validation Keys
+                    const rowNISN = (row["NISN"] || "").toString().trim();
+                    const rowKelas = (row["KELAS"] || "").toString().trim();
 
-                    if (!nisn) return;
-
-                    // Validation: NISN, Name, and Class must match current view
-                    const validStudent = siswa.find(s => s.nisn === nisn);
-                    if (!validStudent) {
-                        errorLogs.push(`Row ${rowIdx + 2}: NISN ${nisn} tidak terdaftar di kelas ini.`);
-                        return;
-                    }
-                    if (validStudent.nama_siswa.toLowerCase() !== (nama?.toLowerCase())) {
-                        errorLogs.push(`Row ${rowIdx + 2}: Nama di Excel (${nama}) tidak cocok dengan Database (${validStudent.nama_siswa}).`);
-                        return;
-                    }
-                    if (validStudent.kelas !== kls) {
-                        errorLogs.push(`Row ${rowIdx + 2}: Kelas di Excel (${kls}) tidak cocok dengan Database (${validStudent.kelas}).`);
+                    // SKIP if invalid
+                    if (!rowNISN) {
+                        // errors.push(`Baris ${rowIdx + 2}: NISN kosong`);
+                        // Silent skip fine for empty rows
                         return;
                     }
 
-                    matchCount++;
+                    // VALIDATION LOGIC
+                    if (!validNISNs.has(rowNISN)) {
+                        // CHECK FOR METADATA/TOPIC ROW
+                        // Try to see if row["NO"] or first key corresponds to a Tag Name
+                        // Typically sheet_to_json keys are headers. 
+                        // If user used template, Col 0 is "NO", Col 1 is "NISN".
+                        // Template Export writes: NO="TAG_NAME", NISN="TOPIC_TEXT"
+
+                        const potentialTagName = (row["NO"] || "").toString().trim().toUpperCase();
+                        const potentials = [potentialTagName, rowNISN.toUpperCase()]; // Check both just in case
+
+                        // Find if this row identifies a tag
+                        let matchedTag: any = null;
+
+                        if (potentialTagName) {
+                            matchedTag = currentConfig.find(t => t.nama_tagihan.toUpperCase() === potentialTagName && t.materi_tp === materi);
+                        }
+
+                        // If found a tag, update its topic
+                        if (matchedTag) {
+                            // The topic is strictly in the NISN column (Col 1) for metadata rows
+                            // We allow overwriting even if empty to ensure file is source of truth
+                            const newTopic = rowNISN; // rowNISN is already trimmed string of row["NISN"]
+
+                            // Compare with existing topic (treat null/undefined as empty string)
+                            if (newTopic !== (matchedTag.topik || "")) {
+                                topicUpdates.push({ id: matchedTag.id, topik: newTopic });
+                            }
+                            return; // Is a metadata row, not error
+                        }
+
+                        // If "NO" column is "KETERANGAN", just skip (Header for footer)
+                        if (potentialTagName === "KETERANGAN") return;
+
+                        errors.push(`Baris ${rowIdx + 2}: NISN '${rowNISN}' tidak ditemukan di kelas ini.`);
+                        skippedRows++;
+                        return;
+                    }
+
+                    if (rowKelas && rowKelas.toUpperCase() !== kelas.toUpperCase()) {
+                        errors.push(`Baris ${rowIdx + 2}: Kelas ${rowKelas} tidak sesuai (Harap: ${kelas}).`);
+                        skippedRows++;
+                        return;
+                    }
+
+                    validRows++;
+
+                    // Map Values
                     Object.keys(row).forEach(col => {
-                        // Skip system columns
-                        if (["NO", "NISN", "NAMA", "KELAS", "RAPOR"].includes(col)) return;
+                        if (["NO", "NISN", "NAMA", "KELAS", "RAPOR"].includes(col.toUpperCase())) return;
 
                         let rawValue = row[col]?.toString() || "";
-                        if (rawValue === "") return; // Skip empty cells (do nothing)
+                        if (rawValue === "") return;
 
-                        // Convert comma to dot for decimal support
                         let valStr = rawValue.replace(',', '.');
                         let val = parseFloat(valStr);
-
-                        // Range Validation: 0 - 100
-                        if (isNaN(val) || val < 0 || val > 100) {
-                            errorLogs.push(`Row ${rowIdx + 2}: Nilai "${rawValue}" di kolom ${col} tidak valid (harus 0-100).`);
+                        if (isNaN(val)) {
+                            errors.push(`Baris ${rowIdx + 2}: Nilai '${rawValue}' pada kolom '${col}' tidak valid.`);
+                            return;
+                        }
+                        if (val < 0 || val > 100) {
+                            errors.push(`Baris ${rowIdx + 2}: Nilai ${val} pada kolom '${col}' diluar batas (0-100).`);
                             return;
                         }
 
-                        if (activeMode === 'UH' && col.startsWith('UH')) {
-                            newChanges[`${nisn}||UH||${materi}||`] = val;
-                        } else if (activeMode === 'PAS' && col === 'PAS') {
-                            newChanges[`${nisn}||PAS||-||`] = val;
+                        // Identify Target key based on Mode & Column
+                        if (activeMode === 'UH' && col.toUpperCase().startsWith('UH')) {
+                            newChanges[`${rowNISN}||UH||${materi}||`] = val;
+                        } else if (activeMode === 'PAS' && col.toUpperCase() === 'PAS') {
+                            newChanges[`${rowNISN}||PAS||-||`] = val;
                         } else if (activeMode === 'KUIS' || activeMode === 'TUGAS') {
+                            // Match column to Tagihan
                             const jenisStr = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
-                            // Ensure we find the correctly cased metadata name but use the Excel value
-                            const tag = tagihanConfig.find(t => t.nama_tagihan.toUpperCase() === col.toUpperCase() && t.materi_tp === materi && t.jenis === jenisStr);
-                            const finalTag = tag ? tag.nama_tagihan : col;
-                            newChanges[`${nisn}||${jenisStr}||${materi}||${finalTag}`] = val;
+
+                            // Try exact match or match via created metadata
+                            let targetTag = currentConfig.find(t => t.nama_tagihan.toUpperCase() === col.toUpperCase() && t.materi_tp === materi && t.jenis === jenisStr);
+
+                            // Fallback: Check if it was one of the newly created ones by header matching
+                            if (!targetTag) {
+                                const createdMeta = newTagihansToCreate.find(t => t.label_raw === col);
+                                if (createdMeta) {
+                                    targetTag = currentConfig.find(t => t.nama_tagihan.toUpperCase() === createdMeta.nama && t.materi_tp === materi && t.jenis === jenisStr);
+                                }
+                            }
+
+                            const finalTag = targetTag ? targetTag.nama_tagihan : col.toUpperCase().replace(/\s/g, '_'); // Fallback purely by name
+                            newChanges[`${rowNISN}||${jenisStr}||${materi}||${finalTag}`] = val;
+
+                        } else if (activeMode === 'REKAP') {
+                            if (col.toUpperCase() === 'PAS') {
+                                newChanges[`${rowNISN}||PAS||-||`] = val;
+                            }
                         }
                     });
                 });
 
-                if (errorLogs.length > 0) {
-                    Swal.fire({
-                        title: 'Import Warning',
-                        html: `<div class="text-left text-xs space-y-1 max-h-40 overflow-auto border p-2 bg-red-50 text-red-700">${errorLogs.join('<br>')}</div>`,
-                        icon: 'warning'
+                setChanges(newChanges);
+
+                // 6. Apply Topic Updates
+                if (topicUpdates.length > 0) {
+                    // Update locally
+                    const updatedConfig = currentConfig.map(t => {
+                        const update = topicUpdates.find(u => u.id === t.id);
+                        return update ? { ...t, topik: update.topik } : t;
                     });
+                    setTagihanConfig(updatedConfig);
+
+                    // Update Server
+                    await Promise.all(topicUpdates.map(u =>
+                        fetch('/api/nilai/tagihan', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                id: u.id,
+                                topik: u.topik,
+                                // Need to pass required fields to satisfy API upsert/update if needed, 
+                                // but ideally API handles partial update or we pass full obj
+                                nip: user.nip,
+                                kelas,
+                                mapel,
+                                semester,
+                                tahun_ajaran: tahunAjaran,
+                                // reconstruct other fields from existing config
+                                ...(currentConfig.find(c => c.id === u.id))
+                            })
+                        })
+                    ));
                 }
 
-                if (matchCount > 0) {
-                    setChanges(newChanges);
-                    setShowImportModal(false);
-                    Swal.fire('Import Success', `${matchCount} students processed as draft. Review and SYNC.`, 'success');
-                } else if (errorLogs.length === 0) {
-                    throw new Error("Tidak ada data yang diproses.");
+                setShowImportModal(false);
+
+                // Summary Report
+                let htmlContent = `<div class="text-left text-sm space-y-2">
+                    <p><b>Berhasil Diproses:</b> ${validRows} siswa</p>
+                    <p><b>Dilewati/Error:</b> ${errors.length} baris</p>
+                    <p><b>Kolom Baru:</b> ${newColumnsCreated}</p>`;
+
+                if (errors.length > 0) {
+                    // Filter out "NISN not found" errors if they match known metadata patterns to be doubly sure
+                    // But our previous logic already stopped push if it was metadata.
+                    // Just purely show valid remaining errors
+                    htmlContent += `<div class="mt-3 p-2 bg-red-50 text-red-600 rounded max-h-40 overflow-y-auto text-xs border border-red-100">
+                        <ul class="list-disc pl-4 space-y-1">
+                            ${errors.map(e => `<li>${e}</li>`).join('')}
+                        </ul>
+                    </div>`;
                 }
+
+                // Show Topic Updates in Summary
+                if (topicUpdates.length > 0) {
+                    htmlContent += `<div class="mt-2 p-2 bg-blue-50 text-blue-700 rounded text-xs border border-blue-100">
+                        <p class="font-bold"><i class="bi bi-info-circle"></i> Info Update Materi:</p>
+                        <ul class="list-disc pl-4 space-y-1 mt-1">
+                            ${topicUpdates.map(u => {
+                        const t = currentConfig.find(c => c.id === u.id);
+                        return `<li>${t?.nama_tagihan || 'Tag'}: ${u.topik}</li>`;
+                    }).join('')}
+                        </ul>
+                    </div>`;
+                }
+
+                htmlContent += `<p class="text-xs text-slate-500 mt-2 border-t pt-2">Data masuk ke mode <b>DRAFT</b>. Silakan review dan klik tombol <b>SIMPAN</b> (Awan Biru) untuk menyimpan permanen.</p></div>`;
+
+                Swal.fire({
+                    icon: errors.length > 0 && validRows === 0 ? 'error' : (errors.length > 0 ? 'warning' : 'success'),
+                    title: 'Hasil Import',
+                    html: htmlContent,
+                    width: '600px'
+                });
+
             } catch (err: any) {
                 Swal.fire('Import Error', err.message, 'error');
             }
@@ -530,444 +964,488 @@ export default function NilaiPage() {
     };
 
     const handleKeyDown = (e: React.KeyboardEvent, rIdx: number, cIdx: number) => {
-        const inputs = tableRef.current?.querySelectorAll('input.nilai-input') as NodeListOf<HTMLInputElement>;
-        if (!inputs) return;
-        const subTags = tagihanConfig.filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi);
-        const cols = (activeMode === 'UH' || activeMode === 'PAS') ? 1 : subTags.length;
-        let tIdx = -1;
-        if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); tIdx = (rIdx + 1) * cols + cIdx; }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); tIdx = (rIdx - 1) * cols + cIdx; }
-        else if (e.key === 'ArrowRight' && (e.currentTarget as any).selectionEnd === (e.currentTarget as any).value.length) tIdx = rIdx * cols + cIdx + 1;
-        else if (e.key === 'ArrowLeft' && (e.currentTarget as any).selectionStart === 0) tIdx = rIdx * cols + cIdx - 1;
-        if (tIdx >= 0 && tIdx < inputs.length) { inputs[tIdx].focus(); inputs[tIdx].select(); }
+        const inputs = Array.from(tableRef.current?.querySelectorAll('input.nl__scoreInput') || []) as HTMLInputElement[];
+        if (inputs.length === 0) return;
+        const currentInput = e.currentTarget as HTMLInputElement;
+        const flatIdx = inputs.indexOf(currentInput);
+        if (flatIdx === -1) return;
+        const row = currentInput.closest('tr');
+        const cols = row ? row.querySelectorAll('input.nl__scoreInput').length : 1;
+        let targetIdx = -1;
+        if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); targetIdx = flatIdx + cols; }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); targetIdx = flatIdx - cols; }
+        else if (e.key === 'ArrowRight') { if (currentInput.selectionEnd === currentInput.value.length) targetIdx = flatIdx + 1; }
+        else if (e.key === 'ArrowLeft') { if (currentInput.selectionStart === 0) targetIdx = flatIdx - 1; }
+        if (targetIdx >= 0 && targetIdx < inputs.length) { inputs[targetIdx].focus(); inputs[targetIdx].select(); }
     };
 
     return (
-        <div className="nilai-page">
-            <header className="ng-header sticky top-0 z-[60] py-4 border-b">
-                <div className="max-w-[1700px] mx-auto px-10 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="brand-badge"><i className="bi bi-intersect text-xl"></i></div>
-                        <div>
-                            <h1 className="text-lg font-extrabold tracking-tight text-slate-800">GradeCenter<span className="text-blue-600">.</span></h1>
-                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                <span>{kelas || '---'}</span><i className="bi bi-dot"></i><span>{mapel || '---'}</span>
+        <PermissionGuard requiredPermission={{ resource: 'nilai', action: 'view' }}>
+            <div className="nl">
+                {/* Page Header */}
+                <header className="nl__pageHeader">
+                    <div className="nl__titleArea relative z-10">
+                        <h1 className="nl__pageTitle">Rekap & Pengolahan Nilai</h1>
+                        <p>Mengatur proses rekapitulasi nilai dari berbagai komponen penilaian.</p>
+                    </div>
+                </header>
+
+
+                {/* Toolbar */}
+                <div className="nl__toolbar">
+                    {/* Desktop Layout - 2 Rows */}
+                    <div className="nl__toolbarRow">
+                        <div className="nl__searchGroup">
+                            <i className="bi bi-search"></i>
+                            <input className="nl__searchInput" placeholder="Cari..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                        </div>
+                        <div className="nl__filters flex gap-3">
+                            <select className="nl__select" value={tahunAjaran} onChange={e => setTahunAjaran(e.target.value)}>
+                                {tahunAjaranList.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                            <select className="nl__select" value={semester} onChange={e => setSemester(e.target.value)}>
+                                <option value="Ganjil">Ganjil</option>
+                                <option value="Genap">Genap</option>
+                            </select>
+                            <select className="nl__select" value={kelas} onChange={e => { const k = e.target.value; setKelas(k); if (mapelByKelas[k]?.length > 0) setMapel(mapelByKelas[k][0]); }}>
+                                {kelasList.map(k => <option key={k} value={k}>{k}</option>)}
+                            </select>
+                            <select className="nl__select" value={mapel} onChange={e => setMapel(e.target.value)}>
+                                {(mapelByKelas[kelas] || []).map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="nl__toolbarRow justify-between">
+                        <div className="flex items-center gap-3">
+                            {/* SUM Selection Dropdown */}
+                            {activeMode !== 'REKAP' && activeMode !== 'PAS' && (
+                                <div className="relative shrink-0">
+                                    <button
+                                        className="nl__select min-w-[200px] flex items-center justify-between gap-2 bg-white hover:bg-slate-50 border border-slate-200"
+                                        onClick={() => setShowSumDropdown(!showSumDropdown)}
+                                    >
+                                        <span className="font-bold text-sm text-slate-700">{materi}</span>
+                                        <i className={`bi bi-chevron-${showSumDropdown ? 'up' : 'down'} text-xs text-slate-400`}></i>
+                                    </button>
+
+                                    {/* Dropdown Content */}
+                                    {showSumDropdown && (
+                                        <>
+                                            <div className="fixed inset-0 z-40" onClick={() => setShowSumDropdown(false)}></div>
+                                            <div className="absolute top-full left-0 mt-2 w-[280px] bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-fade-in-up">
+                                                <div className="max-h-[250px] overflow-y-auto py-2">
+                                                    {Array.from({ length: bobot.sumCount }, (_, i) => {
+                                                        const sumName = `SUM ${i + 1}`;
+                                                        return (
+                                                            <button
+                                                                key={sumName}
+                                                                className={`w-full px-4 py-3 text-left hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 last:border-0 ${materi === sumName ? 'bg-blue-50/50' : ''}`}
+                                                                onClick={() => { setMateri(sumName); setShowSumDropdown(false); }}
+                                                            >
+                                                                <span className={`font-bold text-sm ${materi === sumName ? 'text-blue-600' : 'text-slate-700'}`}>{sumName}</span>
+                                                                {materi === sumName && <i className="bi bi-check-lg text-blue-600"></i>}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                            <div className="nl__modeSwitcher flex bg-slate-100 p-1 rounded-lg">
+                                {modes.map((m, idx) => (
+                                    <button key={m} className={`nl__modeBtn ${activeMode === m ? 'active' : ''}`} onClick={() => setModeIndex(idx)}>{m}</button>
+                                ))}
                             </div>
                         </div>
-                    </div>
 
-                    <div className="flex items-center gap-4">
-                        <div className="relative group">
-                            <input type="text" placeholder="Search entries..." className="ng-input w-64 pr-10 border-slate-200" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                            <i className="bi bi-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-300"></i>
-                        </div>
-                        <button className="text-slate-500 hover:text-slate-900 transition p-2" onClick={loadData}><i className={`bi bi-arrow-clockwise text-xl ${loading ? 'animate-spin' : ''}`}></i></button>
-                    </div>
-                </div>
-            </header>
-
-            <main className="max-w-[1700px] mx-auto p-10 space-y-8 animate-fade">
-                <div className="flex items-center justify-between bg-white p-4 rounded-2xl border shadow-sm">
-                    <div className="mode-switcher">
-                        {['REKAP', 'KUIS', 'TUGAS', 'UH', 'PAS'].map(m => (
-                            <button key={m} className={`mode-btn ${activeMode === m ? 'active' : ''}`} onClick={() => setActiveMode(m as any)}>{m}</button>
-                        ))}
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <select className="ng-select" value={kelas} onChange={e => {
-                            const newK = e.target.value;
-                            setKelas(newK);
-                            if (mapelByKelas[newK] && mapelByKelas[newK].length > 0) {
-                                setMapel(mapelByKelas[newK][0]);
-                            }
-                        }}>
-                            {kelasList.map(k => <option key={k} value={k}>{k}</option>)}
-                        </select>
-                        <select className="ng-select" value={mapel} onChange={e => setMapel(e.target.value)}>
-                            {(mapelByKelas[kelas] || []).map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                        <div className="flex gap-2 ml-4">
-                            <button className="btn-primary flex items-center gap-2 text-xs" onClick={handleExport}><i className="bi bi-download"></i> EXPORT</button>
-                            <button className="bg-slate-50 text-slate-600 font-bold px-5 py-2.5 rounded-xl text-xs border hover:bg-white transition" onClick={() => setShowImportModal(true)}>
-                                <i className="bi bi-file-earmark-arrow-up mr-2"></i> IMPORT
-                            </button>
-                            <input type="file" ref={fileInputRef} hidden accept=".xlsx,.xls" onChange={handleImport} />
+                        <div className="nl__actions shrink-0">
+                            <button className="nl__btn nl__btnSecondary" onClick={() => handleExport(false)}><i className="bi bi-file-earmark-excel"></i> Export Data</button>
+                            {activeMode !== 'REKAP' && (
+                                <button className="nl__btn nl__btnPrimary" onClick={() => setShowImportModal(true)}><i className="bi bi-upload"></i> Import</button>
+                            )}
+                            <input ref={fileInputRef} type="file" hidden accept=".xlsx,.xls" onChange={handleImport} />
                         </div>
                     </div>
+
+
                 </div>
 
-                {activeMode !== 'REKAP' && activeMode !== 'PAS' && (
-                    <div className="flex items-center gap-4">
-                        <div className="flex-1 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                            {Array.from({ length: bobot.sumCount }, (_, i) => `SUM ${i + 1}`).map(s => (
-                                <button key={s} className={`whitespace-nowrap px-6 py-2 rounded-xl text-[11px] font-bold border transition ${materi === s ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300'}`} onClick={() => setMateri(s)}>{s}</button>
-                            ))}
-                        </div>
-                        <button className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-[10px] font-bold border border-blue-100 hover:bg-blue-100 transition" onClick={() => setShowConfigModal(true)}><i className="bi bi-gear-fill mr-2"></i> CONFIGURE_SUM</button>
-                    </div>
-                )}
 
-                <div className="premium-table-container">
-                    <table className="premium-table" ref={tableRef}>
+
+                {/* Main Table */}
+                <div className="nl__tableWrap">
+                    <table className="nl__table" ref={tableRef}>
                         <thead>
                             <tr>
-                                <th className="w-12">NO</th>
-                                <th className="w-32 text-center px-4">NISN</th>
-                                <th className="text-left px-6">STUDENT_NAME</th>
+                                <th className="w-16">No</th>
+                                <th className="w-32">NISN</th>
+                                <th className="text-left">Nama Siswa</th>
                                 {activeMode === 'REKAP' ? (
                                     <>
                                         {Array.from({ length: bobot.sumCount }, (_, i) => {
                                             const sumName = `SUM ${i + 1}`;
                                             const cfg = tagihanConfig.find(t => t.jenis === 'Sum' && t.materi_tp === sumName);
                                             return (
-                                                <th key={i} className="min-w-[110px] py-2">
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-700">{sumName}</span>
-                                                        <div className="flex items-center gap-1.5 bg-slate-100/80 px-1.5 py-0.5 rounded-md">
-                                                            <button onClick={() => { setEditingTagihan(cfg || { jenis: 'Sum', materi_tp: sumName, nama_tagihan: sumName }); setShowTagihanModal(true); }} className="text-blue-500 hover:text-blue-700 transition" title="Edit Topic">
-                                                                <i className="bi bi-pencil-square text-[10px]"></i>
-                                                            </button>
-                                                            <div className="w-px h-2.5 bg-slate-200"></div>
-                                                            <button onClick={() => handleDeleteSum(i + 1)} className="text-red-400 hover:text-red-600 transition" title="Delete SUM">
-                                                                <i className="bi bi-trash3-fill text-[10px]"></i>
-                                                            </button>
-                                                        </div>
+                                                <th key={i} className="min-w-[100px]">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span>{sumName}</span>
+                                                    </div>
+                                                    <div className="nl__thActions">
+                                                        <button onClick={() => { setEditingTagihan(cfg || { jenis: 'Sum', materi_tp: sumName, nama_tagihan: sumName }); setShowTagihanModal(true); }}><i className="bi bi-pencil"></i></button>
+                                                        <button className="text-red-400" onClick={() => handleDeleteSum(i + 1)}><i className="bi bi-trash3"></i></button>
                                                     </div>
                                                 </th>
                                             );
                                         })}
-                                        <th className="w-24 text-center">PAS</th>
-                                        <th className="w-32 bg-blue-50 text-blue-600 border-l border-blue-100 text-center">RAPOR_FINAL</th>
+                                        <th className="w-24">PAS</th>
+                                        <th className="w-28 text-blue-600">Rapor</th>
                                     </>
-                                ) : activeMode === 'UH' ? (
-                                    <th className="w-48 bg-slate-50 text-slate-900 text-center uppercase">UH_{materi}</th>
-                                ) : activeMode === 'PAS' ? (
-                                    <th className="w-48 bg-slate-50 text-slate-900 text-center uppercase">FINAL_SCORE</th>
-                                )
-                                    : tagihanConfig.filter(t => {
-                                        const isMatch = t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi;
-                                        if (!isMatch) return false;
-                                        const hasData = nilaiData.some(d => d.jenis === t.jenis && d.tagihan === t.nama_tagihan && d.materi_tp === t.materi_tp && d.nilai !== null);
-                                        const hasChange = Object.keys(changes).some(k => k.includes(`||${t.jenis}||${t.materi_tp}||${t.nama_tagihan}`));
-                                        return hasData || hasChange;
-                                    }).map(it => (
-                                        <th key={it.id} className="min-w-[110px] py-2">
-                                            <div className="flex flex-col items-center gap-1">
-                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-700">{it.nama_tagihan}</span>
-                                                <div className="flex items-center gap-1.5 bg-slate-100/80 px-1.5 py-0.5 rounded-md">
-                                                    <button onClick={() => { setEditingTagihan(it); setShowTagihanModal(true); }} className="text-blue-500 hover:text-blue-700 transition" title="Edit Topic">
-                                                        <i className="bi bi-pencil-square text-[10px]"></i>
-                                                    </button>
-                                                    <div className="w-px h-2.5 bg-slate-200"></div>
-                                                    <button onClick={() => handleDeleteTagihan(it.id!, it.nama_tagihan)} className="text-red-400 hover:text-red-600 transition" title="Delete & Re-index">
-                                                        <i className="bi bi-trash3-fill text-[10px]"></i>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </th>
-                                    ))}
+                                ) : activeMode === 'UH' ? (<th className="w-32">UH {materi}</th>)
+                                    : activeMode === 'PAS' ? (<th className="w-32">PAS</th>)
+                                        : tagihanConfig
+                                            .filter(t => (t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi))
+                                            .filter(t => activeTags.has(`${(activeMode.charAt(0) + activeMode.slice(1).toLowerCase())}||${materi}||${t.nama_tagihan}`)) // ONLY SHOW ACTIVE
+                                            .map(t => (
+                                                <th key={t.id} className="min-w-[120px]">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span>{t.nama_tagihan}</span>
+                                                    </div>
+                                                    <div className="nl__thActions">
+                                                        <button onClick={() => { setEditingTagihan(t); setShowTagihanModal(true); }}><i className="bi bi-pencil"></i></button>
+                                                        <button className="text-red-400" onClick={() => handleDeleteTagihan(t.id!, t.nama_tagihan)}><i className="bi bi-trash3"></i></button>
+                                                    </div>
+                                                </th>
+                                            ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredSiswa.map((s, rIdx) => {
-                                const subTags = tagihanConfig.filter(t => {
-                                    const isMatch = t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi;
-                                    if (!isMatch) return false;
-                                    const hasData = nilaiData.some(d => d.jenis === t.jenis && d.tagihan === t.nama_tagihan && d.materi_tp === t.materi_tp && d.nilai !== null);
-                                    const hasChange = Object.keys(changes).some(k => k.includes(`||${t.jenis}||${t.materi_tp}||${t.nama_tagihan}`));
-                                    return hasData || hasChange;
-                                });
-                                return (
-                                    <tr key={s.nisn} className="group/row">
-                                        <td className="text-center font-mono text-[10px] text-slate-300 bg-slate-50/30">{rIdx + 1}</td>
-                                        <td className="px-4 py-4 text-center">
-                                            <span className="text-[12px] font-mono font-bold text-slate-400 bg-slate-100/50 px-2 py-1 rounded-md tracking-tighter">
-                                                {s.nisn}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="text-[12px] font-bold text-slate-700 uppercase tracking-tight font-outfit">
-                                                {s.nama_siswa}
-                                            </span>
-                                        </td>
-                                        {activeMode === 'REKAP' ? (
-                                            <>
-                                                {Array.from({ length: bobot.sumCount }, (_, i) => {
-                                                    const na = calculateNABab(s.nisn, `SUM ${i + 1}`);
-                                                    return <td key={i} className="text-center"><span className="score-badge">{na === "-" ? "-" : (na as number).toFixed(0)}</span></td>;
-                                                })}
-                                                <td className="text-center"><span className="score-badge">{getScore(s.nisn, 'PAS', '-')}</span></td>
-                                                <td className="text-center bg-blue-50/30 border-l border-blue-50"><span className="score-final">{calculateRapor(s.nisn)}</span></td>
-                                            </>
-                                        ) : (
-                                            (activeMode === 'UH' || activeMode === 'PAS' ? [activeMode] : subTags).map((it, cIdx) => (
-                                                <td key={typeof it === 'string' ? it : it.nama_tagihan} className="border-l border-slate-50">
-                                                    <input
-                                                        type="text"
-                                                        inputMode="decimal"
-                                                        className={`nilai-input ${isDiffFromDB(
-                                                            s.nisn,
-                                                            activeMode === 'UH' ? 'UH' : activeMode === 'PAS' ? 'PAS' : (it as TagihanConfig).jenis,
-                                                            activeMode === 'PAS' ? '-' : materi,
-                                                            typeof it === 'string' ? '' : (it as TagihanConfig).nama_tagihan
-                                                        ) ? 'is-changed' : ''}`}
-                                                        value={getScore(s.nisn, activeMode === 'UH' ? 'UH' : activeMode === 'PAS' ? 'PAS' : (it as TagihanConfig).jenis, activeMode === 'PAS' ? '-' : materi, typeof it === 'string' ? '' : (it as TagihanConfig).nama_tagihan)}
-                                                        onChange={e => handleScoreChange(
-                                                            s.nisn,
-                                                            activeMode === 'UH' ? 'UH' : activeMode === 'PAS' ? 'PAS' : (it as TagihanConfig).jenis,
-                                                            activeMode === 'PAS' ? '-' : materi,
-                                                            typeof it === 'string' ? '' : (it as TagihanConfig).nama_tagihan,
-                                                            e.target.value
-                                                        )}
-                                                        onKeyDown={e => handleKeyDown(e, rIdx, cIdx)}
-                                                    />
-                                                </td>
-                                            ))
-                                        )}
-                                    </tr>
-                                );
-                            })}
+                            {filteredSiswa.map((s, idx) => (
+                                <tr key={s.nisn}>
+                                    <td className="text-center text-slate-400 text-xs">{idx + 1}</td>
+                                    <td className="text-center"><span className="nl__idBadge">{s.nisn}</span></td>
+                                    <td className="nl__studentName">{s.nama_siswa || (s as any).nama}</td>
+                                    {activeMode === 'REKAP' ? (
+                                        <>
+                                            {Array.from({ length: bobot.sumCount }, (_, i) => <td key={i} className="text-center"><span className="nl__scoreBadge">{calculateNABab(s.nisn, `SUM ${i + 1}`) !== '-' ? Math.round(calculateNABab(s.nisn, `SUM ${i + 1}`) as number) : '-'}</span></td>)}
+                                            <td className="text-center"><span className="nl__scoreBadge">{getScore(s.nisn, 'PAS', '-')}</span></td>
+                                            <td className="text-center font-bold text-blue-600 bg-blue-50/10"><span className="nl__scoreFinal">{calculateRapor(s.nisn)}</span></td>
+                                        </>
+                                    ) : (
+                                        (activeMode === 'UH' || activeMode === 'PAS' ? [activeMode] :
+                                            tagihanConfig
+                                                .filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi)
+                                                .filter(t => activeTags.has(`${t.jenis}||${materi}||${t.nama_tagihan}`)) // SYNC FILTER
+                                        ).map((it, cIdx) => (
+                                            <td key={typeof it === 'string' ? it : it.id}>
+                                                <input
+                                                    className={`nl__scoreInput ${isDiffFromDB(s.nisn, activeMode === 'UH' ? 'UH' : activeMode === 'PAS' ? 'PAS' : (it as any).jenis, activeMode === 'PAS' ? '-' : materi, typeof it === 'string' ? '' : (it as any).nama_tagihan) ? 'is-changed' : ''}`}
+                                                    value={getScore(s.nisn, activeMode === 'UH' ? 'UH' : activeMode === 'PAS' ? 'PAS' : (it as any).jenis, activeMode === 'PAS' ? '-' : materi, typeof it === 'string' ? '' : (it as any).nama_tagihan)}
+                                                    onChange={e => handleScoreChange(s.nisn, activeMode === 'UH' ? 'UH' : activeMode === 'PAS' ? 'PAS' : (it as any).jenis, activeMode === 'PAS' ? '-' : materi, typeof it === 'string' ? '' : (it as any).nama_tagihan, e.target.value)}
+                                                    onKeyDown={e => handleKeyDown(e, idx, cIdx)}
+                                                />
+                                            </td>
+                                        ))
+                                    )}
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
+
+                    {activeMode === 'REKAP' && (
+                        <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded text-sm text-blue-700 flex items-center gap-3">
+                            <i className="bi bi-info-circle-fill text-lg"></i>
+                            <div>
+                                <span className="font-bold block">Rumus Perhitungan Rapor:</span>
+                                <span>Nilai Rapor = (Rata-rata Nilai SUM &times; {bobot.ratioRapor.sums}%) + (Nilai PAS &times; {bobot.ratioRapor.pas}%)</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* LEGEND / DESCRIPTION SECTION BELOW TABLE - LIST FORMAT */}
-                {(activeMode === 'KUIS' || activeMode === 'TUGAS' || activeMode === 'REKAP') && (
-                    <div className="bg-slate-50/50 border border-slate-100 rounded-xl p-5 mt-4 animate-fade max-w-2xl">
-                        <div className="flex items-center gap-2 mb-3">
-                            <i className="bi bi-info-circle-fill text-blue-500 text-xs"></i>
-                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Daftar Materi Penilaian</h4>
+                {/* Topic Description Section - Aligned with nl__tableWrap */}
+                {(activeMode === 'KUIS' || activeMode === 'TUGAS') && (
+                    <div className="nl__tableWrap mt-4 p-6">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <i className="bi bi-info-circle-fill text-blue-500"></i>
+                            Keterangan Materi
                         </div>
-                        <div className="space-y-1.5">
-                            {activeMode === 'REKAP' ? (
-                                Array.from({ length: bobot.sumCount }, (_, i) => {
-                                    const sumName = `SUM ${i + 1}`;
-                                    const cfg = tagihanConfig.find(t => t.jenis === 'Sum' && t.materi_tp === sumName);
-                                    const hasData = nilaiData.some(d => d.materi_tp === sumName && d.nilai !== null);
-                                    if (!hasData && !cfg?.topik) return null;
-
-                                    return (
-                                        <div key={i} className="flex items-center gap-3 py-1 border-b border-slate-100 last:border-0">
-                                            <span className="text-[10px] font-black text-slate-400 min-w-[60px]">{sumName}</span>
-                                            <span className="text-slate-300">|</span>
-                                            <span className="text-[11px] font-bold text-slate-600">{cfg?.topik || '-'}</span>
-                                        </div>
-                                    );
+                        <div className="grid grid-cols-[120px_1fr_120px_1fr] gap-x-12 gap-y-3">
+                            {tagihanConfig
+                                .filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi)
+                                .sort((a, b) => {
+                                    const numA = parseInt(a.nama_tagihan.split('_')[1]) || 0;
+                                    const numB = parseInt(b.nama_tagihan.split('_')[1]) || 0;
+                                    return numA - numB;
                                 })
-                            ) : (
-                                tagihanConfig.filter(t => {
-                                    const isMatch = t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi;
-                                    if (!isMatch) return false;
-                                    const hasData = nilaiData.some(d => d.jenis === t.jenis && d.tagihan === t.nama_tagihan && d.materi_tp === t.materi_tp && d.nilai !== null);
-                                    const hasChange = Object.keys(changes).some(k => k.includes(`||${t.jenis}||${t.materi_tp}||${t.nama_tagihan}`));
-                                    return hasData || hasChange;
-                                }).map(it => (
-                                    <div key={it.id} className="flex items-center gap-3 py-1 border-b border-slate-100 last:border-0">
-                                        <span className="text-[10px] font-black text-slate-400 min-w-[60px]">{it.nama_tagihan}</span>
-                                        <span className="text-slate-300">|</span>
-                                        <span className="text-[11px] font-bold text-slate-600">{it.topik || '-'}</span>
-                                    </div>
+                                .map(t => (
+                                    <Fragment key={t.id || t.nama_tagihan}>
+                                        <div className="font-bold text-sm text-slate-700 border-b border-slate-50 pb-1">{t.nama_tagihan}</div>
+                                        <div className={`text-sm border-b border-slate-50 pb-1 truncate ${t.topik ? 'text-slate-600' : 'text-slate-300 italic'}`} title={t.topik || ''}>
+                                            {t.topik || '-'}
+                                        </div>
+                                    </Fragment>
                                 ))
+                            }
+                            {tagihanConfig.filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi).length === 0 && (
+                                <div className="text-slate-400 italic text-sm col-span-full">Belum ada kolom penilaian untuk materi ini.</div>
                             )}
                         </div>
                     </div>
                 )}
-            </main>
 
-            {Object.keys(changes).length > 0 && (
-                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 animate-fade z-[100]">
-                    <button className="bg-slate-900 text-white px-10 py-4 rounded-full font-extrabold text-sm shadow-2xl flex items-center gap-4 hover:scale-105 active:scale-95 transition" onClick={handleSave}>
-                        PUSH {Object.keys(changes).length} CHANGES TO SERVER <i className="bi bi-cloud-arrow-up text-lg"></i>
-                    </button>
-                </div>
-            )}
-
-            <button className="fixed bottom-10 right-10 w-16 h-16 bg-white border border-slate-200 text-slate-900 rounded-2xl shadow-xl flex items-center justify-center hover:bg-slate-50 hover:scale-105 transition-all z-[80]" onClick={() => setShowConfigModal(true)}><i className="bi bi-sliders text-2xl"></i></button>
-
-            {showConfigModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 modal-glass animate-fade">
-                    <div className="modal-content w-full max-w-lg overflow-hidden">
-                        <div className="p-8 border-b flex justify-between items-center">
-                            <div><h2 className="text-xl font-extrabold tracking-tight">System Configuration</h2><p className="text-xs text-slate-400 font-medium uppercase tracking-widest mt-1">Ratio & Scope Management</p></div>
-                            <button onClick={() => setShowConfigModal(false)} className="text-slate-400 hover:text-slate-900 transition"><i className="bi bi-x-lg text-xl"></i></button>
+                {/* Mobile Cards */}
+                <div className="nl__mobileCards">
+                    {filteredSiswa.map((s, idx) => (
+                        <div key={s.nisn} className="nl__card">
+                            <div className="nl__cardHeader">
+                                <div className="nl__cardName">{s.nama_siswa || (s as any).nama}</div>
+                                <div className="nl__cardId">{s.nisn}</div>
+                            </div>
+                            <div className="nl__cardScores">
+                                {activeMode === 'REKAP' ? (
+                                    <>
+                                        {Array.from({ length: bobot.sumCount }, (_, i) => {
+                                            const sumName = `SUM ${i + 1}`;
+                                            const val = calculateNABab(s.nisn, sumName);
+                                            if (val !== '-' && val !== 0) {
+                                                return (
+                                                    <div key={i} className="nl__scoreRow">
+                                                        <span className="nl__scoreLabel">{sumName}</span>
+                                                        <span className="nl__scoreValue">{Math.round(val as number)}</span>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })}
+                                        {getScore(s.nisn, 'PAS', '-') && getScore(s.nisn, 'PAS', '-') !== "" && (
+                                            <div className="nl__scoreRow">
+                                                <span className="nl__scoreLabel">PAS</span>
+                                                <input
+                                                    className="nl__mobileScoreInput"
+                                                    value={getScore(s.nisn, 'PAS', '-')}
+                                                    onChange={e => handleScoreChange(s.nisn, 'PAS', '-', '', e.target.value)}
+                                                />
+                                            </div>
+                                        )}
+                                        <div className="nl__cardFinal">{calculateRapor(s.nisn)}</div>
+                                    </>
+                                ) : activeMode === 'UH' ? (
+                                    getScore(s.nisn, 'UH', materi) && getScore(s.nisn, 'UH', materi) !== "" && (
+                                        <div className="nl__scoreRow">
+                                            <span className="nl__scoreLabel">UH {materi}</span>
+                                            <input
+                                                className="nl__mobileScoreInput"
+                                                value={getScore(s.nisn, 'UH', materi)}
+                                                onChange={e => handleScoreChange(s.nisn, 'UH', materi, '', e.target.value)}
+                                            />
+                                        </div>
+                                    )
+                                ) : activeMode === 'PAS' ? (
+                                    getScore(s.nisn, 'PAS', '-') && getScore(s.nisn, 'PAS', '-') !== "" && (
+                                        <div className="nl__scoreRow">
+                                            <span className="nl__scoreLabel">PAS</span>
+                                            <input
+                                                className="nl__mobileScoreInput"
+                                                value={getScore(s.nisn, 'PAS', '-')}
+                                                onChange={e => handleScoreChange(s.nisn, 'PAS', '-', '', e.target.value)}
+                                            />
+                                        </div>
+                                    )
+                                ) : (
+                                    tagihanConfig.filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi).map(t => {
+                                        const score = getScore(s.nisn, t.jenis, materi, t.nama_tagihan);
+                                        if (score && score !== "") {
+                                            return (
+                                                <div key={t.id} className="nl__scoreRow">
+                                                    <span className="nl__scoreLabel">{t.nama_tagihan}</span>
+                                                    <input
+                                                        className="nl__mobileScoreInput"
+                                                        value={score}
+                                                        onChange={e => handleScoreChange(s.nisn, t.jenis, materi, t.nama_tagihan, e.target.value)}
+                                                    />
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })
+                                )}
+                            </div>
                         </div>
-                        <div className="p-8 space-y-8">
-                            <div className="space-y-4">
-                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Bab Ratio (Kuis : Tugas : UH)</label>
-                                <div className="grid grid-cols-3 gap-4">
+                    ))}
+                </div>
+            </div>
+
+
+
+            {/* Floating Action Toolbox */}
+            <div className="nl__toolbox">
+                {Object.keys(changes).length > 0 && (<button className="nl__fab nl__fab--primary bg-slate-900" onClick={handleSave} title="Simpan Perubahan"><i className="bi bi-cloud-arrow-up"></i></button>)}
+                {(activeMode === 'KUIS' || activeMode === 'TUGAS') && (
+                    <button className="nl__fab nl__fab--primary" onClick={() => {
+                        const jenisStr = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
+                        setEditingTagihan({ jenis: jenisStr, materi_tp: materi, nama_tagihan: getNextAutoLabel(), topik: '' });
+                        setShowTagihanModal(true);
+                    }} title="Tambah Kolom Nilai"><i className="bi bi-plus-lg"></i></button>
+                )}
+                <button className="nl__fab nl__fab--secondary" onClick={() => setShowConfigModal(true)} title="Konfigurasi Bobot"><i className="bi bi-sliders2"></i></button>
+            </div>
+
+
+            {/* Import Modal */}
+            {
+                showImportModal && (
+                    <div className="nl__modalOverlay animate-fade">
+                        <div className="nl__modalContent" style={{ maxWidth: '450px' }}>
+                            <div className="nl__modalHeader">
+                                <h3 className="nl__modalTitle">Import Data Nilai</h3>
+                                <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600">
+                                    <i className="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                            <div className="nl__modalBody text-center">
+                                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto text-2xl mb-4">
+                                    <i className="bi bi-file-earmark-spreadsheet"></i>
+                                </div>
+                                <p className="text-sm text-slate-500 mb-8">
+                                    Unduh template terlebih dahulu, isi nilai secara offline, lalu upload kembali file Excel tersebut.
+                                </p>
+                                <div className="space-y-3">
+                                    <button className="w-full py-3 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2" onClick={() => handleExport(true)}>
+                                        <i className="bi bi-download"></i> Download Template
+                                    </button>
+                                    <button className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20" onClick={() => fileInputRef.current?.click()}>
+                                        <i className="bi bi-upload"></i> Upload Excel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Tagihan Modal */}
+            {
+                showTagihanModal && (
+                    <div className="nl__modalOverlay animate-fade">
+                        <div className="nl__modalContent">
+                            <div className="nl__modalHeader">
+                                <h3 className="nl__modalTitle">{editingTagihan?.id ? 'Edit' : 'Tambah'} {editingTagihan?.jenis}</h3>
+                                <button onClick={() => setShowTagihanModal(false)} className="text-slate-400 hover:text-slate-600"><i className="bi bi-x-lg"></i></button>
+                            </div>
+                            <div className="nl__modalBody">
+                                <div className="nl__formGroup">
+                                    <label className="nl__formLabel">Label Kolom (Kode)</label>
+                                    <input
+                                        className="nl__formInput"
+                                        value={editingTagihan?.nama_tagihan || ''}
+                                        onChange={e => setEditingTagihan(editingTagihan ? { ...editingTagihan, nama_tagihan: e.target.value.toUpperCase().replace(/\s/g, '_') } : null)}
+                                        placeholder="Contoh: KUIS_1"
+                                    />
+                                </div>
+                                <div className="nl__formGroup">
+                                    <label className="nl__formLabel">Topik / Materi</label>
+                                    <textarea
+                                        className="nl__formInput"
+                                        rows={3}
+                                        value={editingTagihan?.topik || ''}
+                                        onChange={e => setEditingTagihan(editingTagihan ? { ...editingTagihan, topik: e.target.value } : null)}
+                                        placeholder="Contoh: Aljabar Linear..."
+                                    />
+                                </div>
+                                <div className="nl__formActions">
+                                    <button className="nl__btn nl__btnSecondary" onClick={() => setShowTagihanModal(false)}>Batal</button>
+                                    <button className="nl__btn nl__btnPrimary" onClick={async () => {
+                                        if (!editingTagihan) return;
+                                        setLoading(true);
+                                        try {
+                                            const body = { nip: user.nip, kelas, mapel, semester, ...editingTagihan, nama: editingTagihan.nama_tagihan, materi: editingTagihan.materi_tp, tahun_ajaran: tahunAjaran };
+                                            const res = await fetch('/api/nilai/tagihan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                            const json = await res.json();
+                                            if (!res.ok || !json.ok) throw new Error(json.error || 'Gagal menyimpan');
+                                            setShowTagihanModal(false); setEditingTagihan(null); loadData();
+                                        } catch (err: any) { Swal.fire('Error', err.message, 'error'); } finally { setLoading(false); }
+                                    }}>Simpan</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Config Modal */}
+            {
+                showConfigModal && (
+                    <div className="nl__modalOverlay animate-fade">
+                        <div className="nl__modalContent">
+                            <div className="nl__modalHeader">
+                                <h3 className="nl__modalTitle">Konfigurasi Bobot Penilaian</h3>
+                                <button onClick={() => setShowConfigModal(false)} className="text-slate-400 hover:text-slate-600"><i className="bi bi-x-lg"></i></button>
+                            </div>
+                            <div className="nl__modalBody">
+                                <div className="grid grid-cols-3 gap-4 mb-6">
                                     {['kuis', 'tugas', 'uh'].map(k => (
-                                        <div key={k} className="space-y-1"><span className="text-[9px] font-bold text-slate-400 uppercase block ml-1">{k}</span>
-                                            <input type="number" className="ng-input w-full text-center font-bold" value={(bobot.ratioHarian as any)[k]} onChange={e => setBobot({ ...bobot, ratioHarian: { ...bobot.ratioHarian, [k]: parseInt(e.target.value) || 0 } })} />
+                                        <div key={k} className="nl__formGroup">
+                                            <label className="nl__formLabel">{k.toUpperCase()}</label>
+                                            <input
+                                                type="number"
+                                                className="nl__formInput text-center"
+                                                value={(bobot.ratioHarian as any)[k]}
+                                                onChange={e => setBobot({ ...bobot, ratioHarian: { ...bobot.ratioHarian, [k]: parseInt(e.target.value) || 0 } })}
+                                            />
                                         </div>
                                     ))}
                                 </div>
-                            </div>
-                            <div className="space-y-4">
-                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Rapor Ratio (SUMs : PAS)</label>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1"><span className="text-[9px] font-bold text-slate-400 uppercase block ml-1">Avg SUMs</span>
-                                        <input type="number" className="ng-input w-full text-center font-bold" value={bobot.ratioRapor.sums} onChange={e => setBobot({ ...bobot, ratioRapor: { ...bobot.ratioRapor, sums: parseInt(e.target.value) || 0 } })} />
+                                <div className="border-t border-slate-100 pt-6 mb-2">
+                                    <label className="nl__formLabel mb-4">Bobot Rapor</label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="nl__formGroup">
+                                            <label className="nl__formLabel">Rerata SUM (Sumatif)</label>
+                                            <input
+                                                type="number"
+                                                className="nl__formInput text-center"
+                                                value={bobot.ratioRapor.sums}
+                                                onChange={e => setBobot({ ...bobot, ratioRapor: { ...bobot.ratioRapor, sums: parseInt(e.target.value) || 0 } })}
+                                            />
+                                        </div>
+                                        <div className="nl__formGroup">
+                                            <label className="nl__formLabel">Nilai PAS</label>
+                                            <input
+                                                type="number"
+                                                className="nl__formInput text-center"
+                                                value={bobot.ratioRapor.pas}
+                                                onChange={e => setBobot({ ...bobot, ratioRapor: { ...bobot.ratioRapor, pas: parseInt(e.target.value) || 0 } })}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="space-y-1"><span className="text-[9px] font-bold text-slate-400 uppercase block ml-1">PAS/PAT</span>
-                                        <input type="number" className="ng-input w-full text-center font-bold" value={bobot.ratioRapor.pas} onChange={e => setBobot({ ...bobot, ratioRapor: { ...bobot.ratioRapor, pas: parseInt(e.target.value) || 0 } })} />
+                                </div>
+                                <div className="border-t border-slate-100 pt-6 mb-2">
+                                    <label className="nl__formLabel mb-4">Pengaturan SUM</label>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-slate-600">Jumlah SUM:</span>
+                                            <span className="font-bold text-slate-800">{bobot.sumCount}</span>
+                                        </div>
+                                        <button className="nl__btn nl__btnPrimary" onClick={handleAddSum}>
+                                            <i className="bi bi-plus-lg"></i> Tambah SUM
+                                        </button>
                                     </div>
                                 </div>
-                            </div>
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center">
-                                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">SUM Topics / Descriptions</label>
-                                    <button className="text-[10px] font-black text-blue-600 hover:text-blue-800 transition flex items-center gap-1" onClick={handleAddSum}>
-                                        <i className="bi bi-plus-circle-fill"></i> ADD MODULE
-                                    </button>
+                                <div className="nl__formActions">
+                                    <button className="nl__btn nl__btnSecondary" onClick={() => setShowConfigModal(false)}>Batal</button>
+                                    <button className="nl__btn nl__btnPrimary" onClick={async () => {
+                                        await fetch('/api/nilai/bobot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, config: bobot, tahun_ajaran: tahunAjaran }) });
+                                        setShowConfigModal(false); loadData();
+                                    }}>Simpan Konfigurasi</button>
                                 </div>
-                                <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                                    {Array.from({ length: bobot.sumCount }).map((_, i) => {
-                                        const sumId = `SUM ${i + 1}`;
-                                        const num = i + 1;
-                                        const existing = tagihanConfig.find(t => t.jenis === 'Sum' && t.materi_tp === sumId);
-                                        return (
-                                            <div key={sumId} className="flex items-center gap-3 group">
-                                                <div className="w-12 text-[10px] font-black text-slate-300">{sumId}</div>
-                                                <input
-                                                    type="text"
-                                                    className="ng-input flex-1 py-2 text-xs"
-                                                    placeholder="Topic for this SUM..."
-                                                    defaultValue={existing?.topik || ''}
-                                                    onBlur={async (e) => {
-                                                        const val = e.target.value;
-                                                        await fetch('/api/nilai/tagihan', {
-                                                            method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({
-                                                                nip: user.nip, kelas, mapel, semester,
-                                                                materi: sumId, jenis: 'Sum', nama: sumId, topik: val
-                                                            })
-                                                        });
-                                                        // Soft refresh config only
-                                                        const res = await fetch(`/api/nilai?nip=${user.nip}&kelas=${encodeURIComponent(kelas)}&mapel=${encodeURIComponent(mapel)}&semester=${semester}`);
-                                                        const json = await res.json();
-                                                        if (json.ok) setTagihanConfig(json.data.tagihan || []);
-                                                    }}
-                                                />
-                                                <button onClick={() => handleDeleteSum(num)} className="text-slate-200 hover:text-red-500 transition px-1">
-                                                    <i className="bi bi-trash3 text-xs"></i>
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                            <button className="w-full btn-primary py-4 text-sm tracking-widest uppercase" onClick={async () => { await fetch('/api/nilai/bobot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, config: bobot }) }); setShowConfigModal(false); loadData(); }}>Apply Configuration</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {(activeMode === 'KUIS' || activeMode === 'TUGAS') && (
-                <button className="fixed bottom-32 right-10 w-16 h-16 bg-blue-600 text-white rounded-2xl shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-[80]" onClick={() => setShowTagihanModal(true)}><i className="bi bi-plus-lg text-2xl"></i></button>
-            )}
-
-            {showTagihanModal && (
-                <div key={editingTagihan?.id || 'new'} className="fixed inset-0 z-[100] flex items-center justify-center p-4 modal-glass animate-fade">
-                    <div className="modal-content w-full max-w-sm overflow-hidden p-8">
-                        <h3 className="text-lg font-extrabold tracking-tight mb-2">{editingTagihan ? 'Edit' : 'New'} {activeMode} Entry</h3>
-                        <p className="text-xs text-slate-400 mb-6">{editingTagihan ? 'Modify' : 'Create a new'} assessment column for {materi}</p>
-                        <div className="space-y-4">
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Column Label</label>
-                                <input id="tag-name" type="text" className="ng-input w-full" placeholder="e.g. Kuis 1" defaultValue={editingTagihan ? editingTagihan.nama_tagihan : getNextAutoLabel()} />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Topic/Materi</label>
-                                <input id="tag-topik" type="text" className="ng-input w-full" placeholder="e.g. Aljabar" defaultValue={editingTagihan?.topik || ''} />
-                            </div>
-                            <div className="flex gap-3 pt-4">
-                                <button className="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl text-xs" onClick={() => { setShowTagihanModal(false); setEditingTagihan(null); }}>CANCEL</button>
-                                <button className="flex-1 btn-primary py-3 text-xs" onClick={async () => {
-                                    const nama = (document.getElementById('tag-name') as HTMLInputElement).value;
-                                    const topik = (document.getElementById('tag-topik') as HTMLInputElement).value;
-                                    if (!nama) return;
-                                    const jenisStr = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
-                                    const payload = { nip: user.nip, kelas, mapel, semester, materi, jenis: jenisStr, nama, topik };
-
-                                    await fetch('/api/nilai/tagihan', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify(payload)
-                                    });
-
-                                    setShowTagihanModal(false);
-                                    setEditingTagihan(null);
-                                    loadData();
-                                }}>{editingTagihan ? 'SAVE CHANGES' : 'CREATE ENTRY'}</button>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
-            {showImportModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 modal-glass animate-fade">
-                    <div className="modal-content w-full max-w-md overflow-hidden">
-                        <div className="p-6 border-b flex justify-between items-center bg-slate-50/50">
-                            <div>
-                                <h3 className="text-lg font-extrabold text-slate-800">Import Data Center</h3>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Module: {activeMode} Mode</p>
-                            </div>
-                            <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-900 transition"><i className="bi bi-x-lg text-xl"></i></button>
-                        </div>
+                )
+            }
 
-                        <div className="p-8 space-y-6">
-                            {/* Step 1: Download Template */}
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                    <span className="w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center text-slate-500">1</span>
-                                    Get the latest template
-                                </label>
-                                <button
-                                    className="w-full bg-white border-2 border-dashed border-slate-200 p-4 rounded-2xl flex items-center justify-center gap-3 hover:border-blue-400 hover:bg-blue-50/30 transition-all group"
-                                    onClick={handleExport}
-                                >
-                                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition">
-                                        <i className="bi bi-file-earmark-excel-fill text-xl"></i>
-                                    </div>
-                                    <div className="text-left">
-                                        <div className="text-sm font-bold text-slate-700">Download {activeMode} Template</div>
-                                        <div className="text-[10px] text-slate-400 font-medium">Includes student names for {kelas} - {mapel}</div>
-                                    </div>
-                                </button>
-                            </div>
-
-                            <div className="h-px bg-slate-100 relative">
-                                <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-3 text-[10px] font-bold text-slate-300">THEN</span>
-                            </div>
-
-                            {/* Step 2: Upload File */}
-                            <div className="space-y-3">
-                                <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                    <span className="w-5 h-5 bg-slate-100 rounded-full flex items-center justify-center text-slate-500">2</span>
-                                    Upload completed file
-                                </label>
-                                <button
-                                    className="w-full btn-primary py-4 flex items-center justify-center gap-2"
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    <i className="bi bi-cloud-arrow-up text-lg"></i>
-                                    SELECT EXCEL FILE
-                                </button>
-                                <p className="text-[10px] text-center text-slate-400 italic">Supported formats: .xlsx, .xls</p>
-                            </div>
-                        </div>
-
-                        <div className="p-6 bg-slate-50 border-t flex items-start gap-3">
-                            <i className="bi bi-info-circle text-blue-500 mt-0.5"></i>
-                            <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-                                <strong>Tip:</strong> Pastikan kolom <strong>NISN</strong> tidak diubah. Sistem akan menggunakan NISN sebagai kunci utama untuk memasukkan nilai ke baris yang tepat.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+        </PermissionGuard >
     );
 }

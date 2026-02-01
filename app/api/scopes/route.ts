@@ -60,8 +60,14 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        // Parse nama guru dari jadwal pertama
-        const namaGuru = jadwalList[0]?.nama_guru || '';
+        // Fetch full teacher name from users table (instead of relying on potentially abbreviated schedule name)
+        const { data: userData } = await supabase
+            .from('users')
+            .select('nama')
+            .eq('nip', nip)
+            .single();
+
+        const namaGuru = userData?.nama || (jadwalList[0]?.nama_guru || '');
 
         // Group data
         const kelasSet = new Set<string>(); const mapelByKelas: Record<string, Set<string>> = {};

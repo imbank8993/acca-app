@@ -21,8 +21,21 @@ export async function GET(request: NextRequest) {
             .order('jam_ke', { ascending: true });
 
         // Apply filters
+        const nameParam = searchParams.get('nama')?.trim();
+        const escapedName = nameParam && nameParam !== 'undefined'
+            ? (nameParam.includes(' ') ? `"${nameParam}"` : nameParam)
+            : null;
+
         if (nip) {
-            query = query.eq('nip', nip);
+            if (escapedName) {
+                // Inclusive: NIP matches (primary) OR name matches (substitute or legacy name)
+                query = query.or(`nip.eq.${nip},guru_pengganti.eq.${escapedName},nama_guru.eq.${escapedName}`);
+            } else {
+                query = query.eq('nip', nip);
+            }
+        } else if (searchParams.get('restricted') === 'true' && escapedName) {
+            // Explicitly restricted by name
+            query = query.or(`guru_pengganti.eq.${escapedName},nama_guru.eq.${escapedName}`);
         }
 
         if (kelas) {
@@ -42,7 +55,8 @@ export async function GET(request: NextRequest) {
         }
 
         if (search) {
-            query = query.or(`nama_guru.ilike.%${search}%,mata_pelajaran.ilike.%${search}%`);
+            // Comprehensive search including materials
+            query = query.or(`nama_guru.ilike.%${search}%,mata_pelajaran.ilike.%${search}%,guru_pengganti.ilike.%${search}%,materi.ilike.%${search}%`);
         }
 
         const { data, error } = await query;

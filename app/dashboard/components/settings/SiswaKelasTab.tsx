@@ -7,6 +7,8 @@ import SearchableSelect from '@/components/ui/SearchableSelect'
 import Pagination from '@/components/ui/Pagination'
 import { getCurrentAcademicYear } from '@/lib/date-utils'
 
+import { hasPermission } from '@/lib/permissions-client'
+
 interface SiswaKelas {
   id?: number
   nisn: string
@@ -17,7 +19,12 @@ interface SiswaKelas {
   aktif: boolean
 }
 
-export default function SiswaKelasTab() {
+export default function SiswaKelasTab({ user }: { user?: any }) {
+  // Permission Check
+  const permissions = user?.permissions || []
+  const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
+  const canManage = hasPermission(permissions, 'pengaturan_data:siswa_kelas', 'manage', isAdmin)
+
   // Local Filter State
   const [tahunAjaran, setTahunAjaran] = useState(getCurrentAcademicYear())
   const [semester, setSemester] = useState('Semua')
@@ -207,6 +214,8 @@ export default function SiswaKelasTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!canManage) return // Fail safe
+
     if (!selectedClass || selectedStudents.length === 0) {
       alert('Pilih kelas dan siswa!')
       return
@@ -280,6 +289,7 @@ export default function SiswaKelasTab() {
   }
 
   const handleEdit = (item: SiswaKelas) => {
+    if (!canManage) return
     setEditId(item.id!)
     setSelectedClass(item.kelas)
     setSelectedStudents([item.nisn])
@@ -287,6 +297,7 @@ export default function SiswaKelasTab() {
   }
 
   const handleDelete = async (id: number) => {
+    if (!canManage) return
     if (!confirm('Hapus relasi siswa ini dari kelas?')) return
     try {
       const res = await fetch(`/api/settings/siswa-kelas?id=${id}`, { method: 'DELETE' })
@@ -464,17 +475,21 @@ export default function SiswaKelasTab() {
         </div>
 
         <div className="sk__actions">
-          <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
-            <i className="bi bi-upload" /> <span>Import</span>
-          </button>
+          {canManage && (
+            <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+              <i className="bi bi-upload" /> <span>Import</span>
+            </button>
+          )}
 
           <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
             <i className="bi bi-file-earmark-excel" /> <span>Export</span>
           </button>
 
-          <button className="sk__btn sk__btnPrimary" onClick={openAdd}>
-            <i className="bi bi-plus-lg" /> <span>Tambah</span>
-          </button>
+          {canManage && (
+            <button className="sk__btn sk__btnPrimary" onClick={openAdd}>
+              <i className="bi bi-plus-lg" /> <span>Tambah</span>
+            </button>
+          )}
         </div>
       </div>
 

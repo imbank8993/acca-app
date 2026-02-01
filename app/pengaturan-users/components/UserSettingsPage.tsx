@@ -22,249 +22,150 @@ export default function UserSettingsPage() {
   )
 
   return (
-    <section className="us">
-      <header className="us__head">
-        <div className="us__headLeft">
+    <>
+      {/* Header */}
+      <div className="us-header">
+        <div className="us-titleArea">
           <h1>Pengaturan Users</h1>
-          <p>Kelola akses, role, dan data pengguna sistem.</p>
+          <p>Kelola akses, role, dan data pengguna sistem dalam satu pusat kontrol.</p>
         </div>
-      </header>
+      </div>
 
-      <div className="us__card">
-        <div className="us__tabs" role="tablist" aria-label="User settings tabs">
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.key
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                aria-current={isActive ? 'page' : undefined}
-                className={`us__tab ${isActive ? 'isActive' : ''}`}
-                onClick={() => setActiveTab(tab.key as TabType)}
-              >
-                <span className="us__tabIcon" aria-hidden="true">
-                  <i className={`bi ${tab.icon}`}></i>
-                </span>
-                <span className="us__tabLabel">{tab.label}</span>
-              </button>
-            )
-          })}
-        </div>
+      {/* Tabs */}
+      <div className="us-tabs" role="tablist" aria-label="User settings tabs">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            role="tab"
+            aria-selected={activeTab === tab.key}
+            className={`us-tab ${activeTab === tab.key ? 'isActive' : ''}`}
+            onClick={() => setActiveTab(tab.key as TabType)}
+            type="button"
+          >
+            <i className={`bi ${tab.icon} us-tabIcon`}></i>
+            <span className="us-tabText">{tab.label}</span>
+          </button>
+        ))}
+      </div>
 
-        <div className="us__panel" role="tabpanel">
-          {activeTab === 'page_access' && <PageAccessTab />}
-          {activeTab === 'role_permissions' && <RolePermissionsTab />}
-          {activeTab === 'user_data' && <UserDataTab />}
-          {activeTab === 'bulk_replace' && <BulkReplaceTab />}
-        </div>
+      <div className="us-content" role="tabpanel">
+        {activeTab === 'page_access' && <PageAccessTab />}
+        {activeTab === 'role_permissions' && <RolePermissionsTab />}
+        {activeTab === 'user_data' && <UserDataTab />}
+        {activeTab === 'bulk_replace' && <BulkReplaceTab />}
       </div>
 
       <style jsx>{`
         /* =====================================================
-           USER SETTINGS PAGE — CLEAN NAVY THEME
-           - Mengikuti pattern dari DataSettingsPage
-           - Sticky tabs dengan smooth transitions
+           USER SETTINGS PAGE — BLUE THEME ENHANCEMENT
         ====================================================== */
 
-        .us {
-          width: 100%;
-          min-width: 0;
+        /* HEADER */
+        .us-header {
+          background: var(--n-primary);
+          padding: 32px 40px;
+          border-radius: 24px;
+          box-shadow: 0 10px 30px rgba(0, 56, 168, 0.15);
           display: flex;
-          flex-direction: column;
-          gap: 14px;
-
-          background: radial-gradient(800px 420px at 10% -10%, rgba(58, 166, 255, 0.14), transparent 60%),
-            radial-gradient(720px 420px at 92% -15%, rgba(15, 42, 86, 0.16), transparent 62%);
-          border-radius: 16px;
-          padding: 12px;
-        }
-
-        .us__head {
-          display: flex;
-          align-items: flex-end;
+          align-items: center;
           justify-content: space-between;
-          gap: 12px;
-          min-width: 0;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          margin-bottom: 24px;
+          transition: background 0.3s ease;
         }
 
-        .us__headLeft {
-          min-width: 0;
+        :global(.dark) .us-header {
+          background: #0f172a;
+          box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
         }
 
-        .us__headLeft h1 {
-          margin: 0 0 6px;
-          font-size: 1.3rem;
-          line-height: 1.25;
-          color: rgba(11, 31, 58, 0.92);
-          font-weight: 600;
+        .us-titleArea h1 {
+          font-size: 1.8rem;
+          font-weight: 800;
+          color: white;
+          margin: 0 0 6px 0;
           letter-spacing: -0.02em;
         }
 
-        .us__headLeft p {
+        .us-titleArea p {
+          color: rgba(255, 255, 255, 0.8);
+          font-size: 0.95rem;
           margin: 0;
-          color: rgba(15, 23, 42, 0.62);
-          font-size: 1rem;
-          line-height: 1.4;
-          font-weight: 400;
+          font-weight: 500;
         }
 
-        /* Card */
-        .us__card {
-          background: rgba(255, 255, 255, 0.86);
-          border: 1px solid rgba(148, 163, 184, 0.22);
-          border-radius: 18px;
-          box-shadow: 0 14px 34px rgba(2, 6, 23, 0.08);
-          overflow: hidden;
-          min-width: 0;
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-        }
-
-        /* Tabs: sticky */
-        .us__tabs {
+        /* TABS */
+        .us-tabs {
           display: flex;
-          gap: 10px;
-          padding: 10px 12px;
-
-          overflow-x: auto;
-          overflow-y: hidden;
-          -webkit-overflow-scrolling: touch;
+          justify-content: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          padding: 4px;
           scrollbar-width: none;
-          scroll-snap-type: x mandatory;
-          overscroll-behavior-x: contain;
-
-          position: sticky;
-          top: 0;
-          z-index: 20;
-
-          background: linear-gradient(
-            180deg,
-            rgba(255, 255, 255, 0.96) 0%,
-            rgba(255, 255, 255, 0.88) 60%,
-            rgba(255, 255, 255, 0.78) 100%
-          );
-          border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+          margin-bottom: 24px;
         }
-
-        .us__tabs::-webkit-scrollbar {
+        .us-tabs::-webkit-scrollbar {
           display: none;
         }
 
-        .us__tab {
-          scroll-snap-align: start;
-          display: inline-flex;
+        .us-tab {
+          display: flex;
           align-items: center;
-          gap: 10px;
-
-          padding: 10px 14px;
-          border-radius: 0;
-          border: none;
-          background: transparent;
-          color: rgba(11, 31, 58, 0.70);
-
-          font-weight: 520;
-          font-size: 0.93rem;
-          white-space: nowrap;
+          gap: 8px;
+          padding: 10px 16px;
+          background: var(--n-soft);
+          border: 1px solid var(--n-border);
+          border-radius: 16px;
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: var(--n-primary);
           cursor: pointer;
-
-          transition: color 0.12s ease;
-          user-select: none;
-          -webkit-tap-highlight-color: transparent;
-          touch-action: manipulation;
-
-          flex: 0 0 auto;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          white-space: nowrap;
         }
 
-        .us__tabIcon {
-          width: 30px;
-          height: 30px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
+        .us-tab:hover {
+          background: var(--n-border);
+          transform: translateY(-2px);
+        }
 
+        .us-tab.isActive {
+          background: var(--n-primary);
+          border-color: var(--n-primary);
+          color: white;
+          box-shadow: 0 8px 16px rgba(0, 56, 168, 0.25);
+        }
+
+        :global(.dark) .us-tab.isActive {
+            background: var(--n-primary);
+            color: white;
+        }
+
+        .us-tabIcon {
+          font-size: 1.1rem;
+        }
+        
+        /* CONTENT AREA */
+        .us-content {
+          padding: 0;
+          min-height: 500px;
           background: transparent;
-          color: rgba(31, 79, 174, 0.80);
-          flex: 0 0 auto;
         }
 
-        .us__tabLabel {
-           font-size: 0.95rem;
-           letter-spacing: -0.01em;
-           text-shadow: 0 1px 2px rgba(43, 108, 255, 0.15);
-        }
-
-        .us__tab:hover {
-          color: rgba(11, 31, 58, 0.80);
-          background: rgba(43, 108, 255, 0.06);
-        }
-
-        .us__tab.isActive {
-          color: rgba(11, 31, 58, 0.88);
-          position: relative;
-        }
-
-        .us__tab.isActive::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: 3px;
-          background: linear-gradient(90deg, rgba(15, 42, 86, 0.3), rgba(58, 166, 255, 0.4));
-          border-radius: 2px;
-        }
-
-        .us__tab.isActive .us__tabIcon {
-          background: rgba(43, 108, 255, 0.12);
-          border-color: rgba(43, 108, 255, 0.16);
-          color: rgba(31, 79, 174, 0.92);
-        }
-
-        /* Panel body */
-        .us__panel {
-          background: rgba(255, 255, 255, 0.92);
-          padding: 14px;
-          min-height: 420px;
-          min-width: 0;
-        }
-
-        /* Mobile tuning */
-        @media (max-width: 420px) {
-          .us {
-            padding: 10px;
-            border-radius: 14px;
+        /* MOBILE RESPONSIVE */
+        @media (max-width: 768px) {
+          .us-header {
+            padding: 24px;
           }
-
-          .us__tabs {
-            gap: 8px;
-            padding: 10px 10px;
+          .us-titleArea h1 {
+            font-size: 1.5rem;
           }
-
-          .us__tab {
-            padding: 9px 12px;
+          .us-tab {
+            padding: 10px 16px;
             font-size: 0.9rem;
-          }
-
-          .us__tabIcon {
-            width: 28px;
-            height: 28px;
-          }
-
-          .us__panel {
-            padding: 12px;
-            min-height: 360px;
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .us__tab {
-            transition: none;
           }
         }
       `}</style>
-    </section>
+    </>
   )
 }

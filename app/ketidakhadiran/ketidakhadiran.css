@@ -29,7 +29,7 @@
 
 /* ================= HEADER ================= */
 .kh-header {
-  background: var(--n-hero-gradient);
+  background: var(--n-primary);
   padding: 32px 36px;
   border-radius: 20px;
   margin-bottom: 20px;
@@ -38,6 +38,12 @@
   justify-content: space-between;
   align-items: center;
   color: white;
+  transition: background 0.3s ease;
+}
+
+.dark .kh-header {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .kh-title {
@@ -63,7 +69,7 @@
 
 /* ================= BUTTONS ================= */
 .btn-kh-navy {
-  background: linear-gradient(to right, #1d4ed8, #0b1b3a);
+  background: #0038A8;
   border: none;
   color: #fff;
   font-weight: 600;
@@ -288,31 +294,47 @@
 }
 
 .kh-table thead th {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--n-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: var(--n-soft);
-  padding: 1rem;
+  letter-spacing: 0.08em;
+  background: var(--tb-th-bg);
+  padding: 14px 16px;
   position: sticky;
   top: 0;
   z-index: 10;
   text-align: left;
-  border-bottom: 2px solid var(--n-border);
+  border-bottom: 2px solid var(--tb-border);
 }
 
 .kh-table tbody td {
-  padding: 0.9rem 1rem;
-  border-bottom: 1px solid var(--n-border);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--tb-border);
   vertical-align: middle;
   color: var(--n-ink);
   background: transparent;
   font-weight: 500;
+  height: var(--tb-row-h);
 }
 
 .kh-table tbody tr:hover td {
-  background: rgba(58, 166, 255, 0.05);
+  background: var(--tb-hover);
+}
+
+.kh-table .col-no {
+  width: 50px;
+  text-align: center;
+}
+
+.kh-table .col-nisn {
+  width: 120px;
+  text-align: center;
+}
+
+.dark .kh-table th,
+.dark .kh-table td {
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 /* Icon Buttons */
@@ -451,9 +473,13 @@
 
 .kh-modal__header {
   padding: 1.25rem 1.5rem;
-  background: var(--n-hero-gradient);
+  background: var(--n-primary);
   border-bottom: 1px solid var(--n-border);
   color: white;
+}
+
+.dark .kh-modal__header {
+  background: #0f172a;
 }
 
 @media (min-width: 640px) {
@@ -622,6 +648,10 @@
   transition: all 0.2s;
 }
 
+.dark .kh-input {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .kh-input:focus {
   border-color: var(--n-primary);
   background: var(--n-card);
@@ -690,10 +720,20 @@
 }
 
 .kh-seg__btn.is-active {
-  background: #fff;
-  color: var(--kh-navy-900);
-  box-shadow: 0 6px 14px rgba(15, 23, 42, .10);
-  outline: 1px solid rgba(226, 232, 240, .95);
+  background: var(--n-card);
+  color: var(--n-primary);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.10);
+  outline: 1px solid var(--n-border);
+}
+
+.dark .kh-seg {
+  background: #020617;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .kh-seg__btn.is-active {
+  background: var(--n-soft);
+  color: white;
 }
 
 /* ===== Footer ===== */
@@ -749,7 +789,7 @@
 }
 
 .kh-btn--primary:hover {
-  background: #163a8a;
+  background: #00287a;
 }
 
 /* Spinner */

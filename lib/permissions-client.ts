@@ -11,8 +11,9 @@ export function matchResource(required: string, possessed: string): boolean {
     if (possessed === '*') return true;
     if (possessed === required) return true;
 
-    // Parent covers child: if user has 'ketidakhadiran', they can access 'ketidakhadiran:IZIN'
+    // Parent covers child: if user has 'ketidakhadiran', they can access 'ketidakhadiran:IZIN' or 'ketidakhadiran.izin'
     if (required.startsWith(possessed + ':')) return true;
+    if (required.startsWith(possessed + '.')) return true;
 
     return false;
 }

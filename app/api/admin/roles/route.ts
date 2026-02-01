@@ -103,3 +103,61 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 }
+// DELETE /api/admin/roles - Delete a role
+export async function DELETE(request: NextRequest) {
+    try {
+        const cookieStore = await cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+                cookies: {
+                    getAll() { return cookieStore.getAll() },
+                    setAll(cookiesToSet) {
+                        try {
+                            cookiesToSet.forEach(({ name, value, options }) =>
+                                cookieStore.set(name, value, options)
+                            )
+                        } catch { }
+                    },
+                },
+            }
+        );
+
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+
+        const { data: dbUser } = await supabaseAdmin.from('users').select('role').eq('auth_id', authUser.id).single();
+        if (!dbUser || !dbUser.role?.toLowerCase().includes('admin')) {
+            return NextResponse.json({ ok: false, error: 'Admin access required' }, { status: 403 });
+        }
+
+        const { searchParams } = new URL(request.url);
+        const id = searchParams.get('id');
+
+        if (!id) {
+            return NextResponse.json({ ok: false, error: 'Role ID required' }, { status: 400 });
+        }
+
+        // Prevent deleting critical roles (hardcoded safeguard)
+        const { data: roleToDelete } = await supabaseAdmin.from('roles').select('name').eq('id', id).single();
+        if (roleToDelete) {
+            const protectedRoles = ['ADMIN', 'GURU', 'WALI KELAS'];
+            if (protectedRoles.includes(roleToDelete.name.toUpperCase().replace('_', ' '))) {
+                return NextResponse.json({ ok: false, error: 'Cannot delete system default roles' }, { status: 400 });
+            }
+        }
+
+        const { error } = await supabaseAdmin
+            .from('roles')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+
+        return NextResponse.json({ ok: true });
+    } catch (error: any) {
+        console.error('Error deleting role:', error);
+        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    }
+}

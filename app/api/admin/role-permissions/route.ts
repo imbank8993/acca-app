@@ -48,7 +48,14 @@ export async function GET(request: NextRequest) {
 
         if (rolesError) throw rolesError;
 
-        return NextResponse.json({ ok: true, permissions, roles });
+        // Fetch Master Permissions Catalog
+        const { data: masterPermissions } = await supabaseAdmin
+            .from('master_permissions_list')
+            .select('*')
+            .order('category', { ascending: true })
+            .order('label', { ascending: true });
+
+        return NextResponse.json({ ok: true, permissions, roles, masterPermissions: masterPermissions || [] });
     } catch (error: any) {
         console.error('Error fetching role permissions:', error);
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

@@ -14,7 +14,9 @@ interface KodeGuru {
   aktif: boolean;
 }
 
-export default function KodeGuruTab() {
+import { hasPermission } from '@/lib/permissions-client'
+
+export default function KodeGuruTab({ user }: { user?: any }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [allData, setAllData] = useState<KodeGuru[]>([])
   const [loading, setLoading] = useState(true)
@@ -100,6 +102,14 @@ export default function KodeGuruTab() {
       setLoading(false)
     }
   }
+
+  // Permissions Check
+  const permissions = user?.permissions || []
+  const isAdmin = user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false
+
+  const canView = hasPermission(permissions, 'master.kode_guru', 'view', isAdmin)
+  const canManage = hasPermission(permissions, 'master.kode_guru', 'manage', isAdmin)
+  const canExport = hasPermission(permissions, 'master.kode_guru', 'export', isAdmin)
 
   const handleAddNew = () => {
     setFormData({ nip: '', nama_guru: '', kode_guru: '', aktif: true })
@@ -280,13 +290,17 @@ export default function KodeGuruTab() {
             <i className="bi bi-upload" /> <span>Import</span>
           </button>
 
-          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
-            <i className="bi bi-download" /> <span>Export</span>
-          </button>
+          {canExport && (
+            <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
+              <i className="bi bi-download" /> <span>Export</span>
+            </button>
+          )}
 
-          <button className="sk__btn sk__btnPrimary" onClick={handleAddNew}>
-            <i className="bi bi-plus-lg" /> <span>Tambah</span>
-          </button>
+          {canManage && (
+            <button className="sk__btn sk__btnPrimary" onClick={handleAddNew}>
+              <i className="bi bi-plus-lg" /> <span>Tambah</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -300,11 +314,17 @@ export default function KodeGuruTab() {
               <th>Nama Guru</th>
               <th className="cKode">Kode Guru</th>
               <th className="cStatus">Status</th>
-              <th className="cAksi">Aksi</th>
+              {(canManage) && <th className="cAksi">Aksi</th>}
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {!canView ? (
+              <tr>
+                <td colSpan={6} className="sk__empty sk__muted">
+                  Anda tidak memiliki akses untuk melihat data ini.
+                </td>
+              </tr>
+            ) : loading ? (
               <tr>
                 <td colSpan={6} className="sk__empty">
                   Memuat data...
@@ -330,20 +350,22 @@ export default function KodeGuruTab() {
                       {item.aktif ? 'Aktif' : 'Non-Aktif'}
                     </span>
                   </td>
-                  <td>
-                    <div className="sk__rowActions">
-                      <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
-                        <i className="bi bi-pencil" />
-                      </button>
-                      <button
-                        className="sk__iconBtn danger"
-                        onClick={() => item.id && handleDelete(item.id)}
-                        title="Hapus"
-                      >
-                        <i className="bi bi-trash" />
-                      </button>
-                    </div>
-                  </td>
+                  {canManage && (
+                    <td>
+                      <div className="sk__rowActions">
+                        <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
+                          <i className="bi bi-pencil" />
+                        </button>
+                        <button
+                          className="sk__iconBtn danger"
+                          onClick={() => item.id && handleDelete(item.id)}
+                          title="Hapus"
+                        >
+                          <i className="bi bi-trash" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))
             )}
@@ -490,9 +512,9 @@ export default function KodeGuruTab() {
 
                 <div className="sk__field">
                   <label>Status</label>
-                  <select 
-                    name="aktif" 
-                    value={formData.aktif ? 'true' : 'false'} 
+                  <select
+                    name="aktif"
+                    value={formData.aktif ? 'true' : 'false'}
                     onChange={(e) => setFormData(prev => ({ ...prev, aktif: e.target.value === 'true' }))}
                   >
                     <option value="true">Aktif</option>

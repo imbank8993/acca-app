@@ -76,8 +76,8 @@ export default function LoginPage() {
         if (signUpError) {
           // Check if user already exists, try sign in instead
           if (signUpError.message.toLowerCase().includes('already registered') ||
-              signUpError.message.toLowerCase().includes('already exists') ||
-              signUpError.message.toLowerCase().includes('user already')) {
+            signUpError.message.toLowerCase().includes('already exists') ||
+            signUpError.message.toLowerCase().includes('user already')) {
             // Try to sign in with existing account
             const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
               email,
@@ -264,29 +264,17 @@ export default function LoginPage() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #0f2a56, #163b78);
+          background: #0038A8;
+          background: #0038A8; /* Solid Ultramarine Blue */
           color: #eaf2ff;
           padding: 60px 40px;
           text-align: center;
           overflow: hidden;
           position: relative;
-          animation: subtleWave 15s ease-in-out infinite;
+          /* Removed subtleWave animation */
         }
 
-        @keyframes subtleWave {
-          0%, 100% {
-            background: linear-gradient(135deg, #0f2a56, #163b78);
-          }
-          25% {
-            background: linear-gradient(135deg, #163b78, #1c4c99);
-          }
-          50% {
-            background: linear-gradient(135deg, #1c4c99, #0f2a56);
-          }
-          75% {
-            background: linear-gradient(135deg, #0f2a56, #163b78);
-          }
-        }
+        /* Removed @keyframes subtleWave */
 
         #login-left::after {
           content: "";
@@ -295,7 +283,7 @@ export default function LoginPage() {
           right: 0;
           width: 2px;
           height: calc(100% - 80px);
-          background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,.16), rgba(58,166,255,.24), rgba(0,209,209,.18), rgba(255,255,255,0));
+          background: rgba(255,255,255,0.1);
           opacity: .95;
         }
 
@@ -306,7 +294,7 @@ export default function LoginPage() {
           right: -18px;
           width: 36px;
           height: 100%;
-          background: radial-gradient(circle at left, rgba(58,166,255,.12), transparent 65%);
+          background: rgba(58,166,255,0.05);
           pointer-events: none;
         }
 
@@ -458,7 +446,7 @@ export default function LoginPage() {
           border-radius: 999px;
           font-size: 1.02rem;
           font-weight: 700;
-          background: linear-gradient(90deg, #0f2a56, #163b78);
+          background: #0038A8;
           color: #fff;
           border: none;
           transition: all .2s ease;
@@ -471,7 +459,7 @@ export default function LoginPage() {
         }
 
         #btnLogin:hover:not(:disabled) {
-          background: linear-gradient(90deg, #163b78, #1c4c99);
+          background: #1e56d3;
           transform: translateY(-2px);
           box-shadow: 0 16px 30px rgba(11,27,58,.25);
         }

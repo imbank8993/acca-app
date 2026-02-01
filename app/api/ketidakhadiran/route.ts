@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
         const to = searchParams.get('to');
         const q = searchParams.get('q') || '';
         const authHeader = request.headers.get('authorization');
+        let query: any;
 
         // Get user role for access control
         let userRole: string | null = null;
@@ -27,37 +28,76 @@ export async function GET(request: NextRequest) {
                 if (user?.id) {
                     const { data: userData } = await supabase
                         .from('users')
-                        .select('role')
+                        .select('role, roles, permissions')
                         .eq('auth_id', user.id)
                         .single();
 
                     userRole = userData?.role || null;
+                    const roles = userData?.roles || [];
+                    const permissions = userData?.permissions || [];
+                    const isAdmin = (userRole === 'ADMIN') || roles.includes('ADMIN') || roles.includes('admin') || (Array.isArray(roles) && roles.some((r: any) => String(r).toUpperCase() === 'ADMIN'));
+
+                    // Helper for server-side check
+                    const checkPerm = (res: string, act: string) => {
+                        if (isAdmin) return true;
+                        return permissions.some((p: any) => {
+                            const resMatch = p.resource === '*' || p.resource === res || res.startsWith(p.resource + ':') || res.startsWith(p.resource + '.');
+                            const actMatch = p.action === '*' || p.action === act;
+                            return resMatch && actMatch && p.is_allowed;
+                        });
+                    };
+
+                    const canViewIzin = checkPerm('ketidakhadiran.izin', 'view');
+                    const canViewSakit = checkPerm('ketidakhadiran.sakit', 'view');
+
+                    // Use Service Role client to bypass RLS for this API logic
+                    const supabaseAdmin = createClient(
+                        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                        process.env.SUPABASE_SERVICE_ROLE_KEY!
+                    );
+
+                    query = supabaseAdmin
+                        .from('ketidakhadiran')
+                        .select('id, jenis, nisn, nama, kelas, tgl_mulai, tgl_selesai, status, keterangan, aktif, created_at, updated_at')
+                        .eq('aktif', true)
+                        .order('created_at', { ascending: false });
+
+                    // Apply filters if not admin (who sees all)
+                    if (!isAdmin) {
+                        if (canViewIzin && !canViewSakit) {
+                            query = query.eq('jenis', 'IZIN');
+                        } else if (!canViewIzin && canViewSakit) {
+                            query = query.eq('jenis', 'SAKIT');
+                        } else if (!canViewIzin && !canViewSakit) {
+                            // No access
+                            return NextResponse.json({ ok: true, data: [] });
+                        }
+                        // If both, no filter needed (sees all types)
+                    }
                 }
+            } else {
+                // No Auth Header? Fallback to generic init if needed, or fail.
+                // But wait, if auth failed, we might not have `query` defined if we define it inside if(authHeader) block.
+                // We should define it outside or handle the else case.
             }
         } catch (authError) {
             console.warn('[GET] Auth check failed:', authError);
         }
 
-        // Use Service Role client to bypass RLS for this API logic
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabaseAdmin = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-
-        let query = supabaseAdmin
-            .from('ketidakhadiran')
-            .select('id, jenis, nisn, nama, kelas, tgl_mulai, tgl_selesai, status, keterangan, aktif, created_at, updated_at')
-            .eq('aktif', true)
-            .order('created_at', { ascending: false });
-
-        // Role-based filtering
-        if (userRole === 'OP_Izin') {
-            query = query.eq('jenis', 'IZIN');
-        } else if (userRole === 'OP_UKS') {
-            query = query.eq('jenis', 'SAKIT');
+        // Check if query is defined. If not (e.g. no auth or auth failed), we should probably initialize it generically or return error.
+        // For now, let's ensure it's initialized if not already.
+        if (!query) {
+            const { createClient } = await import('@supabase/supabase-js');
+            const supabaseAdmin = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                process.env.SUPABASE_SERVICE_ROLE_KEY!
+            );
+            query = supabaseAdmin
+                .from('ketidakhadiran')
+                .select('id, jenis, nisn, nama, kelas, tgl_mulai, tgl_selesai, status, keterangan, aktif, created_at, updated_at')
+                .eq('aktif', true)
+                .order('created_at', { ascending: false });
         }
-        // Admin, Guru, Kepala Madrasah see all (falls through)
 
         // Filters
         if (kelas) {

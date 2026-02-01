@@ -4,9 +4,11 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import type { User } from '@/lib/types'
 import * as XLSX from 'xlsx'
 import Swal from 'sweetalert2'
+import Select from 'react-select'
 
 export default function UserDataTab() {
   const [users, setUsers] = useState<User[]>([])
+  const [availableRoles, setAvailableRoles] = useState<{ value: string, label: string }[]>([])
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [editingUser, setEditingUser] = useState<User | null>(null)
@@ -29,6 +31,7 @@ export default function UserDataTab() {
   // Fetch all users
   useEffect(() => {
     fetchUsers()
+    fetchRoles()
   }, [])
 
   const fetchUsers = async () => {
@@ -43,6 +46,28 @@ export default function UserDataTab() {
       console.error('Error fetching users:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchRoles = async () => {
+    try {
+      const res = await fetch('/api/admin/role-permissions')
+      const data = await res.json()
+      if (data.ok && data.roles) {
+        const opts = data.roles.map((r: any) => ({ value: r.name, label: r.name }))
+        setAvailableRoles(opts)
+      } else {
+        // Fallback default roles if fetch fails
+        setAvailableRoles([
+          { value: 'ADMIN', label: 'ADMIN' },
+          { value: 'GURU', label: 'GURU' },
+          { value: 'WALI KELAS', label: 'WALI KELAS' },
+          { value: 'KAMAD', label: 'KAMAD' },
+          { value: 'OP_JURNAL', label: 'OP_JURNAL' }
+        ])
+      }
+    } catch (error) {
+      console.error('Error fetching roles:', error)
     }
   }
 
@@ -419,8 +444,22 @@ export default function UserDataTab() {
               <input value={formData.divisi} onChange={e => setFormData({ ...formData, divisi: e.target.value })} />
             </div>
             <div className="field">
-              <label>Role (Pisahkan koma jika multi)</label>
-              <input value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} placeholder="GURU, ADMIN, dll" />
+              <label>Role (Multi Select)</label>
+              <Select
+                isMulti
+                options={availableRoles}
+                value={availableRoles.filter(opt => {
+                  const currentRoles = (formData.role || '').split(',').map(r => r.trim().toUpperCase());
+                  return currentRoles.includes(opt.value.toUpperCase());
+                })}
+                onChange={(selected) => {
+                  const roles = selected.map(s => s.value).join(',');
+                  setFormData({ ...formData, role: roles });
+                }}
+                className="react-select-container"
+                classNamePrefix="react-select"
+                placeholder="Pilih Role..."
+              />
             </div>
             <div className="field">
               <label>Akses Halaman (Pisahkan koma)</label>
@@ -441,14 +480,14 @@ export default function UserDataTab() {
                 @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
                 .tabHeader { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
-                .tabHeaderLeft h2 { margin: 0; font-size: 1.5rem; color: #0f1b2a; font-weight: 800; letter-spacing: -0.01em; }
+                .tabHeaderLeft h2 { margin: 0; font-size: 1.5rem; color: #0038A8; font-weight: 800; letter-spacing: -0.01em; }
                 .tabHeaderLeft p { margin: 6px 0 0; color: #64748b; font-size: 0.95rem; }
 
                 .tabHeaderActions { display: flex; gap: 12px; }
                 .btnAction { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 14px; border: none; font-weight: 700; font-size: 0.88rem; cursor: pointer; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); }
                 .btnAction:hover { transform: translateY(-3px); box-shadow: 0 12px 20px rgba(15, 23, 42, 0.12); }
                 .btnAction:active { transform: translateY(-1px); }
-                .btnAction.add { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; }
+                .btnAction.add { background: #0038A8; color: white; }
                 .btnAction.export { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
                 .btnAction.export:hover { background: #fff; color: #0f1b2a; border-color: #3aa6ff; }
                 .btnAction.import { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
@@ -456,7 +495,7 @@ export default function UserDataTab() {
 
                 /* Stats Cards */
                 .statsRow { display: flex; gap: 20px; }
-                .statItem { flex: 1; padding: 24px; background: #fff; border: 1px solid rgba(15, 42, 86, 0.06); border-radius: 20px; display: flex; align-items: center; gap: 20px; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.03); transition: all 0.3s; }
+                .statItem { flex: 1; padding: 24px; background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(0, 56, 168, 0.1); border-radius: 20px; display: flex; align-items: center; gap: 20px; box-shadow: 0 10px 30px rgba(0, 56, 168, 0.05); transition: all 0.3s; }
                 .statItem:hover { transform: translateY(-4px); box-shadow: 0 15px 35px rgba(15, 23, 42, 0.06); }
                 
                 .statIcon { width: 56px; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; }
@@ -469,11 +508,11 @@ export default function UserDataTab() {
                 .sLab { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
 
                 /* Controls (Filter & Search) */
-                .controls { display: flex; justify-content: space-between; align-items: center; gap: 24px; background: #f8fafc; padding: 12px; border-radius: 20px; border: 1px solid #e2e8f0; }
-                .filterGroup { display: flex; background: #fff; padding: 6px; border-radius: 14px; border: 1px solid #e2e8f0; }
+                .controls { display: flex; justify-content: space-between; align-items: center; gap: 24px; background: rgba(0, 56, 168, 0.02); padding: 12px; border-radius: 20px; border: 1px solid rgba(0, 56, 168, 0.1); }
+                .filterGroup { display: flex; background: rgba(255, 255, 255, 0.8); padding: 6px; border-radius: 14px; border: 1px solid rgba(0, 56, 168, 0.1); }
                 .filterGroup button { border: none; background: transparent; padding: 10px 20px; border-radius: 10px; font-size: 0.88rem; font-weight: 700; color: #64748b; cursor: pointer; transition: all 0.2s; }
-                .filterGroup button.active { background: #0f1b2a; color: white; box-shadow: 0 4px 10px rgba(15, 27, 42, 0.2); }
-                .filterGroup button:hover:not(.active) { color: #0f1b2a; background: #f1f5f9; }
+                .filterGroup button.active { background: #0038A8; color: white; box-shadow: 0 4px 10px rgba(0, 56, 168, 0.2); }
+                .filterGroup button:hover:not(.active) { color: #0038A8; background: #f1f5f9; }
 
                 .searchBox { position: relative; flex: 1; }
                 .searchBox i { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1.1rem; }
@@ -481,7 +520,7 @@ export default function UserDataTab() {
                 .searchBox input:focus { border-color: #3aa6ff; box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.1); background: #fff; }
 
                 /* Table Styling */
-                .tableWrapper { background: #fff; border: 1px solid rgba(15, 42, 86, 0.06); border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.04); }
+                .tableWrapper { background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(0, 56, 168, 0.1); border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0, 56, 168, 0.05); }
                 .userTable { width: 100%; border-collapse: separate; border-spacing: 0; }
                 .userTable th { background: #fcfdfe; padding: 20px 24px; text-align: left; font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #f1f5f9; }
                 .userTable td { padding: 20px 24px; border-bottom: 1px solid #f8fafc; font-size: 0.95rem; vertical-align: middle; transition: all 0.2s; }

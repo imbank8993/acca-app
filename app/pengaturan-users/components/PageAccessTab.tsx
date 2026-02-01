@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { User } from '@/lib/types'
 import { formatRoleDisplay } from '@/lib/auth'
+import * as XLSX from 'xlsx'
+import Swal from 'sweetalert2'
 
 interface PageOption {
   title: string;
@@ -53,7 +55,6 @@ export default function PageAccessTab() {
       title: 'Jurnal',
       children: [
         { title: 'Jurnal Guru', page: 'JurnalGuru' },
-        { title: 'Pengaturan Jurnal', page: 'jurnal/pengaturan' },
         { title: 'Export Jurnal', page: 'ExportJurnal' }
       ]
     },
@@ -80,7 +81,25 @@ export default function PageAccessTab() {
       ]
     },
     { title: 'Master Data', page: 'Master Data' },
-    { title: 'Pengaturan Data', page: 'Pengaturan Data' },
+    {
+      title: 'Pengaturan Data',
+      children: [
+        { title: 'Siswa - Kelas', page: 'siswa_kelas' },
+        { title: 'Wali Kelas', page: 'wali_kelas' },
+        { title: 'Guru Asuh', page: 'guru_asuh' },
+        { title: 'Master Dropdown', page: 'dropdown' },
+        { title: 'Data Libur', page: 'libur' },
+        { title: 'Generate Jurnal', page: 'generate_jurnal' }
+      ]
+    },
+    {
+      title: 'Pengaturan Tugas',
+      children: [
+        { title: 'Guru Mapel', page: 'guru_mapel' },
+        { title: 'Jadwal Guru', page: 'jadwal_guru' },
+        { title: 'Tugas Tambahan', page: 'tugas_tambahan' }
+      ]
+    },
     { title: 'Pengaturan Users', page: 'pengaturan-users' },
     { title: 'Pengaturan Akun', page: 'User' },
     { title: 'Reset Data', page: 'Reset Data' }
@@ -337,13 +356,106 @@ export default function PageAccessTab() {
     return unique;
   }
 
+  const handleExportConfig = () => {
+    const dataToExport = users.map(u => ({
+      'ID': u.id,
+      'Username': u.username,
+      'Nama': u.nama,
+      'Roles': Array.isArray(u.roles) ? u.roles.join(',') : u.roles,
+      'Pages': u.pages
+    }))
+    const ws = XLSX.utils.json_to_sheet(dataToExport)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'UserAccess')
+    XLSX.writeFile(wb, `User_Access_Config_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+
+  const handleImportConfig = async () => {
+    const { value: file } = await Swal.fire({
+      title: 'Import Access Config',
+      text: 'Upload file Excel (.xlsx) dengan kolom: Username, Roles, Pages',
+      input: 'file',
+      inputAttributes: {
+        'accept': '.xlsx, .xls',
+        'aria-label': 'Upload your Excel file'
+      }
+    })
+
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      try {
+        const data = e.target?.result
+        const workbook = XLSX.read(data, { type: 'binary' })
+        const sheetName = workbook.SheetNames[0]
+        const sheet = workbook.Sheets[sheetName]
+        const json = XLSX.utils.sheet_to_json(sheet) as any[]
+
+        let successCount = 0
+        setLoading(true)
+
+        for (const row of json) {
+          const username = row['Username'] || row['username']
+          const roles = row['Roles'] || row['roles']
+          const pages = row['Pages'] || row['pages']
+
+          if (username) {
+            // Find user ID by username first (optimistic update or search)
+            // For now, we assume we need to update by username
+            // Ideally backend should handle "update by username", 
+            // but our endpoints use ID. Let's try finding the user in local state `users`.
+            const targetUser = users.find(u => u.username === username)
+
+            if (targetUser) {
+              if (pages) {
+                await fetch(`/api/admin/users/${targetUser.id}/pages`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ pages: pages })
+                })
+              }
+              if (roles) {
+                await fetch(`/api/admin/users/${targetUser.id}/roles`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ role: roles })
+                })
+              }
+              successCount++
+            }
+          }
+        }
+
+        Swal.fire('Sukses', `Konfigurasi ${successCount} user berhasil diupdate!`, 'success')
+        fetchUsers()
+      } catch (error) {
+        console.error('Import error:', error)
+        Swal.fire('Error', 'Gagal memproses file import', 'error')
+      } finally {
+        setLoading(false)
+      }
+    }
+    reader.readAsBinaryString(file)
+  }
+
   return (
     <div className="pa">
       <div className="pa__head">
-        <div className="pa__headIcon"><i className="bi bi-shield-lock-fill"></i></div>
-        <div className="pa__headInfo">
-          <h2>Akses & Struktur Navigasi</h2>
-          <p>Konfigurasi izin akses halaman dan susun arsitektur menu untuk setiap personil.</p>
+        <div className="pa__headLeft">
+          <div className="pa__headIcon"><i className="bi bi-shield-lock-fill"></i></div>
+          <div className="pa__headInfo">
+            <h2>Akses & Struktur Navigasi</h2>
+            <p>Konfigurasi izin akses halaman dan susun arsitektur menu untuk setiap personil.</p>
+          </div>
+        </div>
+        <div className="pa__headActions">
+          <button className="btnAction outline" onClick={handleExportConfig}>
+            <i className="bi bi-download"></i> Export
+          </button>
+          <button className="btnAction outline" onClick={handleImportConfig}>
+            <i className="bi bi-upload"></i> Import
+          </button>
         </div>
       </div>
 
@@ -580,13 +692,19 @@ export default function PageAccessTab() {
                 .pa { display: flex; flex-direction: column; gap: 28px; animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); padding: 5px; }
                 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-                .pa__head { display: flex; align-items: center; gap: 24px; padding: 24px; background: #fff; border-radius: 20px; border: 1px solid rgba(15, 42, 86, 0.08); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04); }
-                .pa__headIcon { width: 56px; height: 56px; background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #fff; box-shadow: 0 8px 20px rgba(30, 64, 175, 0.2); }
-                .pa__headInfo h2 { margin: 0; font-size: 1.4rem; color: #0f1b2a; font-weight: 800; letter-spacing: -0.01em; }
+                .pa__head { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px 0; background: transparent; border: none; flex-wrap: wrap; }
+                .pa__headLeft { display: flex; align-items: center; gap: 24px; }
+                .pa__headIcon { width: 56px; height: 56px; background: #0038A8; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: #fff; box-shadow: 0 8px 20px rgba(0, 56, 168, 0.2); }
+                .pa__headInfo h2 { margin: 0; font-size: 1.4rem; color: #0038A8; font-weight: 800; letter-spacing: -0.01em; }
                 .pa__headInfo p { margin: 4px 0 0; color: #64748b; font-size: 0.95rem; }
 
+                .pa__headActions { display: flex; gap: 10px; }
+                .btnAction { padding: 10px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; font-size: 0.9rem; }
+                .btnAction.outline { background: #fff; border: 1px solid #e2e8f0; color: #475569; }
+                .btnAction.outline:hover { background: #f8fafc; color: #0f1b2a; border-color: #cbd5e1; }
+
                 .mainGrid { display: grid; grid-template-columns: 340px 1fr; gap: 28px; }
-                .card { background: white; border-radius: 24px; padding: 24px; border: 1px solid rgba(15, 42, 86, 0.06); box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03); margin-bottom: 24px; transition: all 0.3s; }
+                .card { background: rgba(255, 255, 255, 0.85); border-radius: 24px; padding: 24px; border: 1px solid rgba(0, 56, 168, 0.1); box-shadow: 0 10px 30px rgba(0, 56, 168, 0.05); margin-bottom: 24px; transition: all 0.3s; }
                 .card:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06); }
                 
                 .inputLabel { display: block; font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; margin-left: 4px; }
@@ -611,10 +729,10 @@ export default function PageAccessTab() {
                 .cNode { padding-left: 28px; font-size: 0.8rem; color: #64748b; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
                 .cNode i { font-size: 0.7rem; opacity: 0.4; }
 
-                .mainSearchBar { position: relative; background: #fff; border: 2px solid #e2e8f0; border-radius: 20px; padding: 4px 20px; display: flex; align-items: center; gap: 14px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 15px rgba(15, 23, 42, 0.04); }
-                .mainSearchBar:focus-within { border-color: #3b82f6; box-shadow: 0 10px 25px rgba(59, 130, 246, 0.1); }
-                .mainSearchBar i { color: #94a3b8; font-size: 1.2rem; }
-                .mainSearchBar input { flex: 1; padding: 16px 0; border: none; outline: none; font-weight: 700; font-size: 1.05rem; color: #0f1b2a; background: transparent; }
+                .mainSearchBar { position: relative; background: rgba(255, 255, 255, 0.85); border: 2px solid rgba(0, 56, 168, 0.1); border-radius: 20px; padding: 4px 20px; display: flex; align-items: center; gap: 14px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 10px 30px rgba(0, 56, 168, 0.05); }
+                .mainSearchBar:focus-within { border-color: #0038A8; box-shadow: 0 10px 25px rgba(0, 56, 168, 0.1); }
+                .mainSearchBar i { color: #0038A8; font-size: 1.2rem; }
+                .mainSearchBar input { flex: 1; padding: 16px 0; border: none; outline: none; font-weight: 700; font-size: 1.05rem; color: #0038A8; background: transparent; }
                 
                 .searchPortalParent { position: absolute; top: calc(100% + 12px); left: 0; right: 0; background: white; border-radius: 20px; box-shadow: 0 25px 60px rgba(15, 23, 42, 0.15); z-index: 1000; border: 1px solid rgba(15, 42, 86, 0.08); overflow: hidden; animation: slideDown 0.2s ease; }
                 @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
@@ -629,7 +747,7 @@ export default function PageAccessTab() {
                 .portalAction:hover { background: #e0f0ff; }
 
                 .nodeList { display: flex; flex-direction: column; gap: 16px; }
-                .nodeCard { display: flex; gap: 18px; background: white; border: 1px solid rgba(15, 42, 86, 0.06); border-radius: 20px; padding: 20px; transition: all 0.3s; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03); }
+                .nodeCard { display: flex; gap: 18px; background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0, 56, 168, 0.1); border-radius: 20px; padding: 20px; transition: all 0.3s; box-shadow: 0 10px 30px rgba(0, 56, 168, 0.05); }
                 .nodeCard:hover { border-color: rgba(59, 130, 246, 0.2); box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06); }
                 
                 .nodeActions { width: 40px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid #f1f5f9; padding-right: 18px; justify-content: center; }

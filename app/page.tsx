@@ -35,7 +35,7 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="inline-block w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+          <div className="inline-block w-10 h-10 border-4 border-[#0038A8] border-t-transparent rounded-full animate-spin mb-4"></div>
           <p className="text-gray-500 font-medium">Memuat Aplikasi...</p>
         </div>
       </div>

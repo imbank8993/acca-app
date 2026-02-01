@@ -574,9 +574,8 @@ export default function WaliKelasTab() {
           flex-direction: column;
           gap: 10px;
           font-size: var(--wk-fs);
-          padding: 16px;
-          background: #f5f7fb;
-          border-radius: 16px;
+          padding: 0;
+          background: transparent;
         }
 
         /* ========= TOOLBAR ========= */
@@ -599,7 +598,7 @@ export default function WaliKelasTab() {
           flex-wrap: wrap;
           padding: 8px;
           border-radius: var(--wk-radius);
-          background: rgba(255, 255, 255, 0.72);
+          background: rgba(255, 255, 255, 0.05);
           border: 1px solid var(--wk-line);
           box-shadow: var(--wk-shadow2);
         }
@@ -699,7 +698,7 @@ export default function WaliKelasTab() {
         }
 
         .wk__btnPrimary {
-          background: linear-gradient(135deg, var(--wk-blue), var(--wk-blue2));
+          background: #0038A8;
           border-color: rgba(58, 166, 255, 0.32);
           color: #fff;
         }
@@ -723,7 +722,7 @@ export default function WaliKelasTab() {
           overflow: auto;
           border-radius: var(--wk-radius);
           border: 1px solid var(--wk-line);
-          background: var(--wk-card);
+          background: rgba(255, 255, 255, 0.85);
           box-shadow: var(--wk-shadow);
         }
 

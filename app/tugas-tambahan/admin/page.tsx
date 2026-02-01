@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Swal from 'sweetalert2';
 import Select from 'react-select';
+import PermissionGuard from '@/components/PermissionGuard';
 import '../tugas-tambahan.css';
 
 interface Guru {
@@ -184,150 +185,152 @@ export default function AdminTugasTambahan() {
     };
 
     return (
-        <div className="tt-page">
-            <div className="jt__pageHeader">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Ploting Tugas Tambahan</h1>
-                    <p className="text-slate-500 text-sm">Atur penugasan struktural dan fungsional guru</p>
-                </div>
-                <div>
-                    <button className="jt__btn jt__btnPrimary" onClick={() => { resetForm(); setShowModal(true); }}>
-                        <i className="bi bi-person-plus"></i> Tambah Penugasan
-                    </button>
-                </div>
-            </div>
-
-            <div className="jt__tableWrap mt-6">
-                <table className="jt__table">
-                    <thead>
-                        <tr>
-                            <th>NIP</th>
-                            <th>Nama Guru</th>
-                            <th>Jabatan Tambahan</th>
-                            <th>Tahun/Sem</th>
-                            <th>Keterangan</th>
-                            <th className="text-right">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading ? (
-                            <tr><td colSpan={6} className="text-center py-10">Memuat data...</td></tr>
-                        ) : tugasList.length === 0 ? (
-                            <tr><td colSpan={6} className="text-center py-10 text-slate-400 italic">Belum ada data penugasan.</td></tr>
-                        ) : (
-                            tugasList.map(t => (
-                                <tr key={t.id}>
-                                    <td className="font-mono text-[11px] text-slate-500">{t.nip}</td>
-                                    <td className="font-bold">{t.nama_guru}</td>
-                                    <td><span className="badge-tt">{t.jabatan}</span></td>
-                                    <td className="text-xs">{t.tahun_ajaran} - S{t.semester}</td>
-                                    <td className="text-xs text-slate-500">{t.keterangan || '-'}</td>
-                                    <td>
-                                        <div className="flex justify-end gap-2">
-                                            <button className="jt__iconBtn" onClick={() => openEdit(t)}>
-                                                <i className="bi bi-pencil"></i>
-                                            </button>
-                                            <button className="jt__iconBtn danger" onClick={() => handleDelete(t.id)}>
-                                                <i className="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Modal Form */}
-            {showModal && (
-                <div className="jt__modal" onClick={() => setShowModal(false)}>
-                    <div className="jt__modalContent max-w-xl !p-0 border-0" onClick={e => e.stopPropagation()}>
-                        <div className="p-6 bg-gradient-to-r from-blue-900 to-slate-900 text-white flex justify-between items-center rounded-t-2xl">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
-                                    <i className={`bi ${editingTugas ? 'bi-pencil-square' : 'bi-plus-circle'} text-xl`}></i>
-                                </div>
-                                <div>
-                                    <h3 className="m-0 text-lg font-bold tracking-tight text-white">
-                                        {editingTugas ? 'Edit Penugasan' : 'Tambah Penugasan Guru'}
-                                    </h3>
-                                    <p className="m-0 text-xs text-blue-100 opacity-80"> Manajemen tugas tambahan guru</p>
-                                </div>
-                            </div>
-                            <button className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors text-white border-none cursor-pointer" onClick={() => setShowModal(false)}>
-                                <i className="bi bi-x-lg text-sm"></i>
-                            </button>
-                        </div>
-                        <form onSubmit={handleSave}>
-                            <div className="p-8 space-y-5">
-                                <div className="jt__formGroup">
-                                    <label className="jt__formLabel">Pilih Guru</label>
-                                    <Select
-                                        options={guruOptions}
-                                        value={selectedGuru}
-                                        onChange={setSelectedGuru}
-                                        styles={customSelectStyles}
-                                        placeholder="Cari nama guru..."
-                                    />
-                                </div>
-                                <div className="jt__formGroup">
-                                    <label className="jt__formLabel">Jabatan Tambahan</label>
-                                    <Select
-                                        options={JABATAN_LIST}
-                                        value={selectedJabatan}
-                                        onChange={setSelectedJabatan}
-                                        styles={customSelectStyles}
-                                        placeholder="Pilih jabatan..."
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="jt__formGroup">
-                                        <label className="jt__formLabel">Tahun Ajaran</label>
-                                        <select
-                                            className="jt__formInput"
-                                            value={tahunAjaran}
-                                            onChange={e => setTahunAjaran(e.target.value)}
-                                        >
-                                            {academicYears.length > 1 && <option value="Semua">Semua</option>}
-                                            {academicYears.map(y => (
-                                                <option key={y} value={y}>{y}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="jt__formGroup">
-                                        <label className="jt__formLabel">Semester</label>
-                                        <select
-                                            className="jt__formInput"
-                                            value={semester}
-                                            onChange={e => setSemester(e.target.value)}
-                                        >
-                                            <option value="Ganjil">Ganjil</option>
-                                            <option value="Genap">Genap</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="jt__formGroup">
-                                    <label className="jt__formLabel">Keterangan / Detil</label>
-                                    <textarea
-                                        className="jt__formInput min-h-[80px]"
-                                        value={keterangan}
-                                        onChange={e => setKeterangan(e.target.value)}
-                                        rows={2}
-                                        placeholder="Misal: Wali Kelas IX-A atau Wakil Bidang Kurikulum"
-                                    />
-                                </div>
-                            </div>
-                            <div className="jt__modalActions p-6 bg-slate-50 rounded-b-2xl border-t border-slate-100">
-                                <button type="button" className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors border-none cursor-pointer" onClick={() => setShowModal(false)}>Batal</button>
-                                <button type="submit" className="px-8 py-2.5 rounded-xl bg-blue-900 text-white text-sm font-bold shadow-lg shadow-blue-900/20 hover:bg-blue-800 active:scale-95 transition-all border-none cursor-pointer">
-                                    <i className="bi bi-save mr-2"></i> Simpan Penugasan
-                                </button>
-                            </div>
-                        </form>
+        <PermissionGuard requiredPermission={{ resource: 'tugas_tambahan', action: 'manage' }}>
+            <div className="tt-page">
+                <div className="jt__pageHeader">
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-800">Ploting Tugas Tambahan</h1>
+                        <p className="text-slate-500 text-sm">Atur penugasan struktural dan fungsional guru</p>
+                    </div>
+                    <div>
+                        <button className="jt__btn jt__btnPrimary" onClick={() => { resetForm(); setShowModal(true); }}>
+                            <i className="bi bi-person-plus"></i> Tambah Penugasan
+                        </button>
                     </div>
                 </div>
-            )}
-        </div>
+
+                <div className="jt__tableWrap mt-6">
+                    <table className="jt__table">
+                        <thead>
+                            <tr>
+                                <th>NIP</th>
+                                <th>Nama Guru</th>
+                                <th>Jabatan Tambahan</th>
+                                <th>Tahun/Sem</th>
+                                <th>Keterangan</th>
+                                <th className="text-right">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? (
+                                <tr><td colSpan={6} className="text-center py-10">Memuat data...</td></tr>
+                            ) : tugasList.length === 0 ? (
+                                <tr><td colSpan={6} className="text-center py-10 text-slate-400 italic">Belum ada data penugasan.</td></tr>
+                            ) : (
+                                tugasList.map(t => (
+                                    <tr key={t.id}>
+                                        <td className="font-mono text-[11px] text-slate-500">{t.nip}</td>
+                                        <td className="font-bold">{t.nama_guru}</td>
+                                        <td><span className="badge-tt">{t.jabatan}</span></td>
+                                        <td className="text-xs">{t.tahun_ajaran} - S{t.semester}</td>
+                                        <td className="text-xs text-slate-500">{t.keterangan || '-'}</td>
+                                        <td>
+                                            <div className="flex justify-end gap-2">
+                                                <button className="jt__iconBtn" onClick={() => openEdit(t)}>
+                                                    <i className="bi bi-pencil"></i>
+                                                </button>
+                                                <button className="jt__iconBtn danger" onClick={() => handleDelete(t.id)}>
+                                                    <i className="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Modal Form */}
+                {showModal && (
+                    <div className="jt__modal" onClick={() => setShowModal(false)}>
+                        <div className="jt__modalContent max-w-xl !p-0 border-0" onClick={e => e.stopPropagation()}>
+                            <div className="p-6 bg-gradient-to-r from-blue-900 to-slate-900 text-white flex justify-between items-center rounded-t-2xl">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-sm">
+                                        <i className={`bi ${editingTugas ? 'bi-pencil-square' : 'bi-plus-circle'} text-xl`}></i>
+                                    </div>
+                                    <div>
+                                        <h3 className="m-0 text-lg font-bold tracking-tight text-white">
+                                            {editingTugas ? 'Edit Penugasan' : 'Tambah Penugasan Guru'}
+                                        </h3>
+                                        <p className="m-0 text-xs text-blue-100 opacity-80"> Manajemen tugas tambahan guru</p>
+                                    </div>
+                                </div>
+                                <button className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors text-white border-none cursor-pointer" onClick={() => setShowModal(false)}>
+                                    <i className="bi bi-x-lg text-sm"></i>
+                                </button>
+                            </div>
+                            <form onSubmit={handleSave}>
+                                <div className="p-8 space-y-5">
+                                    <div className="jt__formGroup">
+                                        <label className="jt__formLabel">Pilih Guru</label>
+                                        <Select
+                                            options={guruOptions}
+                                            value={selectedGuru}
+                                            onChange={setSelectedGuru}
+                                            styles={customSelectStyles}
+                                            placeholder="Cari nama guru..."
+                                        />
+                                    </div>
+                                    <div className="jt__formGroup">
+                                        <label className="jt__formLabel">Jabatan Tambahan</label>
+                                        <Select
+                                            options={JABATAN_LIST}
+                                            value={selectedJabatan}
+                                            onChange={setSelectedJabatan}
+                                            styles={customSelectStyles}
+                                            placeholder="Pilih jabatan..."
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="jt__formGroup">
+                                            <label className="jt__formLabel">Tahun Ajaran</label>
+                                            <select
+                                                className="jt__formInput"
+                                                value={tahunAjaran}
+                                                onChange={e => setTahunAjaran(e.target.value)}
+                                            >
+                                                {academicYears.length > 1 && <option value="Semua">Semua</option>}
+                                                {academicYears.map(y => (
+                                                    <option key={y} value={y}>{y}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="jt__formGroup">
+                                            <label className="jt__formLabel">Semester</label>
+                                            <select
+                                                className="jt__formInput"
+                                                value={semester}
+                                                onChange={e => setSemester(e.target.value)}
+                                            >
+                                                <option value="Ganjil">Ganjil</option>
+                                                <option value="Genap">Genap</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="jt__formGroup">
+                                        <label className="jt__formLabel">Keterangan / Detil</label>
+                                        <textarea
+                                            className="jt__formInput min-h-[80px]"
+                                            value={keterangan}
+                                            onChange={e => setKeterangan(e.target.value)}
+                                            rows={2}
+                                            placeholder="Misal: Wali Kelas IX-A atau Wakil Bidang Kurikulum"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="jt__modalActions p-6 bg-slate-50 rounded-b-2xl border-t border-slate-100">
+                                    <button type="button" className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors border-none cursor-pointer" onClick={() => setShowModal(false)}>Batal</button>
+                                    <button type="submit" className="px-8 py-2.5 rounded-xl bg-blue-900 text-white text-sm font-bold shadow-lg shadow-blue-900/20 hover:bg-blue-800 active:scale-95 transition-all border-none cursor-pointer">
+                                        <i className="bi bi-save mr-2"></i> Simpan Penugasan
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </PermissionGuard>
     );
 }

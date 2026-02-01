@@ -13,7 +13,6 @@ interface HeaderProps {
 export default function Header({ user, onMenuToggle, isCollapsed }: HeaderProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
-  const [activeSettings, setActiveSettings] = useState<{ tahun_ajaran: string, semester: string } | null>(null)
 
   // Load dark mode preference on mount
   useEffect(() => {
@@ -22,18 +21,7 @@ export default function Header({ user, onMenuToggle, isCollapsed }: HeaderProps)
     if (savedMode) {
       document.documentElement.classList.add('dark')
     }
-    fetchActiveSettings()
   }, [])
-
-  const fetchActiveSettings = async () => {
-    try {
-      const { getActiveSettings } = await import('@/lib/settings-client')
-      const settings = await getActiveSettings()
-      setActiveSettings(settings)
-    } catch (err) {
-      console.error(err)
-    }
-  }
 
   const toggleDarkMode = () => {
     const newMode = !isDarkMode
@@ -57,14 +45,13 @@ export default function Header({ user, onMenuToggle, isCollapsed }: HeaderProps)
     <header className={`header ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="header-left">
         <button className="menu-toggle" onClick={onMenuToggle}>
-          <i className="bi bi-list"></i>
+          <i className="fa-solid fa-bars"></i>
         </button>
         <div className="header-title-wrapper">
-          <h1 className="header-title">Academic Center & Access</h1>
-          <div className="header-badges">
-            <span className="header-subtitle">MAN Insan Cendekia Gowa</span>
-            {/* Active settings display removed as per request */}
-          </div>
+          <h1 className="header-title">
+            Academic Center <span>& Access</span>
+          </h1>
+          <span className="header-subtitle">MAN Insan Cendekia Gowa</span>
         </div>
       </div>
 
@@ -75,9 +62,10 @@ export default function Header({ user, onMenuToggle, isCollapsed }: HeaderProps)
           onClick={toggleDarkMode}
           title={isDarkMode ? 'Light Mode' : 'Dark Mode'}
         >
-          <i className={`bi bi-${isDarkMode ? 'sun' : 'moon'}-fill`}></i>
+          <i className={`fa-solid fa-${isDarkMode ? 'sun' : 'moon'}`}></i>
         </button>
 
+        {/* User Menu trigger */}
         <div className="user-menu-wrapper">
           <button
             className="user-menu-trigger"
@@ -87,14 +75,13 @@ export default function Header({ user, onMenuToggle, isCollapsed }: HeaderProps)
               {user.photoUrl ? (
                 <img src={user.photoUrl} alt={user.nama} />
               ) : (
-                <i className="bi bi-person-circle"></i>
+                <i className="fa-solid fa-user"></i>
               )}
             </div>
             <div className="user-info-header">
               <span className="user-name-header">{user.nama}</span>
-              <span className="user-role-header">{user.roles[0]}</span>
+              <span className="user-role-header">{user.roles[0] || 'User'}</span>
             </div>
-            <i className={`bi bi-chevron-${showUserMenu ? 'up' : 'down'} chevron-header`}></i>
           </button>
 
           {showUserMenu && (
@@ -106,13 +93,11 @@ export default function Header({ user, onMenuToggle, isCollapsed }: HeaderProps)
               <div className="user-menu-dropdown">
                 <div className="user-menu-info">
                   <div className="user-menu-name">{user.nama}</div>
-                  <div className="user-menu-email">{user.username}</div>
                   <div className="user-menu-role">{user.roles.join(', ')}</div>
                 </div>
-                <div className="user-menu-divider" />
-                <button className="user-menu-item" onClick={handleLogout}>
-                  <i className="bi bi-box-arrow-right"></i>
-                  <span>Logout</span>
+                <button className="user-menu-item" onClick={handleLogout} style={{ color: '#ef4444' }}>
+                  <i className="fa-solid fa-right-from-bracket"></i>
+                  <span>Sign Out</span>
                 </button>
               </div>
             </>

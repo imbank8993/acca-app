@@ -51,7 +51,13 @@ export async function GET(request: NextRequest) {
             query = query.eq('tahun_ajaran', tahun_ajaran);
         }
         if (semester) {
-            const semVal = isNaN(parseInt(semester)) ? semester : parseInt(semester);
+            let semVal: any = semester;
+            if (typeof semester === 'string') {
+                const s = semester.toLowerCase();
+                if (s.includes('ganjil')) semVal = 1;
+                else if (s.includes('genap')) semVal = 2;
+                else if (!isNaN(parseInt(s))) semVal = parseInt(s);
+            }
             query = query.eq('semester', semVal);
         }
         if (status_sesi) {
@@ -168,11 +174,23 @@ export async function POST(request: NextRequest) {
                     const settings = await getActiveSettingsServer();
                     return settings?.tahun_ajaran || '2025/2026';
                 })()),
-                semester: body.semester || (await (async () => {
-                    const { getActiveSettingsServer } = await import('@/lib/settings-server');
-                    const settings = await getActiveSettingsServer();
-                    return settings?.semester || 'Ganjil';
-                })()),
+                semester: await (async () => {
+                    let sem = body.semester;
+                    if (!sem) {
+                        const { getActiveSettingsServer } = await import('@/lib/settings-server');
+                        const settings = await getActiveSettingsServer();
+                        sem = settings?.semester || 'Ganjil';
+                    }
+                    
+                    if (typeof sem === 'string') {
+                        const s = sem.toLowerCase();
+                        if (s.includes('ganjil')) return 1;
+                        if (s.includes('genap')) return 2;
+                        const parsed = parseInt(s);
+                        if (!isNaN(parsed)) return parsed;
+                    }
+                    return sem;
+                })(),
                 created_by: body.nip,
             })
             .select()

@@ -64,7 +64,7 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
 
     // [CAPABILITY CHECK]
     const jenis = String(data.jenis || "").toUpperCase();
-    if (!canDo(`ketidakhadiran:${jenis}`, "update")) {
+    if (!canDo(`ketidakhadiran.${jenis.toLowerCase()}`, "manage")) {
       await Swal.fire({
         title: "Ditolak",
         text: `Anda tidak punya izin untuk mengubah data ${jenis}`,
