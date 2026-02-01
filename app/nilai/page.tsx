@@ -699,7 +699,7 @@ export default function NilaiPage() {
 
                     scoreCols.forEach(col => {
                         let finalName = col;
-                        let finalTopic = "Auto-Imported";
+                        let finalTopic = "";
                         const match = col.match(/^(.+?)\s*\((.*?)\)$/);
                         if (match) {
                             finalName = match[1].trim();
@@ -794,13 +794,17 @@ export default function NilaiPage() {
                         // Template Export writes: NO="TAG_NAME", NISN="TOPIC_TEXT"
 
                         const potentialTagName = (row["NO"] || "").toString().trim().toUpperCase();
-                        const potentials = [potentialTagName, rowNISN.toUpperCase()]; // Check both just in case
-
+                        
                         // Find if this row identifies a tag
                         let matchedTag: any = null;
 
                         if (potentialTagName) {
-                            matchedTag = currentConfig.find(t => t.nama_tagihan.toUpperCase() === potentialTagName && t.materi_tp === materi);
+                            const normalizedPot = potentialTagName.replace(/\s+/g, '_');
+                            matchedTag = currentConfig.find(t => 
+                                (t.nama_tagihan.toUpperCase() === normalizedPot || 
+                                 t.nama_tagihan.toUpperCase() === normalizedPot.replace('_', ' ')) && // Try both _ and space
+                                t.materi_tp === materi
+                            );
                         }
 
                         // If found a tag, update its topic
