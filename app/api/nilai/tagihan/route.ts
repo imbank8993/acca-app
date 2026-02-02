@@ -9,10 +9,14 @@ import { ApiResponse } from '@/lib/types';
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { nip, kelas, mapel, semester, materi, jenis, nama, topik, tanggal, deskripsi, tahun_ajaran } = body;
+        let { id, nip, kelas, mapel, semester, materi, jenis, nama, topik, tanggal, deskripsi, tahun_ajaran, materi_tp, nama_tagihan } = body;
 
-        if (!nip || !kelas || !mapel || !semester || !materi || !jenis || !nama) {
-            return NextResponse.json<ApiResponse>({ ok: false, error: 'Parameter tidak lengkap' }, { status: 400 });
+        // Handle Aliases
+        materi = materi || materi_tp;
+        nama = nama || nama_tagihan;
+
+        if (!nip || !kelas || !mapel || !semester) {
+            return NextResponse.json<ApiResponse>({ ok: false, error: 'Identitas (NIP, Kelas, Mapel, Semester) wajib diisi' }, { status: 400 });
         }
 
         const mapSemester = (s: string | number) => {
@@ -22,7 +26,32 @@ export async function POST(request: NextRequest) {
         };
 
         const semInt = mapSemester(semester);
-        const ta = tahun_ajaran || '2024/2025'; // Default value for tahun_ajaran
+        const ta = tahun_ajaran || '2024/2025';
+
+        // 1. If ID is provided, try to update directly
+        if (id) {
+            const { error } = await supabase
+                .from('nilai_tagihan')
+                .update({
+                    topik: topik || null,
+                    tanggal: tanggal || null,
+                    deskripsi: deskripsi || null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', id);
+
+            if (!error) {
+                return NextResponse.json({ ok: true, message: 'Berhasil memperbarui metadata penilaian' });
+            }
+            // If error (e.g. not found), fall through to lookup logic? 
+            // Usually if ID is given, we expect it to work. But let's fallback just in case or throw.
+            throw error;
+        }
+
+        // 2. If no ID, perform Lookup/Upsert logic
+        if (!materi || !jenis || !nama) {
+            return NextResponse.json<ApiResponse>({ ok: false, error: 'Parameter materi/jenis/nama tidak lengkap' }, { status: 400 });
+        }
 
         const { data: existing } = await supabase
             .from('nilai_tagihan')
@@ -34,7 +63,7 @@ export async function POST(request: NextRequest) {
             .eq('materi_tp', materi)
             .eq('jenis', jenis)
             .eq('nama_tagihan', nama)
-            .eq('tahun_ajaran', ta) // Include tahun_ajaran in the check
+            .eq('tahun_ajaran', ta)
             .maybeSingle();
 
         if (existing) {
@@ -59,7 +88,7 @@ export async function POST(request: NextRequest) {
                     topik: topik || null,
                     tanggal: tanggal || null,
                     deskripsi: deskripsi || null,
-                    tahun_ajaran: ta // Include tahun_ajaran in the insert
+                    tahun_ajaran: ta
                 });
             if (error) throw error;
         }
