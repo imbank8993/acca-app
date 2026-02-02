@@ -1182,7 +1182,7 @@ export default function NilaiPage() {
                         </div>
 
                         {/* Modified Layout: Column-major flow (Left then Right) */}
-                        <div className="columns-1 md:columns-2 gap-12 space-y-4">
+                        <div className="columns-1 md:columns-2 gap-20 space-y-2">
                             {tagihanConfig
                                 .filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi)
                                 .filter(t => cleanTopic(t.topik)) // Only show if topic is filled
@@ -1192,19 +1192,19 @@ export default function NilaiPage() {
                                     return numA - numB;
                                 })
                                 .map(t => (
-                                    <div key={t.id || t.nama_tagihan} className="break-inside-avoid mb-4 flex flex-col border-b border-slate-50 pb-2">
-                                        <div className="font-bold text-sm text-slate-700">{t.nama_tagihan}</div>
-                                        <div className="text-sm text-slate-600 truncate" title={cleanTopic(t.topik)}>
+                                    <div key={t.id || t.nama_tagihan} className="break-inside-avoid w-full flex items-baseline justify-between py-2 border-b border-dashed border-slate-200">
+                                        <span className="font-bold text-xs text-slate-400 uppercase tracking-wider shrink-0">{t.nama_tagihan.replace(/_/g, ' ')}</span>
+                                        <span className="text-sm font-semibold text-slate-700 text-right truncate pl-6 max-w-[75%]" title={cleanTopic(t.topik)}>
                                             {cleanTopic(t.topik)}
-                                        </div>
+                                        </span>
                                     </div>
                                 ))
                             }
-                            {/* Empty State if needed, though strictly we just hide empty ones now. Only show if logic results in 0 items? */}
+                            {/* Empty State */}
                             {tagihanConfig
                                 .filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi)
                                 .filter(t => cleanTopic(t.topik)).length === 0 && (
-                                    <div className="text-slate-400 italic text-sm text-center py-4">Belum ada keterangan materi yang terisi.</div>
+                                    <div className="text-slate-400 italic text-sm text-center py-4 col-span-full">Belum ada keterangan materi yang terisi.</div>
                                 )}
                         </div>
                     </div>
