@@ -907,17 +907,15 @@ export default function NilaiPage() {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
+                                // unpack existing first to ensure we don't overwrite new values
+                                ...(currentConfig.find(c => c.id === u.id)),
                                 id: u.id,
                                 topik: u.topik,
-                                // Need to pass required fields to satisfy API upsert/update if needed,
-                                // but ideally API handles partial update or we pass full obj
                                 nip: user.nip,
                                 kelas,
                                 mapel,
                                 semester,
-                                tahun_ajaran: tahunAjaran,
-                                // reconstruct other fields from existing config
-                                ...(currentConfig.find(c => c.id === u.id))
+                                tahun_ajaran: tahunAjaran
                             })
                         })
                     ));
