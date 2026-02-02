@@ -1173,32 +1173,39 @@ export default function NilaiPage() {
                 </div>
 
                 {/* Topic Description Section - Aligned with nl__tableWrap */}
+                {/* Topic Description Section - Aligned with nl__tableWrap */}
                 {(activeMode === 'KUIS' || activeMode === 'TUGAS') && (
                     <div className="nl__tableWrap mt-4 p-6">
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                             <i className="bi bi-info-circle-fill text-blue-500"></i>
                             Keterangan Materi
                         </div>
-                        <div className="grid grid-cols-[120px_1fr_120px_1fr] gap-x-12 gap-y-3">
+
+                        {/* Modified Layout: Column-major flow (Left then Right) */}
+                        <div className="columns-1 md:columns-2 gap-12 space-y-4">
                             {tagihanConfig
                                 .filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi)
+                                .filter(t => cleanTopic(t.topik)) // Only show if topic is filled
                                 .sort((a, b) => {
                                     const numA = parseInt(a.nama_tagihan.split('_')[1]) || 0;
                                     const numB = parseInt(b.nama_tagihan.split('_')[1]) || 0;
                                     return numA - numB;
                                 })
                                 .map(t => (
-                                    <Fragment key={t.id || t.nama_tagihan}>
-                                        <div className="font-bold text-sm text-slate-700 border-b border-slate-50 pb-1">{t.nama_tagihan}</div>
-                                        <div className={`text-sm border-b border-slate-50 pb-1 truncate ${cleanTopic(t.topik) ? 'text-slate-600' : 'text-slate-300 italic'}`} title={cleanTopic(t.topik)}>
-                                            {cleanTopic(t.topik) || '-'}
+                                    <div key={t.id || t.nama_tagihan} className="break-inside-avoid mb-4 flex flex-col border-b border-slate-50 pb-2">
+                                        <div className="font-bold text-sm text-slate-700">{t.nama_tagihan}</div>
+                                        <div className="text-sm text-slate-600 truncate" title={cleanTopic(t.topik)}>
+                                            {cleanTopic(t.topik)}
                                         </div>
-                                    </Fragment>
+                                    </div>
                                 ))
                             }
-                            {tagihanConfig.filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi).length === 0 && (
-                                <div className="text-slate-400 italic text-sm col-span-full">Belum ada kolom penilaian untuk materi ini.</div>
-                            )}
+                            {/* Empty State if needed, though strictly we just hide empty ones now. Only show if logic results in 0 items? */}
+                            {tagihanConfig
+                                .filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi)
+                                .filter(t => cleanTopic(t.topik)).length === 0 && (
+                                    <div className="text-slate-400 italic text-sm text-center py-4">Belum ada keterangan materi yang terisi.</div>
+                                )}
                         </div>
                     </div>
                 )}
