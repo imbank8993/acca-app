@@ -5,6 +5,7 @@ import type { User } from '@/lib/types'
 import * as XLSX from 'xlsx'
 import Swal from 'sweetalert2'
 import Select from 'react-select'
+import UserModal from './UserModal'
 
 export default function UserDataTab() {
   const [users, setUsers] = useState<User[]>([])
@@ -13,14 +14,6 @@ export default function UserDataTab() {
   const [searchQuery, setSearchQuery] = useState('')
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [isAdding, setIsAdding] = useState(false)
-  const [formData, setFormData] = useState({
-    username: '',
-    nip: '',
-    nama: '',
-    divisi: '',
-    role: 'GURU',
-    pages: 'Dashboard'
-  })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -37,13 +30,20 @@ export default function UserDataTab() {
   const fetchUsers = async () => {
     setLoading(true)
     try {
+      console.log('Fetching users from /api/admin/users...')
       const res = await fetch('/api/admin/users')
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`)
+      }
       const data = await res.json()
       if (data.ok) {
         setUsers(data.data || [])
+      } else {
+        console.error('API responded with error:', data.error)
       }
     } catch (error) {
       console.error('Error fetching users:', error)
+      // Don't throw, just log. Users state remains empty.
     } finally {
       setLoading(false)
     }
@@ -51,24 +51,37 @@ export default function UserDataTab() {
 
   const fetchRoles = async () => {
     try {
+      console.log('Fetching roles from /api/admin/role-permissions...')
       const res = await fetch('/api/admin/role-permissions')
+
+      if (!res.ok) {
+        console.warn(`Fetch roles failed with status ${res.status}. Using fallback roles.`)
+        useFallbackRoles()
+        return
+      }
+
       const data = await res.json()
       if (data.ok && data.roles) {
         const opts = data.roles.map((r: any) => ({ value: r.name, label: r.name }))
         setAvailableRoles(opts)
       } else {
-        // Fallback default roles if fetch fails
-        setAvailableRoles([
-          { value: 'ADMIN', label: 'ADMIN' },
-          { value: 'GURU', label: 'GURU' },
-          { value: 'WALI KELAS', label: 'WALI KELAS' },
-          { value: 'KAMAD', label: 'KAMAD' },
-          { value: 'OP_JURNAL', label: 'OP_JURNAL' }
-        ])
+        console.warn('API ok:false or missing roles. Using fallback.')
+        useFallbackRoles()
       }
     } catch (error) {
-      console.error('Error fetching roles:', error)
+      console.error('Error fetching roles (Network/Parsing):', error)
+      useFallbackRoles()
     }
+  }
+
+  const useFallbackRoles = () => {
+    setAvailableRoles([
+      { value: 'ADMIN', label: 'ADMIN' },
+      { value: 'GURU', label: 'GURU' },
+      { value: 'WALI KELAS', label: 'WALI KELAS' },
+      { value: 'KAMAD', label: 'KAMAD' },
+      { value: 'OP_JURNAL', label: 'OP_JURNAL' }
+    ])
   }
 
   // Filtered users calculation
@@ -105,79 +118,21 @@ export default function UserDataTab() {
   const handleAdd = () => {
     setIsAdding(true)
     setEditingUser(null)
-    setFormData({
-      username: '',
-      nip: '',
-      nama: '',
-      divisi: '',
-      role: 'GURU',
-      pages: 'Dashboard'
-    })
     setMessage(null)
   }
 
   const handleEdit = (user: User) => {
     setIsAdding(false)
     setEditingUser(user)
-    setFormData({
-      username: user.username,
-      nip: user.nip,
-      nama: user.nama,
-      divisi: user.divisi,
-      role: user.role || 'GURU',
-      pages: user.pages || 'Dashboard'
-    })
     setMessage(null)
   }
 
   const handleCancel = () => {
     setEditingUser(null)
     setIsAdding(false)
-    setFormData({
-      username: '',
-      nip: '',
-      nama: '',
-      divisi: '',
-      role: 'GURU',
-      pages: 'Dashboard'
-    })
     setMessage(null)
   }
 
-  const handleSave = async () => {
-    if (!editingUser && !isAdding) return
-
-    setSaving(true)
-    setMessage(null)
-
-    try {
-      const url = isAdding ? '/api/admin/users' : `/api/admin/users/${editingUser?.id}`
-      const method = isAdding ? 'POST' : 'PUT'
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      })
-
-      const data = await res.json()
-
-      if (data.ok) {
-        setMessage({ type: 'success', text: isAdding ? 'User baru berhasil ditambahkan!' : 'Data user berhasil diperbarui!' })
-        fetchUsers() // Refresh list
-        setTimeout(() => {
-          handleCancel()
-        }, 1500)
-      } else {
-        setMessage({ type: 'error', text: data.error || 'Gagal menyimpan data user' })
-      }
-    } catch (error) {
-      console.error('Error saving user data:', error)
-      setMessage({ type: 'error', text: 'Terjadi kesalahan saat menyimpan' })
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const handleExport = () => {
     const dataToExport = users.map(u => ({
@@ -190,7 +145,7 @@ export default function UserDataTab() {
       'pages': u.pages,
       'aktif': u.aktif ? 'Y' : 'N',
       'auth_id': u.auth_id || '',
-      'password': '****'
+      'password': '••••••••'
     }))
 
     const ws = XLSX.utils.json_to_sheet(dataToExport)
@@ -366,114 +321,97 @@ export default function UserDataTab() {
         </div>
       )}
 
-      {/* Table or Form */}
-      {(!editingUser && !isAdding) ? (
-        <div className="tableWrapper">
-          <table className="userTable">
-            <thead>
-              <tr>
-                <th>Nama / NIP</th>
-                <th>Username</th>
-                <th>Divisi</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'center' }}>Aksi</th>
+      <div className="tableWrapper">
+        <table className="userTable">
+          <thead>
+            <tr>
+              <th>Nama / NIP</th>
+              <th>Username</th>
+              <th>Divisi</th>
+              <th>Status</th>
+              <th style={{ textAlign: 'center' }}>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={5} className="loadingCell">Loading data...</td></tr>
+            ) : filteredUsers.map((user) => (
+              <tr key={user.id}>
+                <td>
+                  <div className="profileCell">
+                    <span className="pName">{user.nama}</span>
+                    <span className="pNip">{user.nip}</span>
+                  </div>
+                </td>
+                <td><span className="uName">@{user.username}</span></td>
+                <td>{user.divisi || '-'}</td>
+                <td>
+                  <span className={`statusTag ${user.aktif ? 'active' : 'inactive'}`}>
+                    {user.aktif ? 'Aktif' : 'Nonaktif'}
+                  </span>
+                </td>
+                <td>
+                  <div className="actionRow">
+                    <button className="btnE" onClick={() => handleEdit(user)} title="Edit Data">
+                      <i className="bi bi-pencil-square"></i>
+                    </button>
+                    <button
+                      className={`btnT ${user.aktif ? 'on' : 'off'}`}
+                      onClick={() => handleToggleStatus(user)}
+                      disabled={toggling === user.id}
+                      title={user.aktif ? 'Nonaktifkan' : 'Aktifkan'}
+                    >
+                      <i className={`bi ${toggling === user.id ? 'bi-hourglass-split' : (user.aktif ? 'bi-toggle-on' : 'bi-toggle-off')}`}></i>
+                    </button>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={5} className="loadingCell">Loading data...</td></tr>
-              ) : filteredUsers.map((user) => (
-                <tr key={user.id}>
-                  <td>
-                    <div className="profileCell">
-                      <span className="pName">{user.nama}</span>
-                      <span className="pNip">{user.nip}</span>
-                    </div>
-                  </td>
-                  <td><span className="uName">@{user.username}</span></td>
-                  <td>{user.divisi || '-'}</td>
-                  <td>
-                    <span className={`statusTag ${user.aktif ? 'active' : 'inactive'}`}>
-                      {user.aktif ? 'Aktif' : 'Nonaktif'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="actionRow">
-                      <button className="btnE" onClick={() => handleEdit(user)} title="Edit Data">
-                        <i className="bi bi-pencil-square"></i>
-                      </button>
-                      <button
-                        className={`btnT ${user.aktif ? 'on' : 'off'}`}
-                        onClick={() => handleToggleStatus(user)}
-                        disabled={toggling === user.id}
-                        title={user.aktif ? 'Nonaktifkan' : 'Aktifkan'}
-                      >
-                        <i className={`bi ${toggling === user.id ? 'bi-hourglass-split' : (user.aktif ? 'bi-toggle-on' : 'bi-toggle-off')}`}></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div className="editArea">
-          <div className="editHead">
-            <button className="btnBack" onClick={handleCancel}>
-              <i className="bi bi-arrow-left"></i> Kembali ke List
-            </button>
-            <h3>{isAdding ? 'Tambah Personil Baru' : `Profil: ${editingUser?.nama}`}</h3>
-          </div>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-          <div className="editGrid">
-            <div className="field">
-              <label>Nama Lengkap</label>
-              <input value={formData.nama} onChange={e => setFormData({ ...formData, nama: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>NIP</label>
-              <input value={formData.nip} onChange={e => setFormData({ ...formData, nip: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>Username</label>
-              <input value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>Divisi</label>
-              <input value={formData.divisi} onChange={e => setFormData({ ...formData, divisi: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>Role (Multi Select)</label>
-              <Select
-                isMulti
-                options={availableRoles}
-                value={availableRoles.filter(opt => {
-                  const currentRoles = (formData.role || '').split(',').map(r => r.trim().toUpperCase());
-                  return currentRoles.includes(opt.value.toUpperCase());
-                })}
-                onChange={(selected) => {
-                  const roles = selected.map(s => s.value).join(',');
-                  setFormData({ ...formData, role: roles });
-                }}
-                className="react-select-container"
-                classNamePrefix="react-select"
-                placeholder="Pilih Role..."
-              />
-            </div>
-            <div className="field">
-              <label>Akses Halaman (Pisahkan koma)</label>
-              <input value={formData.pages} onChange={e => setFormData({ ...formData, pages: e.target.value })} placeholder="Dashboard, Jurnal, ..." />
-            </div>
-          </div>
+      <UserModal
+        isOpen={isAdding || !!editingUser}
+        onClose={handleCancel}
+        onSave={async (modalData) => {
+          setSaving(true);
+          try {
+            const url = isAdding ? '/api/admin/users' : `/api/admin/users/${editingUser?.id}`
+            const method = isAdding ? 'POST' : 'PUT'
 
-          <div className="editFooter">
-            <button className="btnSave" onClick={handleSave} disabled={saving}>
-              {saving ? 'Menyimpan...' : 'Simpan Perubahan'}
-            </button>
-          </div>
-        </div>
-      )}
+            const res = await fetch(url, {
+              method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(modalData)
+            })
+
+            const data = await res.json()
+
+            if (data.ok) {
+              Swal.fire({
+                icon: 'success',
+                title: isAdding ? 'Berhasil Ditambah' : 'Berhasil Diupdate',
+                text: isAdding ? 'User baru berhasil ditambahkan!' : 'Data user berhasil diperbarui!',
+                timer: 1500,
+                showConfirmButton: false
+              })
+              fetchUsers()
+              handleCancel()
+            } else {
+              Swal.fire('Gagal', data.error || 'Gagal menyimpan data user', 'error')
+            }
+          } catch (error) {
+            console.error('Error saving user:', error)
+            Swal.fire('Error', 'Terjadi kesalahan saat menyimpan', 'error')
+          } finally {
+            setSaving(false)
+          }
+        }}
+        editingUser={editingUser}
+        availableRoles={availableRoles}
+        saving={saving}
+      />
 
       <style jsx>{`
                 .userDataTab { display: flex; flex-direction: column; gap: 32px; animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); padding: 10px; }
@@ -544,23 +482,6 @@ export default function UserDataTab() {
                 .btnT.off:hover { background: #fff1f2; border-color: #f43f5e; color: #9f1239; opacity: 1; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(244, 63, 94, 0.15); }
                 .btnT:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
 
-                /* Form Area Improvements */
-                .editArea { background: white; border: 1px solid rgba(15, 42, 86, 0.08); border-radius: 24px; padding: 40px; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.08); }
-                .editHead { display: flex; align-items: center; gap: 24px; margin-bottom: 40px; }
-                .btnBack { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 24px; border-radius: 14px; font-weight: 700; color: #475569; cursor: pointer; transition: all 0.2s; font-size: 0.88rem; }
-                .btnBack:hover { background: #fff; color: #0f1b2a; border-color: #3aa6ff; transform: translateX(-4px); }
-                .editHead h3 { margin: 0; font-size: 1.5rem; color: #0f1b2a; font-weight: 800; }
-
-                .editGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
-                .field { display: flex; flex-direction: column; gap: 10px; }
-                .field label { font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-left: 4px; }
-                .field input { padding: 16px; border: 1px solid #e2e8f0; border-radius: 16px; outline: none; font-weight: 600; font-size: 1rem; transition: all 0.2s; background: #fcfdfe; }
-                .field input:focus { border-color: #3aa6ff; box-shadow: 0 0 0 4px rgba(58, 166, 255, 0.1); background: #fff; }
-
-                .editFooter { margin-top: 48px; border-top: 1px solid #f1f5f9; padding-top: 32px; display: flex; justify-content: flex-end; }
-                .btnSave { padding: 18px 60px; background: linear-gradient(135deg, #0f1b2a, #1e3a8a); color: white; border: none; border-radius: 18px; font-weight: 750; font-size: 1rem; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 10px 25px rgba(15, 27, 42, 0.2); }
-                .btnSave:hover:not(:disabled) { transform: translateY(-4px); box-shadow: 0 20px 35px rgba(15, 27, 42, 0.3); }
-                .btnSave:active { transform: translateY(-1px); }
                 .loadingCell { text-align: center; padding: 80px; color: #94a3b8; font-style: italic; font-size: 1.1rem; }
             `}</style>
     </div >

@@ -1,15 +1,16 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import SiswaTab from './SiswaTab'
-import GuruTab from './GuruTab'
-import KelasTab from './KelasTab'
-import MapelTab from './MapelTab'
-import WaktuTab from './WaktuTab'
-import KodeGuruTab from './KodeGuruTab'
-import TahunAjaranTab from '../settings/TahunAjaranTab' // Importing from adjacent settings folder
+import SiswaTab from './components/SiswaTab'
+import GuruTab from './components/GuruTab'
+import KelasTab from './components/KelasTab'
+import MapelTab from './components/MapelTab'
+import WaktuTab from './components/WaktuTab'
+import KodeGuruTab from './components/KodeGuruTab'
+import TugasTambahanTab from './components/TugasTambahanTab'
+import TahunAjaranTab from './components/TahunAjaranTab'
 
-type TabType = 'siswa' | 'guru' | 'kode_guru' | 'mapel' | 'kelas' | 'waktu' | 'tahun_ajaran'
+type TabType = 'siswa' | 'guru' | 'kode_guru' | 'mapel' | 'kelas' | 'waktu' | 'tahun_ajaran' | 'tugas_tambahan'
 
 const tabs = [
   { key: 'tahun_ajaran', label: 'Tahun Ajaran', icon: 'bi-calendar-range' },
@@ -19,6 +20,7 @@ const tabs = [
   { key: 'mapel', label: 'Mapel', icon: 'bi-book' },
   { key: 'kelas', label: 'Kelas', icon: 'bi-door-open' },
   { key: 'waktu', label: 'Waktu', icon: 'bi-clock' },
+  { key: 'tugas_tambahan', label: 'Tugas Tambahan', icon: 'bi-briefcase' },
 ]
 
 export default function MasterDataPage({ user }: { user?: any }) {
@@ -66,6 +68,7 @@ export default function MasterDataPage({ user }: { user?: any }) {
         {activeTab === 'mapel' && <MapelTab user={user} />}
         {activeTab === 'kelas' && <KelasTab user={user} />}
         {activeTab === 'waktu' && <WaktuTab user={user} />}
+        {activeTab === 'tugas_tambahan' && <TugasTambahanTab user={user} />}
         {activeTab === 'tahun_ajaran' && <TahunAjaranTab user={user} />}
       </div>
 

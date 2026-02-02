@@ -7,10 +7,11 @@ import './header.css'
 interface HeaderProps {
   user: User
   onMenuToggle: () => void
+  onNavigate: (page: string) => void
   isCollapsed: boolean
 }
 
-export default function Header({ user, onMenuToggle, isCollapsed }: HeaderProps) {
+export default function Header({ user, onMenuToggle, onNavigate, isCollapsed }: HeaderProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
 
@@ -95,6 +96,11 @@ export default function Header({ user, onMenuToggle, isCollapsed }: HeaderProps)
                   <div className="user-menu-name">{user.nama}</div>
                   <div className="user-menu-role">{user.roles.join(', ')}</div>
                 </div>
+                <button className="user-menu-item" onClick={() => { onNavigate('ProfileSaya'); setShowUserMenu(false); }}>
+                  <i className="bi bi-person-bounding-box"></i>
+                  <span>Profil & Keamanan</span>
+                </button>
+                <div style={{ borderTop: '1px solid var(--header-border)', margin: '4px 0' }}></div>
                 <button className="user-menu-item" onClick={handleLogout} style={{ color: '#ef4444' }}>
                   <i className="fa-solid fa-right-from-bracket"></i>
                   <span>Sign Out</span>

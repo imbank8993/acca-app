@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import PasswordGate from './PasswordGate'
-import ResetCard from './ResetCard'
+import PasswordGate from './components/PasswordGate'
+import ResetCard from './components/ResetCard'
 
 export default function ResetDataPage() {
     const [isAuthenticated, setIsAuthenticated] = useState(false)

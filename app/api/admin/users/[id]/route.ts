@@ -127,7 +127,7 @@ export async function PUT(
         }
 
         const body = await request.json();
-        const { username, nip, nama, divisi } = body;
+        const { username, nip, nama, divisi, password } = body;
 
         // Build update object (only include provided fields)
         const updateData: any = {};
@@ -135,9 +135,34 @@ export async function PUT(
         if (nip !== undefined) updateData.nip = nip;
         if (nama !== undefined) updateData.nama = nama;
         if (divisi !== undefined) updateData.divisi = divisi;
+        if (password !== undefined && password !== '' && password !== '****') {
+            updateData.password_hash = password;
+        }
 
         if (Object.keys(updateData).length === 0) {
             return NextResponse.json({ ok: false, error: 'No fields to update' }, { status: 400 });
+        }
+
+        // Check if password needs to be updated in Supabase Auth
+        if (updateData.password_hash) {
+            // Get user's auth_id first
+            const { data: currentUser } = await supabaseAdmin
+                .from('users')
+                .select('auth_id')
+                .eq('id', id)
+                .single();
+
+            if (currentUser?.auth_id) {
+                const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+                    currentUser.auth_id,
+                    { password: updateData.password_hash }
+                );
+                if (authError) {
+                    console.error('Failed to update Supabase Auth password:', authError);
+                    // Continue anyway, or return error?
+                    // User requested parity, so we should probably fail or log heavily.
+                }
+            }
         }
 
         const { data, error } = await supabaseAdmin

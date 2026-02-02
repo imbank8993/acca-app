@@ -20,8 +20,9 @@
 
 .tt-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
     background: var(--n-card);
     padding: 24px 30px;
     border-radius: 20px;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jurnalService } from '@/lib/jurnal-service';
+import { jurnalService } from '@/app/jurnal/lib/jurnalService';
 
 export async function DELETE(request: NextRequest) {
     try {

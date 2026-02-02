@@ -149,6 +149,7 @@ export async function buildUserObject(dbUser: any): Promise<User> {
         pagesArray,
         pagesTree,
         aktif: dbUser.aktif === true || dbUser.aktif === 'true' || dbUser.aktif === 'ya',
+        photoUrl: dbUser.foto_profil || dbUser.photoUrl || null,
         permissions
     };
 }

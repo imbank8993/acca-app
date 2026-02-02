@@ -6,10 +6,18 @@ import { createServerClient } from '@supabase/ssr';
 // GET /api/admin/role-permissions - Get all permissions
 export async function GET(request: NextRequest) {
     try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !supabaseAnonKey) {
+            console.error('Missing Supabase environment variables');
+            return NextResponse.json({ ok: false, error: 'Server configuration error' }, { status: 500 });
+        }
+
         const cookieStore = await cookies();
         const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            supabaseUrl,
+            supabaseAnonKey,
             {
                 cookies: {
                     getAll() {
@@ -26,7 +34,13 @@ export async function GET(request: NextRequest) {
             }
         );
 
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+        if (authError) {
+            console.error('Auth check error:', authError);
+            return NextResponse.json({ ok: false, error: 'Authentication failed: ' + authError.message }, { status: 401 });
+        }
+
         if (!authUser) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
 
         const { data: dbUser } = await supabaseAdmin.from('users').select('role').eq('auth_id', authUser.id).single();

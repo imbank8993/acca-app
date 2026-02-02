@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { jurnalService } from '@/lib/jurnal-service';
+import { jurnalService } from '@/app/jurnal/lib/jurnalService';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 // This endpoint is called by Vercel Cron to auto-generate journals daily

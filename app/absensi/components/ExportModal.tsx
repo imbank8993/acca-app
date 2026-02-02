@@ -88,7 +88,7 @@ export default function ExportModal({ isOpen, onClose, userRole, nip, permission
             const res = await fetch(`/api/master/kelas`);
             const json = await res.json();
             if (json.ok && json.data) {
-                const names = Array.from(new Set(json.data.map((k: any) => k.nama_kelas))).sort() as string[];
+                const names = Array.from(new Set(json.data.map((k: any) => k.nama || k.nama_kelas))).filter(Boolean).sort() as string[];
                 setKelasList(names);
                 if (names.length > 0) setSelectedKelas(names[0]);
             }

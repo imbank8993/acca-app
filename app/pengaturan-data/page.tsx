@@ -1,22 +1,29 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import GuruMapelTab from './GuruMapelTab'
-import JadwalGuruTab from './JadwalGuruTab'
-import TugasTambahanTab from './TugasTambahanTab'
+import Link from 'next/link'
+import SiswaKelasTab from './components/SiswaKelasTab'
+import WaliKelasTab from './components/WaliKelasTab'
+import GuruAsuhTab from './components/GuruAsuhTab'
+import DropdownTab from './components/DropdownTab'
+import LiburTab from './components/LiburTab'
+import GenerateJurnalTab from './components/GenerateJurnalTab'
 
-type TabType = 'guru_mapel' | 'jadwal_guru' | 'tugas_tambahan'
+type TabType = 'siswa_kelas' | 'wali_kelas' | 'guru_asuh' | 'dropdown' | 'libur' | 'generate_jurnal'
 
-export default function TaskSettingsPage({ user }: { user?: any }) {
+export default function DataSettingsPage({ user }: { user?: any }) {
   const { hasPermission } = require('@/lib/permissions-client')
   const permissions = user?.permissions || []
   const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
 
   const tabs = useMemo(
     () => [
-      { key: 'guru_mapel', label: 'Guru Mapel', icon: 'bi-book-half' },
-      { key: 'jadwal_guru', label: 'Jadwal Guru', icon: 'bi-calendar-week' },
-      { key: 'tugas_tambahan', label: 'Tugas Tambahan', icon: 'bi-person-badge' }
+      { key: 'siswa_kelas', label: 'Siswa - Kelas', icon: 'bi-people' },
+      { key: 'wali_kelas', label: 'Wali Kelas', icon: 'bi-person-workspace' },
+      { key: 'guru_asuh', label: 'Guru Asuh', icon: 'bi-heart' },
+      { key: 'dropdown', label: 'Master Dropdown', icon: 'bi-menu-button-wide' },
+      { key: 'libur', label: 'Data Libur', icon: 'bi-calendar-event' },
+      { key: 'generate_jurnal', label: 'Generate Jurnal', icon: 'bi-plus-square' }
     ],
     []
   )
@@ -25,63 +32,64 @@ export default function TaskSettingsPage({ user }: { user?: any }) {
   const knownKeys = tabs.map(t => t.key)
   const hasSpecificConfig = knownKeys.some(k => pagesArray.includes(k))
 
-  // Note: Keeping 'pengaturan_data' prefix for backward compatibility with existing permissions
   const allowedTabs = tabs.filter(tab => {
-    const hasRbac = hasPermission(permissions, `pengaturan_data:${tab.key}`, 'read', isAdmin)
+    const hasRbac = hasPermission(permissions, `pengaturan_data:${tab.key}`, 'view', isAdmin)
     if (!hasRbac) return false
     if (isAdmin) return true
 
     // Granular Page Access Check
     const hasDirectAccess = pagesArray.includes(tab.key)
-    const hasParentAccess = pagesArray.includes('Pengaturan Tugas')
+    const hasParentAccess = pagesArray.includes('Pengaturan Data')
 
     // Allow if explicitly selected OR (User has parent access AND hasn't opted into granular control yet)
     return hasDirectAccess || (hasParentAccess && !hasSpecificConfig)
   })
 
-  // Default to first allowed or generic fallback (though fallback might blank if none allowed)
-  const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]?.key as TabType || 'guru_mapel')
+  const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]?.key as TabType || 'siswa_kelas')
 
   return (
     <>
       {/* Header */}
-      <div className="ts-header">
-        <div className="ts-titleArea">
-          <h1>Pengaturan Tugas</h1>
-          <p>Konfigurasi beban kerja, jadwal, dan tugas tambahan guru.</p>
+      <div className="ds-header">
+        <div className="ds-titleArea">
+          <h1>Pengaturan Data</h1>
+          <p>Relasi data master dan konfigurasi hari libur.</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="ts-tabs" role="tablist" aria-label="Task settings tabs">
+      <div className="ds-tabs" role="tablist" aria-label="Data settings tabs">
         {allowedTabs.map((tab) => (
           <button
             key={tab.key}
             role="tab"
             aria-selected={activeTab === tab.key}
-            className={`ts-tab ${activeTab === tab.key ? 'isActive' : ''}`}
+            className={`ds-tab ${activeTab === tab.key ? 'isActive' : ''}`}
             onClick={() => setActiveTab(tab.key as TabType)}
             type="button"
           >
-            <i className={`bi ${tab.icon} ts-tabIcon`}></i>
-            <span className="ts-tabText">{tab.label}</span>
+            <i className={`bi ${tab.icon} ds-tabIcon`}></i>
+            <span className="ds-tabText">{tab.label}</span>
           </button>
         ))}
       </div>
 
-      <div className="ts-content" role="tabpanel">
-        {activeTab === 'guru_mapel' && <GuruMapelTab />}
-        {activeTab === 'jadwal_guru' && <JadwalGuruTab />}
-        {activeTab === 'tugas_tambahan' && <TugasTambahanTab />}
+      <div className="ds-content" role="tabpanel">
+        {activeTab === 'siswa_kelas' && <SiswaKelasTab user={user} />}
+        {activeTab === 'wali_kelas' && <WaliKelasTab />}
+        {activeTab === 'guru_asuh' && <GuruAsuhTab />}
+        {activeTab === 'dropdown' && <DropdownTab />}
+        {activeTab === 'libur' && <LiburTab user={user} />}
+        {activeTab === 'generate_jurnal' && <GenerateJurnalTab user={user} />}
       </div>
 
       <style jsx>{`
         /* =====================================================
-           TASK SETTINGS PAGE — BLUE THEME ENHANCEMENT
+           DATA SETTINGS PAGE — BLUE THEME ENHANCEMENT
         ====================================================== */
 
         /* HEADER */
-        .ts-header {
+        .ds-header {
           background: #0038A8;
           padding: 32px 40px;
           border-radius: 24px;
@@ -93,7 +101,7 @@ export default function TaskSettingsPage({ user }: { user?: any }) {
           margin-bottom: 24px;
         }
 
-        .ts-titleArea h1 {
+        .ds-titleArea h1 {
           font-size: 1.8rem;
           font-weight: 800;
           color: white;
@@ -101,7 +109,7 @@ export default function TaskSettingsPage({ user }: { user?: any }) {
           letter-spacing: -0.02em;
         }
 
-        .ts-titleArea p {
+        .ds-titleArea p {
           color: rgba(255, 255, 255, 0.8);
           font-size: 0.95rem;
           margin: 0;
@@ -109,7 +117,7 @@ export default function TaskSettingsPage({ user }: { user?: any }) {
         }
 
         /* TABS */
-        .ts-tabs {
+        .ds-tabs {
           display: flex;
           justify-content: center;
           gap: 8px;
@@ -118,11 +126,11 @@ export default function TaskSettingsPage({ user }: { user?: any }) {
           scrollbar-width: none;
           margin-bottom: 24px;
         }
-        .ts-tabs::-webkit-scrollbar {
+        .ds-tabs::-webkit-scrollbar {
           display: none;
         }
 
-        .ts-tab {
+        .ds-tab {
           display: flex;
           align-items: center;
           gap: 8px;
@@ -138,25 +146,25 @@ export default function TaskSettingsPage({ user }: { user?: any }) {
           white-space: nowrap;
         }
 
-        .ts-tab:hover {
+        .ds-tab:hover {
           background: rgba(0, 56, 168, 0.1);
           border-color: rgba(0, 56, 168, 0.2);
           transform: translateY(-2px);
         }
 
-        .ts-tab.isActive {
+        .ds-tab.isActive {
           background: #0038A8;
           border-color: #0038A8;
           color: white;
           box-shadow: 0 8px 16px rgba(0, 56, 168, 0.25);
         }
 
-        .ts-tabIcon {
+        .ds-tabIcon {
           font-size: 1.1rem;
         }
         
         /* CONTENT AREA */
-        .ts-content {
+        .ds-content {
           padding: 0;
           min-height: 500px;
           background: transparent;
@@ -164,13 +172,13 @@ export default function TaskSettingsPage({ user }: { user?: any }) {
 
         /* MOBILE RESPONSIVE */
         @media (max-width: 768px) {
-          .ts-header {
+          .ds-header {
             padding: 24px;
           }
-          .ts-titleArea h1 {
+          .ds-titleArea h1 {
             font-size: 1.5rem;
           }
-          .ts-tab {
+          .ds-tab {
             padding: 10px 16px;
             font-size: 0.9rem;
           }

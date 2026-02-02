@@ -8,12 +8,12 @@ import RolePermissionsTab from './RolePermissionsTab'
 
 type TabType = 'page_access' | 'role_permissions' | 'user_data' | 'bulk_replace'
 
-export default function UserSettingsPage() {
-  const [activeTab, setActiveTab] = useState<TabType>('page_access')
+export default function UserSettingsPage({ initialTab }: { initialTab?: string }) {
+  const [activeTab, setActiveTab] = useState<TabType>((initialTab as TabType) || 'page_access')
 
   const tabs = useMemo(
     () => [
-      { key: 'page_access', label: 'Akses & Role', icon: 'bi-shield-lock' },
+      { key: 'page_access', label: 'Akses & Role', icon: 'bi-shield-check' },
       { key: 'role_permissions', label: 'Izin Role (V2)', icon: 'bi-key' },
       { key: 'user_data', label: 'Data & Status', icon: 'bi-person-gear' },
       { key: 'bulk_replace', label: 'Ganti Data Massal', icon: 'bi-arrow-repeat' }

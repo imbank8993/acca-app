@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { username, nip, nama, divisi, role, pages } = body;
+        const { username, nip, nama, divisi, role, pages, password } = body;
 
         if (!username || !nip || !nama) {
             return NextResponse.json({ ok: false, error: 'Username, NIP, and Nama are required' }, { status: 400 });
@@ -157,6 +157,24 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ ok: false, error: 'Username or NIP already exists' }, { status: 400 });
         }
 
+        // 1. Create Auth User if password is provided
+        let authId = null;
+        if (password) {
+            const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+                email: `${username}@acca.local`,
+                password: password,
+                email_confirm: true,
+                user_metadata: { username, nama, roles: role ? role.split(',') : ['GURU'] }
+            });
+
+            if (authError) {
+                console.error('Auth creation error:', authError);
+                // We should probably fail here if they provided a password
+                return NextResponse.json({ ok: false, error: 'Auth failed: ' + authError.message }, { status: 500 });
+            }
+            authId = authData.user?.id;
+        }
+
         const newUser = {
             username,
             nip,
@@ -164,6 +182,8 @@ export async function POST(request: NextRequest) {
             divisi: divisi || '',
             role: role || 'GURU',
             pages: pages || 'Dashboard',
+            password_hash: password || null,
+            auth_id: authId,
             aktif: true,
             created_at: new Date().toISOString()
         };

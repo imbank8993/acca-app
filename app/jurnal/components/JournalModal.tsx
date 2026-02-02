@@ -3,12 +3,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import Select from 'react-select';
 import Swal from 'sweetalert2';
+import { Journal } from '../types';
 
 interface JournalModalProps {
     isOpen: boolean;
     onClose: () => void;
     mode: 'add' | 'edit';
-    initialData: any | null;
+    initialData: Journal | null;
     user: any;
     masterData: {
         guru: any[];

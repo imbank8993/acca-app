@@ -10,16 +10,16 @@ import Header from '@/components/Header'
 import AbsensiPage from '../absensi/page'
 import KetidakhadiranPage from '../ketidakhadiran/page'
 import JurnalPage from '../jurnal/page'
-import MasterDataPage from './components/master/MasterDataPage'
-import DataSettingsPage from './components/settings/DataSettingsPage'
-import TaskSettingsPage from './components/settings/TaskSettingsPage'
-import ResetDataPage from './components/reset/ResetDataPage'
+import MasterDataPage from '@/app/master/page'
+import DataSettingsPage from '@/app/pengaturan-data/page'
+import TaskSettingsPage from '@/app/pengaturan-tugas/page'
+import ResetDataPage from '@/app/reset-data/page'
 import UserSettingsPage from '../pengaturan-users/components/UserSettingsPage'
 import NilaiPage from '../nilai/page'
 import TugasTambahanPage from '../tugas-tambahan/page'
-import AdminTugasTambahanPage from '../tugas-tambahan/admin/page'
 import LckhPage from '../lckh/page'
 import LckhApprovalPage from '../lckh-approval/page'
+import ProfilePage from './components/ProfilePage'
 
 export default function DashboardPage() {
   return (
@@ -77,6 +77,13 @@ function DashboardLogic() {
 
   useEffect(() => {
     checkAuth()
+
+    const handleRefresh = () => checkAuth();
+    window.addEventListener('refresh-user', handleRefresh);
+
+    return () => {
+      window.removeEventListener('refresh-user', handleRefresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -212,7 +219,12 @@ function DashboardLogic() {
         />
 
         <div className={`main-content ${sidebarCollapsed ? 'collapsed' : ''}`}>
-          <Header user={user} onMenuToggle={() => setSidebarOpen(!sidebarOpen)} isCollapsed={sidebarCollapsed} />
+          <Header
+            user={user}
+            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+            onNavigate={handleNavigate}
+            isCollapsed={sidebarCollapsed}
+          />
 
           <main className="content-area">
             <div className="content-container">{renderPageContent(currentPage, user)}</div>
@@ -276,109 +288,84 @@ function DashboardLogic() {
   )
 }
 
+/**
+ * REGISTRY KOMPONEN HALAMAN
+ * Untuk menambah halaman baru:
+ * 1. Impor komponen di bagian atas file ini
+ * 2. Tambahkan key baru di object ini (key harus sama dengan yang ada di kolom pages Supabase setelah tanda '=')
+ */
+const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<void>, targetTab?: string) => React.ReactNode> = {
+  'Dashboard': (user) => <DashboardContent user={user} />,
+
+  // OPERASIONAL
+  'Absensi': () => <AbsensiPage />,
+  'Ketidakhadiran': () => <KetidakhadiranPage />,
+  'jurnal': (user) => <JurnalPage user={user} />,
+  'JurnalGuru': (user) => <JurnalPage user={user} />, // Alias untuk Layanan Guru
+  'TugasTambahan': () => <TugasTambahanPage />,
+  'AbsensiSiswa': () => <PagePlaceholder title="Absensi Guru" icon="bi-person-check" description="Modul Absensi untuk Guru" />,
+
+  // KONFIGURASI & PENGATURAN
+  'Master Data': (user) => <MasterDataPage user={user} />,
+  'Pengaturan Data': (user) => <DataSettingsPage user={user} />,
+  'Pengaturan Tugas': (user) => <TaskSettingsPage user={user} />,
+  'pengaturan-users': () => <UserSettingsPage />,
+  'Reset Data': () => <ResetDataPage />,
+  'User': (user, onRefreshUser, targetTab) => <UserSettingsPage initialTab={targetTab} />,
+  'ProfileSaya': (user, onRefreshUser) => <ProfilePage user={user} onRefreshUser={onRefreshUser} />,
+
+  // MODUL KHUSUS
+  'LCKH': () => <LckhPage />,
+  'LCKHApproval': () => <LckhApprovalPage />,
+  'Nilai': () => <NilaiPage />,
+
+  // MASTER DATA SUBMENU
+  'WaliKelas': () => <PagePlaceholder title="Wali Kelas" icon="bi-person-badge" description="Management Wali Kelas" />,
+  'GuruAsuh': () => <PagePlaceholder title="Guru Asuh" icon="bi-person-heart" description="Management Guru Asuh" />,
+  'Kelas': () => <PagePlaceholder title="Kelas" icon="bi-building" description="Management Kelas" />,
+
+  // REKAP & EXPORT
+  'RekapAbsensi': () => <PagePlaceholder title="Rekap Absensi" icon="bi-table" description="Rekapitulasi Absensi" />,
+  'RekapJurnal': () => <PagePlaceholder title="Rekap Jurnal" icon="bi-journal-check" description="Rekapitulasi Jurnal" />,
+  'RekapKehadiranJurnal': () => <PagePlaceholder title="Rekap Absen & Jurnal" icon="bi-layout-split" description="Gabungan Rekap Absensi dan Jurnal" />,
+  'ExportAbsensi': () => <PagePlaceholder title="Export Absensi" icon="bi-file-earmark-excel" description="Export Data Absensi" />,
+  'ExportJurnal': () => <PagePlaceholder title="Export Jurnal" icon="bi-file-earmark-spreadsheet" description="Export Data Jurnal" />,
+
+  // STATUS & LOGS
+  'LogLogin': () => <PagePlaceholder title="Log Login" icon="bi-clock-history" description="History Login User" />,
+  'StatusSiswa': () => <PagePlaceholder title="Status Siswa" icon="bi-people" description="Status Keaktifan Siswa" />,
+  'JadwalGuru': () => <PagePlaceholder title="Jadwal Guru" icon="bi-calendar-week" description="Jadwal Mengajar Guru" />,
+
+  // OTHER
+  'Rapor': () => <PagePlaceholder title="Rapor" icon="bi-file-earmark-text" description="Modul Rapor Siswa" />,
+  'Sosialisasi': () => <PagePlaceholder title="Sosialisasi" icon="bi-megaphone" description="Modul Sosialisasi" />,
+};
+
 function renderPageContent(page: string, user: User) {
-  switch (page) {
-    case 'Dashboard':
-      return <DashboardContent user={user} />
+  let finalPage = page;
+  let targetTab: string | undefined = undefined;
 
-    case 'Absensi':
-      return <AbsensiPage />
-
-    case 'Ketidakhadiran':
-      return <KetidakhadiranPage />
-
-    // === JURNAL MODULE ===
-    case 'jurnal':
-      return <JurnalPage user={user} />
-
-    // === LAYANAN GURU ===
-    case 'AbsensiSiswa':
-      return <PagePlaceholder title="Absensi Guru" icon="bi-person-check" description="Modul Absensi untuk Guru" />
-
-    case 'JurnalGuru':
-      return <JurnalPage user={user} />
-
-    // === KONFIGURASI DATA ===
-    case 'Master Data':
-      return <MasterDataPage user={user} />
-
-    case 'Pengaturan Data':
-      return <DataSettingsPage user={user} />
-
-    case 'Pengaturan Tugas':
-      return <TaskSettingsPage user={user} />
-
-    case 'pengaturan-users':
-      return <UserSettingsPage />
-
-    case 'Reset Data':
-      return <ResetDataPage />
-
-    // === MASTER DATA SUBMENU ===
-    case 'WaliKelas':
-      return <PagePlaceholder title="Wali Kelas" icon="bi-person-badge" description="Management Wali Kelas" />
-
-    case 'GuruAsuh':
-      return <PagePlaceholder title="Guru Asuh" icon="bi-person-heart" description="Management Guru Asuh" />
-
-    case 'Kelas':
-      return <PagePlaceholder title="Kelas" icon="bi-building" description="Management Kelas" />
-
-    // === REKAP DATA ===
-    case 'RekapAbsensi':
-      return <PagePlaceholder title="Rekap Absensi" icon="bi-table" description="Rekapitulasi Absensi" />
-
-    case 'RekapJurnal':
-      return <PagePlaceholder title="Rekap Jurnal" icon="bi-journal-check" description="Rekapitulasi Jurnal" />
-
-    case 'RekapKehadiranJurnal':
-      return <PagePlaceholder title="Rekap Absen & Jurnal" icon="bi-layout-split" description="Gabungan Rekap Absensi dan Jurnal" />
-
-    // === EXPORT DATA ===
-    case 'ExportAbsensi':
-      return <PagePlaceholder title="Export Absensi" icon="bi-file-earmark-excel" description="Export Data Absensi" />
-
-    case 'ExportJurnal':
-      return <PagePlaceholder title="Export Jurnal" icon="bi-file-earmark-spreadsheet" description="Export Data Jurnal" />
-
-    // === SETTINGS & STATUS ===
-    case 'User':
-      return <PagePlaceholder title="Pengaturan Akun" icon="bi-person-gear" description="Management User Akun" />
-
-    case 'LogLogin':
-      return <PagePlaceholder title="Log Login" icon="bi-clock-history" description="History Login User" />
-
-    case 'StatusSiswa':
-      return <PagePlaceholder title="Status Siswa" icon="bi-people" description="Status Keaktifan Siswa" />
-
-    case 'JadwalGuru':
-      return <PagePlaceholder title="Jadwal Guru" icon="bi-calendar-week" description="Jadwal Mengajar Guru" />
-
-    // === OTHER MODULES ===
-    case 'LCKH':
-      return <LckhPage />
-
-    case 'LCKHApproval':
-      return <LckhApprovalPage />
-
-    case 'Nilai':
-      return <NilaiPage />
-
-    case 'TugasTambahan':
-      return <TugasTambahanPage />
-
-    case 'AdminTugasTambahan':
-      return <AdminTugasTambahanPage />
-
-    case 'Rapor':
-      return <PagePlaceholder title="Rapor" icon="bi-file-earmark-text" description="Modul Rapor Siswa" />
-
-    case 'Sosialisasi':
-      return <PagePlaceholder title="Sosialisasi" icon="bi-megaphone" description="Modul Sosialisasi" />
-
-    default:
-      return <PagePlaceholder title={page} icon="bi-file-earmark" description={`Halaman ${page}`} />
+  // Handle sub-pages or tab redirects
+  if (page === 'ProfileSaya') {
+    // Explicitly handled by the component key in registry
   }
+
+  const componentRenderer = PAGE_COMPONENTS[finalPage];
+
+  if (componentRenderer) {
+    return componentRenderer(user, async () => {
+      window.dispatchEvent(new Event('refresh-user'));
+    }, targetTab);
+  }
+
+  // Fallback jika halaman terdaftar di DB tapi belum ada kodenya
+  return (
+    <PagePlaceholder
+      title={page}
+      icon="bi-file-earmark-medical"
+      description={`Modul untuk "${page}" sedang dalam tahap pengembangan.`}
+    />
+  );
 }
 
 function DashboardContent({ user }: { user: User }) {

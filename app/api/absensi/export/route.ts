@@ -55,18 +55,18 @@ export async function POST(request: NextRequest) {
             if (mode === 'WALI') {
                 const { data: staff } = await supabase.from('users').select('nip').eq('auth_id', authUser.id).single();
                 const userNip = staff?.nip;
-                const { data: waka } = await supabase.from('wali_kelas').select('kelas').eq('nip', userNip).eq('aktif', true).single();
-                targetKelas = waka?.kelas;
-                if (!targetKelas) return NextResponse.json({ ok: false, error: 'Anda bukan Wali Kelas aktif' });
+                const { data: wakaList } = await supabase.from('wali_kelas').select('nama_kelas').eq('nip', userNip).eq('aktif', true).limit(1);
+                targetKelas = wakaList?.[0]?.nama_kelas;
+                if (!targetKelas) return NextResponse.json({ ok: false, error: `Anda bukan Wali Kelas aktif (NIP: ${userNip})` });
             }
 
             // FETCHING ALL CLASSES if ADMIN and 'ALL'
-            const classesToFetch = (mode === 'ADMIN' && !kelas) ?
-                (await supabase.from('kelas').select('nama_kelas')).data?.map(k => k.nama_kelas) || []
+            const classesToFetch = (mode === 'ADMIN' && (!kelas || kelas === 'ALL')) ?
+                (await supabase.from('master_kelas').select('nama')).data?.map(k => k.nama) || []
                 : [targetKelas];
 
             // Broad Fetch for Rekap
-            const { data: students } = await supabase.from('siswa_kelas').select('nisn, nama, kelas').in('kelas', classesToFetch).eq('aktif', true);
+            const { data: students } = await supabase.from('siswa_kelas').select('nisn, nama_siswa, kelas').in('kelas', classesToFetch).eq('aktif', true);
             const { data: ketidakhadiran } = await supabase.from('ketidakhadiran').select('*').in('kelas', classesToFetch);
             const { data: sessions } = await supabase.from('absensi_sesi').select('*').in('kelas', classesToFetch).eq('status_sesi', 'FINAL').or(orFilter);
             const { data: details } = await supabase.from('absensi_detail').select('*').in('sesi_id', sessions?.map(s => s.sesi_id) || []);
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
                                     else if (dOnD.some(x => x.status === 'IZIN')) status = 'IZIN';
                                 }
                             }
-                            return { nisn: st.nisn, nama_snapshot: st.nama, status };
+                            return { nisn: st.nisn, nama_snapshot: st.nama_siswa, status };
                         });
 
                         rekapOutput.push({

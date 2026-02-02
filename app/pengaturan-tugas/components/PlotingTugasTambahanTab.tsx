@@ -20,15 +20,7 @@ interface TugasTambahan {
     semester: number;
 }
 
-const JABATAN_LIST = [
-    { value: 'Wali Kelas', label: 'Wali Kelas' },
-    { value: 'Pembina Ekstrakurikuler', label: 'Pembina Ekstrakurikuler' },
-    { value: 'Kepala Laboratorium', label: 'Kepala Laboratorium' },
-    { value: 'Kepala Perpustakaan', label: 'Kepala Perpustakaan' },
-    { value: 'Wakil Kepala Madrasah', label: 'Wakil Kepala Madrasah' },
-    { value: 'Kepala Madrasah', label: 'Kepala Madrasah' },
-    { value: 'Bendahara Madrasah', label: 'Bendahara Madrasah' }
-];
+
 
 const customSelectStyles = {
     control: (base: any) => ({
@@ -40,7 +32,7 @@ const customSelectStyles = {
     })
 };
 
-export default function TugasTambahanTab() {
+export default function PlotingTugasTambahanTab() {
     const [tugasList, setTugasList] = useState<TugasTambahan[]>([]);
     const [guruOptions, setGuruOptions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -54,22 +46,52 @@ export default function TugasTambahanTab() {
     const [semester, setSemester] = useState(2);
     const [keterangan, setKeterangan] = useState('');
 
+    const [jabatanOptions, setJabatanOptions] = useState<any[]>([]);
+    const [allMasterData, setAllMasterData] = useState<any[]>([]);
+
     useEffect(() => {
         loadData();
     }, []);
 
+    useEffect(() => {
+        // Filter options when dependencies change
+        if (allMasterData.length > 0) {
+            const filtered = allMasterData.filter((t: any) =>
+                t.aktif &&
+                t.tahun_ajaran === tahunAjaran &&
+                (
+                    String(t.semester).toLowerCase() === 'semua' ||
+                    String(t.semester) === String(semester) ||
+                    // Handle numeric vs string mismatch if simple equality fails, 
+                    // though usually one is consistently used.
+                    // '1' vs 1 vs 'Ganjil' vs 'Genap'
+                    (semester === 1 && String(t.semester).toLowerCase() === 'ganjil') ||
+                    (semester === 2 && String(t.semester).toLowerCase() === 'genap')
+                )
+            );
+
+            const uniqueNames = Array.from(new Set(filtered.map((t: any) => t.nama_tugas)));
+            setJabatanOptions(uniqueNames.map(name => ({ value: name, label: name })));
+        } else {
+            setJabatanOptions([]);
+        }
+    }, [allMasterData, tahunAjaran, semester]);
+
     const loadData = async () => {
         setLoading(true);
         try {
-            const [tugasRes, guruRes] = await Promise.all([
+            const [tugasRes, guruRes, masterTugasRes] = await Promise.all([
                 fetch('/api/tugas-tambahan'),
-                fetch('/api/master/guru?limit=500')
+                fetch('/api/master/guru?limit=500'),
+                fetch('/api/master/tugas-tambahan')
             ]);
 
             const tugasData = await tugasRes.json();
             const guruData = await guruRes.json();
+            const masterTugasData = await masterTugasRes.json();
 
             if (tugasData.ok) setTugasList(tugasData.data);
+
             if (guruData.ok) {
                 setGuruOptions(guruData.data.map((g: any) => ({
                     value: g.nip,
@@ -77,12 +99,21 @@ export default function TugasTambahanTab() {
                     nama: g.nama_lengkap
                 })));
             }
+
+            if (masterTugasData.ok) {
+                setAllMasterData(masterTugasData.data);
+            }
+
         } catch (error) {
             console.error('Failed to load data', error);
         } finally {
             setLoading(false);
         }
     };
+
+    // Helper to get active academic year/sem if needed, but for now using state.
+
+    // ...
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -146,9 +177,31 @@ export default function TugasTambahanTab() {
     const openEdit = (tugas: TugasTambahan) => {
         setEditingTugas(tugas);
         setSelectedGuru(guruOptions.find(o => o.value === tugas.nip));
-        setSelectedJabatan(JABATAN_LIST.find(o => o.value === tugas.jabatan));
+        // Use jabatanOptions or try to find in current list. 
+        // If not in current filtered list, we might want to temporarily add it or just look it up.
+        // For now, let's assume it should match by value if React-Select parses the string.
+        // But better to find object if options are objects.
+        // If options are reset when modal opens, we rely on effect.
+
+        // Wait, if we open edit, title uses state `tahunAjaran` / `semester` which triggers the effect.
+        // So options *should* be populated correctly.
         setTahunAjaran(tugas.tahun_ajaran);
-        setSemester(tugas.semester);
+
+        // Handle semester type mismatch. API returns number usually?
+        let sem: number | string = tugas.semester;
+        if (typeof sem === 'string') {
+            if (sem === 'Ganjil') sem = 1;
+            else if (sem === 'Genap') sem = 2;
+            else sem = Number(sem);
+        }
+        setSemester(sem as number);
+
+        // We set the value directly. React select often can handle { value: '...', label: '...' }
+        // BUT if the option list hasn't updated yet, it might show just IDs.
+        // Since effect runs after render/state change, there might be a glitch.
+        // However, we just need to set the value. 
+        setSelectedJabatan({ value: tugas.jabatan, label: tugas.jabatan });
+
         setKeterangan(tugas.keterangan);
         setShowModal(true);
     };
@@ -158,10 +211,10 @@ export default function TugasTambahanTab() {
             <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold">
-                        <i className="bi bi-person-badge"></i>
+                        <i className="bi bi-person-vcard"></i>
                     </div>
                     <div>
-                        <h2 className="text-lg font-bold text-slate-800 m-0">Tugas Tambahan</h2>
+                        <h2 className="text-lg font-bold text-slate-800 m-0">Ploting Tugas Tambahan</h2>
                         <p className="text-xs text-slate-500 m-0">Set penugasan Wali Kelas, Wakil Kepala, dsb.</p>
                     </div>
                 </div>
@@ -255,7 +308,7 @@ export default function TugasTambahanTab() {
                                     <i className="bi bi-award text-navy-600"></i> Jenis Jabatan / Tugas
                                 </label>
                                 <Select
-                                    options={JABATAN_LIST}
+                                    options={jabatanOptions}
                                     value={selectedJabatan}
                                     onChange={setSelectedJabatan}
                                     styles={customSelectStyles}
