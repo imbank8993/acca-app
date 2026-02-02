@@ -89,7 +89,8 @@ export default function StudentSelect({ onSelectionChange, selectedNisns }: Stud
                 .from('siswa_kelas')
                 .select('nisn, nama, kelas')
                 .eq('aktif', true)
-                .limit(20);
+                .order('nama', { ascending: true })
+                .limit(100);
 
             // Apply Class Filter
             if (selectedClass) {
@@ -136,7 +137,12 @@ export default function StudentSelect({ onSelectionChange, selectedNisns }: Stud
         setSelectedStudents(newStudents);
     };
 
-    const toggleDropdown = () => {
+    const toggleDropdown = (e: React.MouseEvent) => {
+        // Prevent toggle if clicking specifically on the input (let input focus handle it or stay open)
+        if ((e.target as HTMLElement).tagName === 'INPUT') {
+            if (!showDropdown) setShowDropdown(true);
+            return;
+        }
         setShowDropdown(!showDropdown);
         if (!showDropdown) searchSiswa(); // Refresh list on open
     };
@@ -167,6 +173,10 @@ export default function StudentSelect({ onSelectionChange, selectedNisns }: Stud
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         className="trigger-input"
+                        onClick={(e) => {
+                            e.stopPropagation(); // Stop bubble to wrapper
+                            if (!showDropdown) setShowDropdown(true);
+                        }}
                     />
                     <div className="trigger-icon">
                         {loading ? <div className="spinner-xs"></div> : <i className="bi bi-chevron-down"></i>}
