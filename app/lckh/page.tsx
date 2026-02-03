@@ -903,20 +903,20 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                     </div>
                 </div>
 
-                {/* Professional Table */}
-                <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
-                    <table className="w-full text-sm">
+                {/* Enhanced Professional Table */}
+                <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+                    <table className="w-full text-sm border-separate" style={{ borderSpacing: '0 1px' }}>
                         <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                             <tr>
-                                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide w-24">Tanggal</th>
-                                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide w-28">Kelas</th>
-                                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide w-40">Mapel</th>
-                                <th className="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wide w-20">Jam</th>
-                                <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide">Materi</th>
-                                <th className="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wide w-32">Kehadiran</th>
+                                <th className="px-5 py-5 text-left text-xs font-bold uppercase tracking-wider w-24 first:rounded-tl-xl">Tanggal</th>
+                                <th className="px-5 py-5 text-left text-xs font-bold uppercase tracking-wider w-28">Kelas</th>
+                                <th className="px-5 py-5 text-left text-xs font-bold uppercase tracking-wider w-40">Mapel</th>
+                                <th className="px-5 py-5 text-center text-xs font-bold uppercase tracking-wider w-24">Jam</th>
+                                <th className="px-5 py-5 text-left text-xs font-bold uppercase tracking-wider">Materi</th>
+                                <th className="px-5 py-5 text-center text-xs font-bold uppercase tracking-wider w-32 last:rounded-tr-xl">Kehadiran</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-100">
+                        <tbody className="bg-gray-50">
                             {allEntries.length > 0 ? (
                                 allEntries.map((j: any, idx: number) => {
                                     const kategori = j.kategori_kehadiran || j.kehadiran || '-';
@@ -931,29 +931,29 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                                         badgeClass = 'bg-rose-100 text-rose-700';
                                     }
                                     return (
-                                        <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
-                                            <td className="px-4 py-3 whitespace-nowrap">
+                                        <tr key={idx} className="bg-white hover:bg-blue-50/40 transition-colors">
+                                            <td className="px-5 py-4 whitespace-nowrap rounded-l-lg">
                                                 <div className="text-sm font-semibold text-gray-900">
                                                     {new Date(j.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                                                 </div>
                                                 <div className="text-xs text-gray-500">{j.hari}</div>
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-5 py-4">
                                                 <div className="text-sm font-semibold text-gray-900">{j.kelas}</div>
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-5 py-4">
                                                 <div className="text-sm font-medium text-gray-700">{j.mata_pelajaran || j.mapel}</div>
                                             </td>
-                                            <td className="px-4 py-3 text-center">
-                                                <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-700 rounded">{j.jam_ke || '-'}</span>
+                                            <td className="px-5 py-4 text-center">
+                                                <span className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-md shadow-sm">{j.jam_ke || '-'}</span>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <div className="text-sm text-gray-700 leading-relaxed">
+                                            <td className="px-5 py-4">
+                                                <div className="text-sm text-gray-700 leading-relaxed line-clamp-2">
                                                     {j.materi || <span className="text-gray-400 italic text-xs">Belum diisi</span>}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 text-center">
-                                                <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full ${badgeClass}`}>
+                                            <td className="px-5 py-4 text-center rounded-r-lg">
+                                                <span className={`inline-block px-3 py-1.5 text-xs font-bold rounded-lg ${badgeClass} shadow-sm`}>
                                                     {kategori}
                                                 </span>
                                             </td>
@@ -962,10 +962,10 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-16 text-center">
+                                    <td colSpan={6} className="px-5 py-16 text-center bg-white rounded-b-xl">
                                         <div className="flex flex-col items-center">
-                                            <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
-                                                <i className="bi bi-journal-x text-2xl text-gray-400"></i>
+                                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center">
+                                                <i className="bi bi-journal-x text-3xl text-gray-400"></i>
                                             </div>
                                             <p className="text-sm font-semibold text-gray-600 mb-1">
                                                 {allEntries.length > 0 ? 'Semua agenda belum terisi' : 'Belum ada agenda'}
