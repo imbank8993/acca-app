@@ -888,7 +888,7 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                         </div>
                         <div>
                             <div className="text-xs text-gray-500 mb-0.5">Total Agenda</div>
-                            <div className="text-xl font-bold text-gray-900">{allEntries.length}</div>
+                            <div className="text-xl font-bold text-gray-900">{data.total_jurnal_isi || 0}</div>
                         </div>
                     </div>
                     <div className="w-px h-10 bg-gray-200"></div>
@@ -899,16 +899,6 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                         <div>
                             <div className="text-xs text-gray-500 mb-0.5">Jam Efektif</div>
                             <div className="text-xl font-bold text-gray-900">{data.total_jam_mengajar}</div>
-                        </div>
-                    </div>
-                    <div className="w-px h-10 bg-gray-200"></div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
-                            <i className="bi bi-check-circle text-green-600 text-lg"></i>
-                        </div>
-                        <div>
-                            <div className="text-xs text-gray-500 mb-0.5">Terisi</div>
-                            <div className="text-xl font-bold text-gray-900">{entriesWithContent.length}</div>
                         </div>
                     </div>
                 </div>
