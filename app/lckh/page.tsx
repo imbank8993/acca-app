@@ -904,16 +904,16 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                 </div>
 
                 {/* Enhanced Professional Table */}
-                <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+                <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
                     <table className="w-full text-sm border-separate" style={{ borderSpacing: '0 1px' }}>
                         <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                             <tr>
-                                <th className="px-5 py-5 text-left text-xs font-bold uppercase tracking-wider w-24 first:rounded-tl-xl">Tanggal</th>
-                                <th className="px-5 py-5 text-left text-xs font-bold uppercase tracking-wider w-28">Kelas</th>
-                                <th className="px-5 py-5 text-left text-xs font-bold uppercase tracking-wider w-40">Mapel</th>
-                                <th className="px-5 py-5 text-center text-xs font-bold uppercase tracking-wider w-24">Jam</th>
-                                <th className="px-5 py-5 text-left text-xs font-bold uppercase tracking-wider">Materi</th>
-                                <th className="px-5 py-5 text-center text-xs font-bold uppercase tracking-wider w-32 last:rounded-tr-xl">Kehadiran</th>
+                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider w-24 first:rounded-tl-lg">Tanggal</th>
+                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider w-28">Kelas</th>
+                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider w-40">Mapel</th>
+                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider w-32">Jam</th>
+                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider">Materi</th>
+                                <th className="px-6 py-6 text-center text-xs font-bold uppercase tracking-wider w-32 last:rounded-tr-lg">Kehadiran</th>
                             </tr>
                         </thead>
                         <tbody className="bg-gray-50">
