@@ -936,19 +936,19 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                                                 <div className="text-sm font-semibold text-gray-900">
                                                     {new Date(j.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                                                 </div>
-                                                <div className="text-xs text-gray-500">{j.hari}</div>
+                                                <div className="text-xs text-gray-600">{j.hari}</div>
                                             </td>
                                             <td className="px-5 py-4">
                                                 <div className="text-sm font-semibold text-gray-900">{j.kelas}</div>
                                             </td>
                                             <td className="px-5 py-4">
-                                                <div className="text-sm font-medium text-gray-700">{j.mata_pelajaran || j.mapel}</div>
+                                                <div className="text-sm font-medium text-gray-900">{j.mata_pelajaran || j.mapel}</div>
                                             </td>
                                             <td className="px-5 py-4 text-center">
-                                                <span className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-semibold bg-blue-500 text-white rounded-md shadow-sm">{j.jam_ke || '-'}</span>
+                                                <span className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-semibold bg-gray-100 text-gray-900 rounded-md">{j.jam_ke || '-'}</span>
                                             </td>
                                             <td className="px-5 py-4">
-                                                <div className="text-sm text-gray-700 leading-relaxed line-clamp-2">
+                                                <div className="text-sm text-gray-900 leading-relaxed line-clamp-2">
                                                     {j.materi || <span className="text-gray-400 italic text-xs">Belum diisi</span>}
                                                 </div>
                                             </td>
