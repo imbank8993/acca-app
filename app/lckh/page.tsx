@@ -932,27 +932,27 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                                     }
                                     return (
                                         <tr key={idx} className="bg-white hover:bg-blue-50/40 transition-colors">
-                                            <td className="px-5 py-4 whitespace-nowrap rounded-l-lg">
+                                            <td className="px-6 py-4 whitespace-nowrap rounded-l-md">
                                                 <div className="text-sm font-semibold text-gray-900">
                                                     {new Date(j.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                                                 </div>
                                                 <div className="text-xs text-gray-600">{j.hari}</div>
                                             </td>
-                                            <td className="px-5 py-4">
+                                            <td className="px-6 py-4">
                                                 <div className="text-sm font-semibold text-gray-900">{j.kelas}</div>
                                             </td>
-                                            <td className="px-5 py-4">
+                                            <td className="px-6 py-4">
                                                 <div className="text-sm font-medium text-gray-900">{j.mata_pelajaran || j.mapel}</div>
                                             </td>
-                                            <td className="px-5 py-4 text-center">
-                                                <span className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-semibold bg-gray-100 text-gray-900 rounded-md">{j.jam_ke || '-'}</span>
+                                            <td className="px-6 py-4">
+                                                <span className="text-sm font-medium text-gray-900">{j.jam_ke || '-'}</span>
                                             </td>
-                                            <td className="px-5 py-4">
+                                            <td className="px-6 py-4">
                                                 <div className="text-sm text-gray-900 leading-relaxed line-clamp-2">
                                                     {j.materi || <span className="text-gray-400 italic text-xs">Belum diisi</span>}
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-4 text-center rounded-r-lg">
+                                            <td className="px-6 py-4 text-center rounded-r-md">
                                                 <span className={`inline-block px-3 py-1.5 text-xs font-bold rounded-lg ${badgeClass} shadow-sm`}>
                                                     {kategori}
                                                 </span>
@@ -962,7 +962,7 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={6} className="px-5 py-16 text-center bg-white rounded-b-xl">
+                                    <td colSpan={6} className="px-6 py-16 text-center bg-white rounded-b-lg">
                                         <div className="flex flex-col items-center">
                                             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center">
                                                 <i className="bi bi-journal-x text-3xl text-gray-400"></i>
