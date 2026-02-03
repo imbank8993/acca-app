@@ -30,13 +30,22 @@ export async function GET(request: NextRequest) {
             targetName = userProfile.nama;
         }
 
+        console.log('[LCKH-DEBUG] User lookup:', { targetNip, targetName, userProfile });
+
         // 1. Jurnal Guru (Teaching activities)
         const escapedName = targetName ? `"${targetName}"` : 'null';
+        console.log('[LCKH-DEBUG] Query params:', { escapedName, startDate, endDate });
+
         const { data: journals, error: jErr } = await supabase.from('jurnal_guru')
             .select('*')
             .gte('tanggal', startDate)
             .lte('tanggal', endDate)
             .or(`nip.eq.${targetNip},nama_guru.eq.${escapedName},guru_pengganti.eq.${escapedName}`);
+
+        console.log('[LCKH-DEBUG] Journals found:', journals?.length || 0, 'Error:', jErr);
+        if (journals && journals.length > 0) {
+            console.log('[LCKH-DEBUG] Sample journals:', journals.slice(0, 3));
+        }
 
         if (jErr) throw jErr;
 
