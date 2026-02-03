@@ -414,13 +414,13 @@ export default function AbsensiPage() {
 
         if (makeFinal) {
             const confirm = await Swal.fire({
-                title: 'Finalkan Absensi?',
-                html: '<p class="text-sm text-slate-600 mb-2">Setelah <b>FINAL</b>, data sesi akan <b>dikunci</b> dan tidak dapat diubah.</p>',
-                icon: 'warning',
+                title: 'Simpan Absensi?',
+                html: '<p class="text-sm text-slate-600 mb-2">Data absensi akan disimpan secara resmi. Anda dapat membukanya kembali jika diperlukan.</p>',
+                icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Ya, Finalkan',
+                confirmButtonText: 'Ya, Simpan',
                 cancelButtonText: 'Batal',
-                confirmButtonColor: '#1e3a8a', // Navy Blue
+                confirmButtonColor: '#1e3a8a',
                 cancelButtonColor: '#64748b',
                 reverseButtons: true,
                 padding: '2rem',
@@ -435,18 +435,26 @@ export default function AbsensiPage() {
             if (!confirm.isConfirmed) return;
         }
 
-        Swal.fire({ title: makeFinal ? 'Memfinalkan...' : 'Menyimpan draft...', didOpen: () => Swal.showLoading() });
+        Swal.fire({ title: makeFinal ? 'Menyimpan...' : 'Membuka Kunci...', didOpen: () => Swal.showLoading() });
 
         try {
             await saveAbsensiInternal(currentSesi.sesi_id, rows, makeFinal);
-            if (makeFinal) setCurrentSesi({ ...currentSesi, status_sesi: 'FINAL' });
+
+            // Update local state to reflect current status
+            setCurrentSesi({ ...currentSesi, status_sesi: makeFinal ? 'FINAL' : 'DRAFT' });
 
             const snap = new Map<string, string>();
             rows.forEach(r => snap.set(r.nisn, r.status));
             setInitialSnapshot(snap);
 
             Swal.close();
-            Swal.fire({ icon: 'success', title: 'Berhasil', text: makeFinal ? 'Sesi berhasil FINAL' : 'Draft berhasil disimpan', timer: 1500, showConfirmButton: false });
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: makeFinal ? 'Data berhasil disimpan' : 'Absensi siap diedit',
+                timer: 1500,
+                showConfirmButton: false
+            });
         } catch (error: any) {
             Swal.close();
             Swal.fire({ icon: 'error', title: 'Gagal', text: error.message || 'Simpan gagal' });
@@ -721,22 +729,30 @@ export default function AbsensiPage() {
                             <i className="bi bi-arrow-clockwise"></i>
                             <span>Refresh Data</span>
                         </button>
-                        <button
-                            className="btn btn-success"
-                            disabled={!currentSesi || isFinal || !canDo('save_draft')}
-                            onClick={() => handleSimpan(false)}
-                        >
-                            <i className="bi bi-check-circle-fill"></i>
-                            <span>Simpan Draft</span>
-                        </button>
-                        <button
-                            className="btn btn-dark"
-                            disabled={!currentSesi || isFinal || !canDo('finalize')}
-                            onClick={() => handleSimpan(true)}
-                        >
-                            <i className="bi bi-lock-fill"></i>
-                            <span>Finalkan Sesi</span>
-                        </button>
+
+                        {currentSesi && (
+                            <>
+                                {!isFinal ? (
+                                    <button
+                                        className="btn btn-primary"
+                                        disabled={loading || !canDo('finalize')}
+                                        onClick={() => handleSimpan(true)}
+                                    >
+                                        <i className="bi bi-check-circle-fill"></i>
+                                        <span>Simpan</span>
+                                    </button>
+                                ) : (
+                                    <button
+                                        className="btn btn-warning"
+                                        disabled={loading || !canDo('save_draft')}
+                                        onClick={() => handleSimpan(false)}
+                                    >
+                                        <i className="bi bi-pencil-square"></i>
+                                        <span>Edit / Buka Kunci</span>
+                                    </button>
+                                )}
+                            </>
+                        )}
                     </div>
 
                     {currentSesi && (

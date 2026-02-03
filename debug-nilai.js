@@ -7,15 +7,20 @@ const supabase = createClient(
 );
 
 async function check() {
-    console.log('Checking users...');
-    const { data, error } = await supabase.from('users').select('*').limit(5);
+    console.log('Checking nilai_data...');
+    const { data, error, count } = await supabase
+        .from('nilai_data')
+        .select('*', { count: 'exact' })
+        .order('updated_at', { ascending: false })
+        .limit(3);
 
     if (error) {
         console.error('Error:', error);
         return;
     }
 
-    console.log('Users Sample:', JSON.stringify(data, null, 2));
+    console.log(`Total count: ${count}`);
+    console.log('Sample Data:', JSON.stringify(data, null, 2));
 }
 
 check();

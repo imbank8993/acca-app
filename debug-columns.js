@@ -7,15 +7,11 @@ const supabase = createClient(
 );
 
 async function check() {
-    console.log('Checking users...');
-    const { data, error } = await supabase.from('users').select('*').limit(5);
-
-    if (error) {
-        console.error('Error:', error);
-        return;
+    console.log('Checking columns for nilai_data...');
+    const { data } = await supabase.from('nilai_data').select('*').limit(1);
+    if (data && data[0]) {
+        console.log('Columns:', Object.keys(data[0]));
     }
-
-    console.log('Users Sample:', JSON.stringify(data, null, 2));
 }
 
 check();

@@ -7,15 +7,9 @@ const supabase = createClient(
 );
 
 async function check() {
-    console.log('Checking users...');
-    const { data, error } = await supabase.from('users').select('*').limit(5);
-
-    if (error) {
-        console.error('Error:', error);
-        return;
-    }
-
-    console.log('Users Sample:', JSON.stringify(data, null, 2));
+    console.log('Checking Nurmadinah NIP in users table...');
+    const { data } = await supabase.from('users').select('nip').eq('username', 'nurmadinah').single();
+    console.log(`NIP: [${data.nip}] (Length: ${data.nip.length})`);
 }
 
 check();

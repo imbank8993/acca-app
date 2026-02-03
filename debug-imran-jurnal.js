@@ -7,15 +7,15 @@ const supabase = createClient(
 );
 
 async function check() {
-    console.log('Checking users...');
-    const { data, error } = await supabase.from('users').select('*').limit(5);
+    console.log('Checking journals for Imran...');
+    const { data, error } = await supabase.from('jurnal_guru').select('nama_guru, nip, tanggal').ilike('nama_guru', '%Imran%').limit(5);
 
     if (error) {
         console.error('Error:', error);
         return;
     }
 
-    console.log('Users Sample:', JSON.stringify(data, null, 2));
+    console.log('Imran Journals:', JSON.stringify(data, null, 2));
 }
 
 check();

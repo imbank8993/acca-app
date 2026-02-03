@@ -1,57 +1,6 @@
-import { JurnalGuru, JurnalSettings, JournalFilters } from '../types';
+import { JurnalGuru, JournalFilters } from '../types';
 
-// Fetch settings
-export async function fetchJurnalSettings(): Promise<JurnalSettings> {
-    const res = await fetch('/api/jurnal/pengaturan');
-    if (!res.ok) throw new Error('Failed to fetch settings');
-    const data = await res.json();
-    return data.data;
-}
 
-// Update settings
-export async function updateJurnalSettings(settings: Partial<JurnalSettings>): Promise<JurnalSettings> {
-    const res = await fetch('/api/jurnal/pengaturan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
-    });
-    if (!res.ok) throw new Error('Failed to update settings');
-    const data = await res.json();
-    return data.data;
-}
-
-// Generate Massal
-export async function generateJurnalMassal(
-    startDate: string,
-    endDate?: string,
-    jamKe?: string
-): Promise<{ success: true, results: any } | { success: false, error: string }> {
-    const res = await fetch('/api/jurnal/pengaturan/generate-massal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ startDate, endDate, jamKe }),
-    });
-    const data = await res.json();
-    return data;
-}
-
-// Delete by Date
-export async function deleteJurnalByDate(
-    startDate: string,
-    endDate?: string,
-    jamKe?: string
-): Promise<{ success: true, count: number } | { success: false, error: string }> {
-    const params = new URLSearchParams();
-    params.append('startDate', startDate);
-    if (endDate) params.append('endDate', endDate);
-    if (jamKe) params.append('jamKe', jamKe);
-
-    const res = await fetch(`/api/jurnal/pengaturan/delete-by-date?${params.toString()}`, {
-        method: 'DELETE',
-    });
-    const data = await res.json();
-    return data;
-}
 
 export async function fetchJurnal(filter: JurnalFilters) {
     const params = new URLSearchParams();

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -46,6 +46,7 @@ export default function NilaiPage() {
 
     // States
     const [kelas, setKelas] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [mapel, setMapel] = useState('');
     const [semester, setSemester] = useState('Ganjil');
     const [tahunAjaran, setTahunAjaran] = useState('');
@@ -73,9 +74,9 @@ export default function NilaiPage() {
     const [showImportModal, setShowImportModal] = useState(false);
     const [applyToClasses, setApplyToClasses] = useState<string[]>([]);
     const tableRef = useRef<HTMLTableElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const [showSumDropdown, setShowSumDropdown] = useState(false);
     const [newSumTopic, setNewSumTopic] = useState('');
+    const [forcedVisibleTags, setForcedVisibleTags] = useState<Set<string>>(new Set());
 
     const cleanTopic = (t?: string) => {
         if (!t || t === 'Auto-Imported') return '';
@@ -85,13 +86,15 @@ export default function NilaiPage() {
     // FIX: Updated getNextAutoLabel to see empty columns correctly
     const getNextAutoLabel = () => {
         const typePrefix = activeMode.toUpperCase();
-        // Find all tags for this type/materi, regardless of data
+        const typeProper = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
+
+        // Only count tags that are actually visible (have topic or have scores)
         const relevantTags = tagihanConfig.filter(t =>
-            t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) &&
-            t.materi_tp === materi
+            t.jenis === typeProper &&
+            t.materi_tp === materi &&
+            (activeTags.has(`${typeProper}||${materi}||${t.nama_tagihan}`) || cleanTopic(t.topik))
         );
 
-        // Find max index based on name pattern "TYPE_X"
         let maxIndex = 0;
         relevantTags.forEach(t => {
             const parts = t.nama_tagihan.split('_');
@@ -447,11 +450,55 @@ export default function NilaiPage() {
         } finally { setLoading(false); }
     };
 
+    const sortTags = (tags: any[]) => {
+        return tags.sort((a, b) => {
+            const partA = a.nama_tagihan.split('_')[1] || '0';
+            const partB = b.nama_tagihan.split('_')[1] || '0';
+            return parseInt(partA) - parseInt(partB);
+        });
+    };
+
     const handleExport = async (isTemplate: boolean = false) => {
-        // Use xlsx-js-style for professional styling
         const XLSXStyle = await import('xlsx-js-style');
 
-        // Build data structure
+        // Prepare Data Columns based on Mode
+        const headers = ["NO", "NISN", "NAMA", "KELAS"];
+        let dynamicCols: string[] = [];
+
+        if (activeMode === 'REKAP') {
+            const count = bobot.sumCount;
+            for (let i = 1; i <= count; i++) dynamicCols.push(`SUM_${i}`);
+            dynamicCols.push("PAS", "RAPOR");
+        } else if (activeMode === 'UH') {
+            dynamicCols.push(`UH_${materi.replace(/\s/g, '_').toUpperCase()}`);
+        } else if (activeMode === 'PAS') {
+            dynamicCols.push("PAS");
+        } else {
+            // KUIS / TUGAS
+            const prefix = activeMode.toUpperCase();
+
+            if (isTemplate) {
+                // Ensure 10 slots for template
+                for (let i = 1; i <= 10; i++) dynamicCols.push(`${prefix}_${i}`);
+            } else {
+                // Export existing tags sorted
+                const relevantTags = tagihanConfig.filter(t =>
+                    t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) &&
+                    t.materi_tp === materi
+                );
+
+                if (relevantTags.length === 0) {
+                    for (let i = 1; i <= 5; i++) dynamicCols.push(`${prefix}_${i}`);
+                } else {
+                    const sorted = sortTags(relevantTags);
+                    sorted.forEach(t => dynamicCols.push(t.nama_tagihan.toUpperCase()));
+                }
+            }
+        }
+
+        const fullHeaders = [...headers, ...dynamicCols];
+
+        // Build Data Rows
         const data = filteredSiswa.map((s, idx) => {
             const row: any = {
                 "NO": idx + 1,
@@ -460,202 +507,149 @@ export default function NilaiPage() {
                 "KELAS": s.kelas || kelas
             };
 
-            if (activeMode === 'REKAP') {
-                const count = isTemplate ? 10 : bobot.sumCount; // Force 10 for template
-                Array.from({ length: count }, (_, i) => {
-                    const sumName = `SUM ${i + 1}`;
-                    const customTag = tagihanConfig.find(t => t.jenis === 'Sum' && t.materi_tp === sumName);
-                    // Use standard UNDERSCORE name for template and export (e.g. SUM_1)
-                    const standardName = sumName.replace(/\s+/g, '_').toUpperCase();
-                    const key = (!isTemplate && customTag) ? `${standardName} (${customTag.topik || ''})`.toUpperCase() : standardName;
+            dynamicCols.forEach(col => {
+                let val: string | number = "";
 
-                    if (isTemplate) {
-                        row[key] = "";
+                if (isTemplate) {
+                    val = "";
+                } else {
+                    if (col.startsWith("SUM_")) {
+                        const num = col.split('_')[1];
+                        const nab = calculateNABab(s.nisn, `SUM ${num}`);
+                        val = nab !== '-' ? Math.round(nab as number) : "";
+                    } else if (col === "PAS") {
+                        const v = getScore(s.nisn, 'PAS', '-');
+                        val = (v !== null && v !== "") ? v : "";
+                    } else if (col === "RAPOR") {
+                        val = calculateRapor(s.nisn);
+                    } else if (col.startsWith("UH_")) {
+                        const v = getScore(s.nisn, 'UH', materi);
+                        val = (v !== null && v !== "") ? v : "";
                     } else {
-                        const val = calculateNABab(s.nisn, sumName);
-                        row[key] = val !== '-' ? Math.round(val as number) : "";
-                    }
-                });
-                if (isTemplate) {
-                    row["PAS"] = "";
-                    row["RAPOR"] = "";
-                } else {
-                    const pasVal = getScore(s.nisn, 'PAS', '-');
-                    row["PAS"] = pasVal !== null && pasVal !== "" ? pasVal : "";
-                    row["RAPOR"] = calculateRapor(s.nisn);
-                }
-            } else if (activeMode === 'UH') {
-                // UH usually just has 1 column per materi, but let's keep it simple
-                const headKey = `UH_${materi}`.toUpperCase();
-                if (isTemplate) {
-                    row[headKey] = "";
-                } else {
-                    const val = getScore(s.nisn, 'UH', materi);
-                    row[headKey] = val !== null && val !== "" ? val : "";
-                }
-            } else if (activeMode === 'PAS') {
-                if (isTemplate) {
-                    row["PAS"] = "";
-                } else {
-                    const val = getScore(s.nisn, 'PAS', '-');
-                    row["PAS"] = val !== null && val !== "" ? val : "";
-                }
-            } else {
-                const jenisStr = activeMode.toUpperCase();
-                const tags = tagihanConfig.filter(t => t.jenis === activeMode.charAt(0) + activeMode.slice(1).toLowerCase() && t.materi_tp === materi);
+                        // KUIS_N / TUGAS_N
+                        const parts = col.split('_');
+                        const typeUpp = parts[0];
+                        const typeProper = typeUpp.charAt(0) + typeUpp.slice(1).toLowerCase(); // Kuis
 
-                // Force 10 cols for Template, otherwise just whats needed or min 5
-                const loopLimit = isTemplate ? 10 : Math.max(tags.length, 5);
-
-                for (let i = 0; i < loopLimit; i++) {
-                    const tag = tags[i];
-                    if (tag) {
-                        // Standardize: KUIS_1, TUGAS_1, etc.
-                        const cleanTagName = tag.nama_tagihan.toUpperCase().replace(/\s+/g, '_');
-                        const key = (!isTemplate) ? `${cleanTagName} (${tag.topik || ''})`.toUpperCase() : cleanTagName;
-
-                        if (isTemplate) {
-                            row[key] = "";
-                        } else {
-                            const val = getScore(s.nisn, (tag as any).jenis, materi, tag.nama_tagihan);
-                            row[key] = val !== null && val !== "" ? val : "";
-                        }
-                    } else {
-                        row[`${jenisStr}_${i + 1}`] = "";
+                        const v = getScore(s.nisn, typeProper, materi, col);
+                        val = (v !== null && v !== "") ? v : "";
                     }
                 }
-            }
+                row[col] = val;
+            });
             return row;
         });
 
-        const ws = XLSXStyle.utils.json_to_sheet(data);
+        // Add Topics Row as the first data row if KUIS/TUGAS
+        // Add Topics Rows if KUIS/TUGAS (Vertical Format at bottom - 2 Columns)
+        const finalData = [...data];
+        if (activeMode === 'KUIS' || activeMode === 'TUGAS') {
+            // Add space and a clear section header aligned with NISN & NAMA
+            finalData.push({ "NO": "", "NISN": "", "NAMA": "", "KELAS": "" });
+            finalData.push({ "NO": "", "NISN": "", "NAMA": "", "KELAS": "" });
+            finalData.push({
+                "NO": "",
+                "NISN": activeMode.toUpperCase(),
+                "NAMA": "TOPIK/MATERI",
+                "KELAS": ""
+            });
 
-        // --- STYLING LOGIC ---
-        const range = XLSXStyle.utils.decode_range(ws['!ref']!);
-
-        // Styles Configuration
-        const headerStyle = {
-            fill: { fgColor: { rgb: "0F172A" } },
-            font: { color: { rgb: "FFFFFF" }, bold: true, sz: 11 },
-            alignment: { horizontal: "center", vertical: "center" },
-            border: {
-                top: { style: "thin", color: { rgb: "000000" } },
-                bottom: { style: "thin", color: { rgb: "000000" } },
-                left: { style: "thin", color: { rgb: "000000" } },
-                right: { style: "thin", color: { rgb: "000000" } }
-            }
-        };
-
-        const identityStyle = {
-            fill: { fgColor: { rgb: "F8FAFC" } },
-            font: { color: { rgb: "1E293B" }, sz: 10 },
-            alignment: { horizontal: "left", vertical: "center" },
-            border: {
-                bottom: { style: "thin", color: { rgb: "E2E8F0" } },
-                right: { style: "thin", color: { rgb: "E2E8F0" } }
-            }
-        };
-
-        // Apply Styles to Main Data
-        for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const addr = XLSXStyle.utils.encode_cell({ r: R, c: C });
-                if (!ws[addr]) continue;
-
-                if (R === 0) {
-                    ws[addr].s = headerStyle;
-                } else {
-                    if (C <= 3) {
-                        const style: any = { ...identityStyle };
-                        if (C <= 1 || C === 3) style.alignment = { horizontal: "center", vertical: "center" };
-                        ws[addr].s = style;
-                    }
-                }
-            }
-        }
-
-        // --- FOOTER: TOPIC DESCRIPTIONS (Vertical Layout) ---
-        if (activeMode !== 'PAS') {
-            let footerRowIndex = range.e.r + 2; // Leave one empty row
-
-            // Section Header
-            const headerAddr = XLSXStyle.utils.encode_cell({ r: footerRowIndex, c: 0 });
-            XLSXStyle.utils.sheet_add_aoa(ws, [["KETERANGAN"]], { origin: headerAddr });
-            if (!ws[headerAddr]) ws[headerAddr] = {};
-            ws[headerAddr].s = {
-                fill: { fgColor: { rgb: "FEF9C3" } },
-                font: { bold: true, color: { rgb: "854D0E" } },
-                border: { bottom: { style: "thin" } }
-            };
-            footerRowIndex++;
-
-            // Gather Columns that need descriptions
-            const headerRow = data[0] ? Object.keys(data[0]) : [];
-            const targetCols = headerRow.filter((k, i) => i >= 4 && k !== 'PAS' && k !== 'RAPOR');
-
-            targetCols.forEach(colKey => {
-                // Clean Name (Remove Topic from Header)
-                let cleanName = colKey;
-                const match = colKey.match(/^(.+?)\s*\((.*?)\)$/);
-                if (match) cleanName = match[1].trim();
-
-                // Ensure it uses UNDERSCORES for consistency in Footer (e.g. KUIS_1)
-                cleanName = cleanName.replace(/\s+/g, '_').toUpperCase();
-
-                // Find Topic
-                let topic = "";
-                if (!isTemplate) {
-                    cleanName = cleanName.replace(/\s/g, '_');
-                    if (activeMode === 'REKAP') {
-                        const sumMatch = cleanName.match(/^SUM_(\d+)/);
-                        if (sumMatch) {
-                            const tagName = `SUM ${sumMatch[1]}`;
-                            const tag = tagihanConfig.find(t => t.jenis === 'Sum' && t.materi_tp === tagName);
-                            if (tag) topic = tag.topik || "";
-                        }
-                    } else {
-                        const jenisStr = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
-                        const tag = tagihanConfig.find(t =>
-                            (t.nama_tagihan.toUpperCase() === cleanName || t.nama_tagihan === cleanName.replace('_', ' ')) &&
-                            t.materi_tp === materi &&
-                            t.jenis === jenisStr
-                        );
-                        if (tag) topic = cleanTopic(tag.topik);
-                    }
-                } else {
-                    // In template, cleanName likely "SUM 1" or "TUGAS 1". Keep it pretty.
-                    // cleanName is already good from the map loop
-                }
-
-                // Write Row: [NAME] [TOPIC]
-                const nameAddr = XLSXStyle.utils.encode_cell({ r: footerRowIndex, c: 0 });
-                const topicAddr = XLSXStyle.utils.encode_cell({ r: footerRowIndex, c: 1 });
-
-                XLSXStyle.utils.sheet_add_aoa(ws, [[cleanName, topic]], { origin: nameAddr });
-
-                // Styles
-                if (!ws[nameAddr]) ws[nameAddr] = {};
-                ws[nameAddr].s = { font: { bold: true }, alignment: { horizontal: "left" } };
-
-                if (!ws[topicAddr]) ws[topicAddr] = {};
-                ws[topicAddr].s = {
-                    font: { italic: true },
-                    border: { bottom: { style: "dotted", color: { rgb: "CBD5E1" } } }
-                };
-
-                footerRowIndex++;
+            // Add one row per dynamic column
+            dynamicCols.forEach(col => {
+                const tag = tagihanConfig.find(t => t.nama_tagihan === col && t.materi_tp === materi);
+                finalData.push({
+                    "NO": "",
+                    "NISN": col,
+                    "NAMA": isTemplate ? "" : (cleanTopic(tag?.topik) || ""),
+                    "KELAS": ""
+                });
             });
         }
 
-        // Define Column Widths
-        ws['!cols'] = [{ wch: 6 }, { wch: 18 }, { wch: 40 }, { wch: 12 }];
-        for (let i = 4; i <= range.e.c; i++) ws['!cols'].push({ wch: 15 });
+        // Create Sheet
+        const ws = XLSXStyle.utils.json_to_sheet(finalData, { header: fullHeaders });
+        const newRange = XLSXStyle.utils.decode_range(ws['!ref']!);
+
+        // Headers Styling (Row 0)
+        for (let C = newRange.s.c; C <= newRange.e.c; ++C) {
+            const addr = XLSXStyle.utils.encode_cell({ r: 0, c: C });
+            if (!ws[addr]) continue;
+            ws[addr].s = {
+                fill: { fgColor: { rgb: "1E293B" } },
+                font: { color: { rgb: "FFFFFF" }, bold: true },
+                alignment: { horizontal: "center", vertical: "center" },
+                border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }
+            };
+        }
+
+        // Topics Styling (Vertical rows at bottom)
+        if (activeMode === 'KUIS' || activeMode === 'TUGAS') {
+            const topicCount = dynamicCols.length;
+            const headerR = newRange.e.r - topicCount;
+            const startR = headerR + 1;
+
+            // Style Section Header (Only Column 1 & 2: NISN & NAMA)
+            for (let C = 1; C <= 2; C++) {
+                const addr = XLSXStyle.utils.encode_cell({ r: headerR, c: C });
+                if (!ws[addr]) continue;
+                ws[addr].s = {
+                    fill: { fgColor: { rgb: "CBD5E1" } },
+                    font: { bold: true, color: { rgb: "1E293B" }, size: 10 },
+                    alignment: { horizontal: "center", vertical: "center" },
+                    border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }
+                };
+            }
+
+            for (let R = startR; R <= newRange.e.r; R++) {
+                for (let C = 1; C <= 2; C++) { // Only Column 1 & 2: NISN & NAMA
+                    const addr = XLSXStyle.utils.encode_cell({ r: R, c: C });
+                    if (!ws[addr]) continue;
+                    ws[addr].s = {
+                        fill: { fgColor: { rgb: "F8FAFC" } },
+                        font: { italic: C === 2, bold: C === 1, color: { rgb: "475569" }, size: 9 },
+                        alignment: { horizontal: C === 2 ? "left" : "center", vertical: "center", wrapText: true },
+                        border: { top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" } }
+                    };
+                }
+            }
+        }
+
+        // Data Styling (All rows except header and topic rows)
+        const topicRowsCount = (activeMode === 'KUIS' || activeMode === 'TUGAS') ? dynamicCols.length + 3 : 0;
+        const dataEndRow = newRange.e.r - topicRowsCount;
+
+        for (let R = 1; R <= dataEndRow; ++R) {
+            for (let C = newRange.s.c; C <= newRange.e.c; ++C) {
+                const addr = XLSXStyle.utils.encode_cell({ r: R, c: C });
+                if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+
+                if (!ws[addr].s) ws[addr].s = {};
+                ws[addr].s.border = {
+                    top: { style: "thin", color: { rgb: "E2E8F0" } },
+                    bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+                    left: { style: "thin", color: { rgb: "E2E8F0" } },
+                    right: { style: "thin", color: { rgb: "E2E8F0" } }
+                };
+
+                if (C <= 3) {
+                    ws[addr].s.alignment = { horizontal: "left" };
+                    if (C === 0 || C === 1 || C === 3) ws[addr].s.alignment = { horizontal: "center" };
+                } else {
+                    ws[addr].s.alignment = { horizontal: "center" };
+                }
+            }
+        }
+
+        // Col Widths
+        ws['!cols'] = [{ wch: 8 }, { wch: 15 }, { wch: 35 }, { wch: 10 }];
+        for (let i = 4; i <= newRange.e.c; i++) ws['!cols'].push({ wch: 15 });
 
         const wb = XLSXStyle.utils.book_new();
-        XLSXStyle.utils.book_append_sheet(wb, ws, activeMode.toUpperCase());
-        const prefix = isTemplate ? 'TEMPLATE' : 'EXPORT_DATA';
-        const filename = `${prefix}_${activeMode}_${materi}_${kelas}_${mapel}.xlsx`.toUpperCase().replace(/\s+/g, '_');
-        XLSXStyle.writeFile(wb, filename);
+        XLSXStyle.utils.book_append_sheet(wb, ws, "NILAI");
+
+        const prefix = isTemplate ? "TEMPLATE" : "EXPORT";
+        const fname = `${prefix}_${activeMode}_${materi}_${kelas}.xlsx`.replace(/\s+/g, '_');
+        XLSXStyle.writeFile(wb, fname);
     };
 
 
@@ -670,300 +664,258 @@ export default function NilaiPage() {
                 const bstr = evt.target?.result;
                 const wb = XLSX.read(bstr, { type: 'binary' });
                 const ws = wb.Sheets[wb.SheetNames[0]];
-                const data: any[] = XLSX.utils.sheet_to_json(ws);
+                const data: any[] = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-                if (data.length === 0) throw new Error("File Excel kosong atau format salah.");
+                if (data.length < 2) throw new Error("File Excel kosong atau format salah.");
 
-                Swal.fire({ title: 'Processing Import...', text: 'Validating data structure...', didOpen: () => Swal.showLoading() });
+                Swal.fire({ title: 'Validasi Data...', text: 'Memeriksa format dan data...', didOpen: () => Swal.showLoading() });
 
-                // 2. Analyze Structure & Validate Data
-                const columns = Object.keys(data[0]);
-                const validNISNs = new Set(siswa.map(s => s.nisn)); // Source of Truth
-                let validRows = 0;
-                let skippedRows = 0;
-                let newColumnsCreated = 0;
-                let newSumCount = bobot.sumCount;
+                // 2. Validate Headers (Strict Mode)
+                const rawHeaders = (data[0] as any[]).map(h => String(h || '').trim());
+                const required = ["NO", "NISN", "NAMA", "KELAS"];
 
-                const newChanges = { ...changes };
-                const newTagihansToCreate: any[] = [];
-                const topicUpdates: { id: string, topik: string }[] = [];
-
-                // 3. Scan for New Columns (Metadata Analysis)
-                if (activeMode === 'REKAP') {
-                    // Check for higher SUMs
-                    columns.forEach(col => {
-                        const sumMatch = col.toUpperCase().match(/^SUM\s*(\d+)/);
-                        if (sumMatch) {
-                            const idx = parseInt(sumMatch[1]);
-                            if (idx > newSumCount) newSumCount = idx;
-                        }
-                    });
-                } else if (activeMode === 'KUIS' || activeMode === 'TUGAS') {
-                    const jenisStr = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
-                    const scoreCols = columns.filter(c => !["NO", "NISN", "NAMA", "KELAS", "RAPOR", "PAS"].includes(c.toUpperCase()));
-
-                    scoreCols.forEach(col => {
-                        let finalName = col;
-                        let finalTopic = "";
-                        const match = col.match(/^(.+?)\s*\((.*?)\)$/);
-                        if (match) {
-                            finalName = match[1].trim();
-                            // If topic is present in parens, extract it. Otherwise default.
-                            if (match[2]) finalTopic = match[2].trim();
-                        }
-
-                        // Clean name key for matching
-                        const cleanName = finalName.toUpperCase().replace(/\s/g, '_');
-
-                        // Check if exists in current config
-                        const exists = tagihanConfig.find(t =>
-                            t.nama_tagihan.toUpperCase() === cleanName &&
-                            t.materi_tp === materi &&
-                            t.jenis === jenisStr
-                        );
-
-                        if (!exists) {
-                            // Add to creation queue if unique
-                            if (!newTagihansToCreate.some(t => t.nama === cleanName)) {
-                                newTagihansToCreate.push({
-                                    nama: cleanName,
-                                    materi: materi,
-                                    jenis: jenisStr,
-                                    topik: finalTopic,
-                                    label_raw: col // Keep original label to map data later
-                                });
-                            }
-                        }
-                    });
-                }
-
-                // 4. Execute Structural Updates (Async)
-
-                // A. Update Bobot if new SUMs found
-                if (newSumCount > bobot.sumCount) {
-                    const updatedBobot = { ...bobot, sumCount: newSumCount };
-                    await fetch('/api/nilai/bobot', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, config: updatedBobot, tahun_ajaran: tahunAjaran })
-                    });
-                    // Locally update for immediate processing
-                    setBobot(updatedBobot);
-                    newColumnsCreated += (newSumCount - bobot.sumCount);
-                }
-
-                // B. Create New Tagihans
-                for (const t of newTagihansToCreate) {
-                    await fetch('/api/nilai/tagihan', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            nip: user.nip, kelas, mapel, semester,
-                            materi: t.materi, jenis: t.jenis, nama: t.nama, topik: t.topik, tahun_ajaran: tahunAjaran
-                        })
-                    });
-                    newColumnsCreated++;
-                }
-
-                // REFRESH CONFIG if changes made
-                let currentConfig = tagihanConfig;
-                if (newColumnsCreated > 0) {
-                    const res = await fetch(`/api/nilai?nip=${user.nip}&kelas=${encodeURIComponent(kelas)}&mapel=${encodeURIComponent(mapel)}&semester=${semester}&tahun_ajaran=${encodeURIComponent(tahunAjaran)}`);
-                    const json = await res.json();
-                    if (json.ok) {
-                        currentConfig = json.data.tagihan || [];
-                        setTagihanConfig(currentConfig); // Async state update
+                // Check first 4 columns strictly
+                for (let i = 0; i < required.length; i++) {
+                    if (rawHeaders[i] !== required[i]) {
+                        throw new Error(`Struktur Header Tidak Sesuai! Kolom ke-${i + 1} harusnya '${required[i]}', terbaca '${rawHeaders[i] || 'KOSONG'}'.`);
                     }
                 }
+                const headers = rawHeaders; // Use raw headers for matching moving forward
 
-                // 5. Process Data Rows (Strict Validation)
-                const errors: string[] = [];
-                data.forEach((row, rowIdx) => {
-                    // Strict Validation Keys
-                    const rowNISN = (row["NISN"] || "").toString().trim();
-                    const rowKelas = (row["KELAS"] || "").toString().trim();
+                // 3. Identify Value Columns (Strict Pattern Check)
+                const valueCols: { index: number, name: string }[] = [];
+                headers.forEach((h, idx) => {
+                    if (required.includes(h)) return;
+                    if (!h) return; // Ignore completely empty trailing columns
 
-                    // SKIP if invalid
-                    if (!rowNISN) {
-                        // errors.push(`Baris ${rowIdx + 2}: NISN kosong`);
-                        // Silent skip fine for empty rows
-                        return;
+                    let isValid = false;
+                    if (activeMode === 'KUIS' || activeMode === 'TUGAS') {
+                        const pattern = new RegExp(`^${activeMode}_\\d+$`);
+                        if (pattern.test(h)) {
+                            valueCols.push({ index: idx, name: h });
+                            isValid = true;
+                        } else {
+                            throw new Error(`Penamaan Kolom Salah! Kolom '${h}' tidak sesuai format. Seharusnya '${activeMode}_[ANGKA]' (Contoh: ${activeMode}_1).`);
+                        }
+                    } else if (activeMode === 'REKAP') {
+                        if (h === 'PAS' || h.match(new RegExp('^SUM_\\d+$'))) {
+                            valueCols.push({ index: idx, name: h });
+                            isValid = true;
+                        }
+                    } else if (activeMode === 'UH') {
+                        if (h.startsWith('UH_')) {
+                            valueCols.push({ index: idx, name: h });
+                            isValid = true;
+                        }
+                    } else if (activeMode === 'PAS') {
+                        if (h === 'PAS') {
+                            valueCols.push({ index: idx, name: h });
+                            isValid = true;
+                        }
                     }
-
-                    // VALIDATION LOGIC
-                    if (!validNISNs.has(rowNISN)) {
-                        // CHECK FOR METADATA/TOPIC ROW
-                        // Try to see if row["NO"] or first key corresponds to a Tag Name
-                        // Typically sheet_to_json keys are headers.
-                        // If user used template, Col 0 is "NO", Col 1 is "NISN".
-                        // Template Export writes: NO="TAG_NAME", NISN="TOPIC_TEXT"
-
-                        const potentialTagName = (row["NO"] || "").toString().trim().toUpperCase();
-
-                        // Find if this row identifies a tag
-                        let matchedTag: any = null;
-
-                        if (potentialTagName) {
-                            const normalizedPot = potentialTagName.replace(/\s+/g, '_');
-                            matchedTag = currentConfig.find(t =>
-                                (t.nama_tagihan.toUpperCase() === normalizedPot ||
-                                    t.nama_tagihan.toUpperCase() === normalizedPot.replace('_', ' ')) && // Try both _ and space
-                                t.materi_tp === materi
-                            );
-                        }
-
-                        // If found a tag, update its topic
-                        if (matchedTag) {
-                            // The topic is strictly in the NISN column (Col 1) for metadata rows
-                            // We allow overwriting even if empty to ensure file is source of truth
-                            const newTopic = rowNISN; // rowNISN is already trimmed string of row["NISN"]
-
-                            // Compare with existing topic (treat null/undefined as empty string)
-                            if (newTopic !== (matchedTag.topik || "")) {
-                                topicUpdates.push({ id: matchedTag.id, topik: newTopic });
-                            }
-                            return; // Is a metadata row, not error
-                        }
-
-                        // If "NO" column is "KETERANGAN", just skip (Header for footer)
-                        if (potentialTagName === "KETERANGAN") return;
-
-                        errors.push(`Baris ${rowIdx + 2}: NISN '${rowNISN}' tidak ditemukan di kelas ini.`);
-                        skippedRows++;
-                        return;
-                    }
-
-                    if (rowKelas && rowKelas.toUpperCase() !== kelas.toUpperCase()) {
-                        errors.push(`Baris ${rowIdx + 2}: Kelas ${rowKelas} tidak sesuai (Harap: ${kelas}).`);
-                        skippedRows++;
-                        return;
-                    }
-
-                    validRows++;
-
-                    // Map Values
-                    Object.keys(row).forEach(col => {
-                        if (["NO", "NISN", "NAMA", "KELAS", "RAPOR"].includes(col.toUpperCase())) return;
-
-                        let rawValue = row[col]?.toString() || "";
-                        if (rawValue === "") return;
-
-                        let valStr = rawValue.replace(',', '.');
-                        let val = parseFloat(valStr);
-                        if (isNaN(val)) {
-                            errors.push(`Baris ${rowIdx + 2}: Nilai '${rawValue}' pada kolom '${col}' tidak valid.`);
-                            return;
-                        }
-                        if (val < 0 || val > 100) {
-                            errors.push(`Baris ${rowIdx + 2}: Nilai ${val} pada kolom '${col}' diluar batas (0-100).`);
-                            return;
-                        }
-
-                        // Identify Target key based on Mode & Column
-                        if (activeMode === 'UH' && col.toUpperCase().startsWith('UH')) {
-                            newChanges[`${rowNISN}||UH||${materi}||`] = val;
-                        } else if (activeMode === 'PAS' && col.toUpperCase() === 'PAS') {
-                            newChanges[`${rowNISN}||PAS||-||`] = val;
-                        } else if (activeMode === 'KUIS' || activeMode === 'TUGAS') {
-                            // Match column to Tagihan
-                            const jenisStr = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
-
-                            // Try exact match or match via created metadata
-                            let targetTag = currentConfig.find(t => t.nama_tagihan.toUpperCase() === col.toUpperCase() && t.materi_tp === materi && t.jenis === jenisStr);
-
-                            // Fallback: Check if it was one of the newly created ones by header matching
-                            if (!targetTag) {
-                                const createdMeta = newTagihansToCreate.find(t => t.label_raw === col);
-                                if (createdMeta) {
-                                    targetTag = currentConfig.find(t => t.nama_tagihan.toUpperCase() === createdMeta.nama && t.materi_tp === materi && t.jenis === jenisStr);
-                                }
-                            }
-
-                            const finalTag = targetTag ? targetTag.nama_tagihan : col.toUpperCase().replace(/\s/g, '_'); // Fallback purely by name
-                            newChanges[`${rowNISN}||${jenisStr}||${materi}||${finalTag}`] = val;
-
-                        } else if (activeMode === 'REKAP') {
-                            if (col.toUpperCase() === 'PAS') {
-                                newChanges[`${rowNISN}||PAS||-||`] = val;
-                            }
-                        }
-                    });
                 });
 
-                setChanges(newChanges);
-
-                // 6. Apply Topic Updates
-                if (topicUpdates.length > 0) {
-                    // Update locally
-                    const updatedConfig = currentConfig.map(t => {
-                        const update = topicUpdates.find(u => u.id === t.id);
-                        return update ? { ...t, topik: update.topik } : t;
-                    });
-                    setTagihanConfig(updatedConfig);
-
-                    // Update Server
-                    await Promise.all(topicUpdates.map(u =>
-                        fetch('/api/nilai/tagihan', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                // unpack existing first to ensure we don't overwrite new values
-                                ...(currentConfig.find(c => c.id === u.id)),
-                                id: u.id,
-                                topik: u.topik,
-                                nip: user.nip,
-                                kelas,
-                                mapel,
-                                semester,
-                                tahun_ajaran: tahunAjaran
-                            })
-                        })
-                    ));
+                if (valueCols.length === 0) {
+                    throw new Error(`Tidak ada kolom nilai yang valid untuk mode ${activeMode}. Pastikan gunakan format ${activeMode}_1, dst.`);
                 }
 
-                setShowImportModal(false);
+                // 3b. Detect TOPIK rows (Search vertically at the end)
+                const topics: Record<string, string> = {};
+                const topicRowIndices: number[] = [];
+                let isTopicSection = false;
 
-                // Summary Report
-                let htmlContent = `<div class="text-left text-sm space-y-2">
-                    <p><b>Berhasil Diproses:</b> ${validRows} siswa</p>
-                    <p><b>Dilewati/Error:</b> ${errors.length} baris</p>
-                    <p><b>Kolom Baru:</b> ${newColumnsCreated}</p>`;
+                for (let i = 1; i < data.length; i++) {
+                    const row = data[i] as any[] || [];
+                    const colB = String(row[1] || '').trim().toUpperCase();
+                    const colC = String(row[2] || '').trim();
+
+                    // Detect Section Header: [ActiveMode] | TOPIK/MATERI
+                    if (colB === activeMode.toUpperCase() && colC.toUpperCase() === 'TOPIK/MATERI') {
+                        isTopicSection = true;
+                        topicRowIndices.push(i);
+                        continue;
+                    }
+
+                    if (isTopicSection && colB.startsWith(activeMode.toUpperCase() + '_')) {
+                        topicRowIndices.push(i);
+                        topics[colB] = colC;
+                    }
+                }
+
+                // 3c. Filter valueCols: Only keep columns that have a topic OR at least one student score
+                const validValueCols = valueCols.filter(col => {
+                    const hasTopic = topics[col.name] !== undefined && topics[col.name] !== "";
+                    if (hasTopic) return true;
+
+                    // Check if at least one row has a score for this column
+                    const hasAnyScore = data.some((row, idx) => {
+                        if (idx === 0 || topicRowIndices.includes(idx)) return false;
+                        const val = (row as any[])[col.index];
+                        return val !== undefined && val !== null && val !== "";
+                    });
+
+                    return hasAnyScore;
+                });
+
+                if (validValueCols.length === 0) {
+                    throw new Error(`Tidak ada kolom nilai yang valid untuk mode ${activeMode}. Pastikan minimal ada topik terisi atau ada nilai yang diinput.`);
+                }
+
+                // 4. Process Rows
+                const errors: string[] = [];
+                let successCount = 0;
+                const updates: any[] = [];
+                const newTagihans: any[] = [];
+                const topicsToUpdate: any[] = [];
+                const siswaMap = new Map(siswa.map(s => [s.nisn, s]));
+
+                for (let i = 1; i < data.length; i++) {
+                    if (topicRowIndices.includes(i)) continue; // Skip topic rows
+                    const row = data[i] as any[];
+                    if (!row || (!row[0] && !row[1])) continue; // Skip empty rows (separator)
+
+                    const rowObj: any = {};
+                    headers.forEach((h, idx) => { rowObj[h] = row[idx]; });
+
+                    const nisn = String(rowObj["NISN"] || "").trim();
+                    const cls = String(rowObj["KELAS"] || "").trim();
+                    const nameRaw = String(rowObj["NAMA"] || "").trim();
+
+                    if (!nisn) continue;
+
+                    // Validation
+                    const student = siswaMap.get(nisn);
+                    if (!student) {
+                        errors.push(`Baris ${i + 1}: NISN ${nisn} tidak terdaftar di kelas ini.`);
+                        continue;
+                    }
+
+                    // Strict Name Match
+                    const dbName = (student.nama_siswa || (student as any).nama || "").trim().toUpperCase();
+                    if (nameRaw.toUpperCase() !== dbName) {
+                        errors.push(`Baris ${i + 1}: Nama tidak sesuai untuk NISN ${nisn}. (Terbaca: ${nameRaw}, Seharusnya: ${dbName})`);
+                        continue;
+                    }
+
+                    if (cls.toUpperCase() !== kelas.toUpperCase()) {
+                        errors.push(`Baris ${i + 1}: Siswa ${nisn} salah kelas (Terbaca: ${cls}, Seharusnya: ${kelas}).`);
+                        continue;
+                    }
+
+                    // Values
+                    validValueCols.forEach(col => {
+                        const valRaw = row[col.index];
+                        const hasScore = valRaw !== undefined && valRaw !== null && valRaw !== "";
+                        let topic = topics[col.name] || "";
+
+                        // If there is a score but no topic, default topic to '-'
+                        if (hasScore && !topic) {
+                            topic = "-";
+                            topics[col.name] = "-"; // Update local map so secondary checks find it
+                        }
+
+                        // Only process if there's either a score or a topic
+                        if (!hasScore && !topic) return;
+
+                        if (hasScore) {
+                            let val = parseFloat(String(valRaw).replace(',', '.'));
+                            if (isNaN(val) || val < 0 || val > 100) {
+                                errors.push(`Baris ${i + 1}: Nilai kolom ${col.name} tidak valid (${valRaw}).`);
+                                return;
+                            }
+
+                            // Determine Update Key
+                            let updateKey = "";
+                            if (col.name.startsWith("SUM_")) {
+                                // Skip SUM import
+                            } else if (col.name === "PAS") {
+                                updateKey = `${nisn}||PAS||-||`;
+                            } else if (col.name.startsWith("UH_")) {
+                                updateKey = `${nisn}||UH||${materi}||`;
+                            } else if (activeMode === 'KUIS' || activeMode === 'TUGAS') {
+                                const typeStr = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
+                                updateKey = `${nisn}||${typeStr}||${materi}||${col.name}`;
+                            }
+                            if (updateKey) updates.push({ key: updateKey, val });
+                        }
+
+                        // Handle Tagihan/Topic Updates (One-time check per column across rows)
+                        if (activeMode === 'KUIS' || activeMode === 'TUGAS') {
+                            const typeStr = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
+                            const currentTag = tagihanConfig.find(t => t.nama_tagihan === col.name && t.materi_tp === materi);
+
+                            if (currentTag) {
+                                if (cleanTopic(currentTag.topik) !== topic && !topicsToUpdate.some(tu => tu.id === currentTag.id)) {
+                                    topicsToUpdate.push({ ...currentTag, topik: topic });
+                                }
+                            } else if (!newTagihans.some(t => t.nama === col.name)) {
+                                newTagihans.push({ nama: col.name, jenis: typeStr, materi: materi, topik: topic });
+                            }
+                        }
+                    });
+
+                    if (errors.length === 0) successCount++;
+                }
 
                 if (errors.length > 0) {
-                    // Filter out "NISN not found" errors if they match known metadata patterns to be doubly sure
-                    // But our previous logic already stopped push if it was metadata.
-                    // Just purely show valid remaining errors
-                    htmlContent += `<div class="mt-3 p-2 bg-red-50 text-red-600 rounded max-h-40 overflow-y-auto text-xs border border-red-100">
-                        <ul class="list-disc pl-4 space-y-1">
-                            ${errors.map(e => `<li>${e}</li>`).join('')}
-                        </ul>
-                    </div>`;
+                    const listErr = errors.slice(0, 20).map(e => `<li>${e}</li>`).join('');
+                    const more = errors.length > 20 ? `<li class="italic text-slate-500">... dan ${errors.length - 20} error lainnya.</li>` : '';
+
+                    const errorHtml = `<div class="text-left text-xs text-red-600 max-h-[300px] overflow-y-auto bg-red-50 p-2 border rounded"><ul class="list-disc pl-4">${listErr}${more}</ul></div>`;
+
+                    Swal.fire({
+                        title: 'Validasi Gagal',
+                        html: `<p class="mb-2">Ditemukan ${errors.length} error. Import dibatalkan.</p>${errorHtml}`,
+                        icon: 'error',
+                        width: '600px',
+                        showConfirmButton: true,
+                        confirmButtonText: 'Tutup',
+                        confirmButtonColor: '#1E293B',
+                        showCloseButton: true,
+                        allowOutsideClick: true
+                    });
+                    return;
                 }
 
-                // Show Topic Updates in Summary
-                if (topicUpdates.length > 0) {
-                    htmlContent += `<div class="mt-2 p-2 bg-blue-50 text-blue-700 rounded text-xs border border-blue-100">
-                        <p class="font-bold"><i class="bi bi-info-circle"></i> Info Update Materi:</p>
-                        <ul class="list-disc pl-4 space-y-1 mt-1">
-                            ${topicUpdates.map(u => {
-                        const t = currentConfig.find(c => c.id === u.id);
-                        return `<li>${t?.nama_tagihan || 'Tag'}: ${u.topik}</li>`;
-                    }).join('')}
-                        </ul>
-                    </div>`;
+                // Apply
+                if (newTagihans.length > 0 || topicsToUpdate.length > 0) {
+                    for (const t of newTagihans) {
+                        await fetch('/api/nilai/tagihan', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, materi: t.materi, jenis: t.jenis, nama: t.nama, topik: t.topik, tahun_ajaran: tahunAjaran })
+                        });
+                    }
+                    for (const t of topicsToUpdate) {
+                        await fetch('/api/nilai/tagihan', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ nip: user.nip, kelas, mapel, semester, ...t, nama: t.nama_tagihan, materi: t.materi_tp, tahun_ajaran: tahunAjaran })
+                        });
+                    }
+                    const res = await fetch(`/api/nilai?nip=${user.nip}&kelas=${encodeURIComponent(kelas)}&mapel=${encodeURIComponent(mapel)}&semester=${semester}&tahun_ajaran=${encodeURIComponent(tahunAjaran)}`);
+                    const json = await res.json();
+                    if (json.ok) setTagihanConfig(json.data.tagihan);
                 }
 
-                htmlContent += `<p class="text-xs text-slate-500 mt-2 border-t pt-2">Data masuk ke mode <b>DRAFT</b>. Silakan review dan klik tombol <b>SIMPAN</b> (Awan Biru) untuk menyimpan permanen.</p></div>`;
+                const newChanges = { ...changes };
+                updates.forEach(u => newChanges[u.key] = u.val);
+                setChanges(newChanges);
 
-                Swal.fire({
-                    icon: errors.length > 0 && validRows === 0 ? 'error' : (errors.length > 0 ? 'warning' : 'success'),
-                    title: 'Hasil Import',
-                    html: htmlContent,
-                    width: '600px'
-                });
+                Swal.fire({ icon: 'success', title: 'Import Berhasil', text: `${successCount} data berhasil dimuat.`, timer: 2000 });
+                setShowImportModal(false);
 
             } catch (err: any) {
-                Swal.fire('Import Error', err.message, 'error');
+                Swal.fire({
+                    title: 'Error',
+                    text: err.message,
+                    icon: 'error',
+                    confirmButtonText: 'Tutup',
+                    confirmButtonColor: '#1E293B',
+                    showConfirmButton: true,
+                    showCloseButton: true,
+                    allowOutsideClick: true
+                });
             }
         };
         reader.readAsBinaryString(file);
@@ -1114,7 +1066,8 @@ export default function NilaiPage() {
                                     : activeMode === 'PAS' ? (<th className="w-32">PAS</th>)
                                         : tagihanConfig
                                             .filter(t => (t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi))
-                                            .filter(t => activeTags.has(`${(activeMode.charAt(0) + activeMode.slice(1).toLowerCase())}||${materi}||${t.nama_tagihan}`)) // ONLY SHOW ACTIVE
+                                            .filter(t => activeTags.has(`${(activeMode.charAt(0) + activeMode.slice(1).toLowerCase())}||${materi}||${t.nama_tagihan}`) || forcedVisibleTags.has(`${(activeMode.charAt(0) + activeMode.slice(1).toLowerCase())}||${materi}||${t.nama_tagihan}`) || cleanTopic(t.topik))
+                                            .sort((a, b) => (parseInt(a.nama_tagihan.split('_')[1] || '0') - parseInt(b.nama_tagihan.split('_')[1] || '0')))
                                             .map(t => (
                                                 <th key={t.id} className="min-w-[120px]">
                                                     <div className="flex flex-col gap-1">
@@ -1131,7 +1084,7 @@ export default function NilaiPage() {
                         <tbody>
                             {filteredSiswa.map((s, idx) => (
                                 <tr key={s.nisn}>
-                                    <td className="text-center text-slate-400 text-xs">{idx + 1}</td>
+                                    <td className="text-center nl__index">{idx + 1}</td>
                                     <td className="text-center"><span className="nl__idBadge">{s.nisn}</span></td>
                                     <td className="nl__studentName">{s.nama_siswa || (s as any).nama}</td>
                                     {activeMode === 'REKAP' ? (
@@ -1144,7 +1097,8 @@ export default function NilaiPage() {
                                         (activeMode === 'UH' || activeMode === 'PAS' ? [activeMode] :
                                             tagihanConfig
                                                 .filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi)
-                                                .filter(t => activeTags.has(`${t.jenis}||${materi}||${t.nama_tagihan}`)) // SYNC FILTER
+                                                .filter(t => activeTags.has(`${t.jenis}||${materi}||${t.nama_tagihan}`) || forcedVisibleTags.has(`${t.jenis}||${materi}||${t.nama_tagihan}`) || cleanTopic(t.topik)) // SYNC FILTER
+                                                .sort((a, b) => (parseInt(a.nama_tagihan.split('_')[1] || '0') - parseInt(b.nama_tagihan.split('_')[1] || '0')))
                                         ).map((it, cIdx) => (
                                             <td key={typeof it === 'string' ? it : it.id}>
                                                 <input
@@ -1173,30 +1127,31 @@ export default function NilaiPage() {
                 </div>
 
                 {/* Topic Description Section - Aligned with nl__tableWrap */}
-                {/* Topic Description Section - Aligned with nl__tableWrap */}
+                {/* Topic Description Section - Elegant Redesign */}
                 {(activeMode === 'KUIS' || activeMode === 'TUGAS') && (
-                    <div className="nl__tableWrap mt-4 p-6">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <div className="nl__topicsContainer animate-fade">
+                        <div className="nl__topicsHeader">
                             <i className="bi bi-info-circle-fill text-blue-500"></i>
-                            Keterangan Materi
+                            <span className="nl__topicsTitle">Keterangan Materi</span>
                         </div>
 
-                        {/* Modified Layout: Column-major flow (Left then Right) */}
-                        <div className="columns-1 md:columns-2 gap-20 space-y-2">
+                        <div className="nl__topicsGrid">
                             {tagihanConfig
                                 .filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi)
-                                .filter(t => cleanTopic(t.topik)) // Only show if topic is filled
+                                .filter(t => cleanTopic(t.topik))
                                 .sort((a, b) => {
                                     const numA = parseInt(a.nama_tagihan.split('_')[1]) || 0;
                                     const numB = parseInt(b.nama_tagihan.split('_')[1]) || 0;
                                     return numA - numB;
                                 })
                                 .map(t => (
-                                    <div key={t.id || t.nama_tagihan} className="break-inside-avoid w-full flex items-baseline justify-between py-2 border-b border-dashed border-slate-200">
-                                        <span className="font-bold text-xs text-slate-400 uppercase tracking-wider shrink-0">{t.nama_tagihan.replace(/_/g, ' ')}</span>
-                                        <span className="text-sm font-semibold text-slate-700 text-right truncate pl-6 max-w-[75%]" title={cleanTopic(t.topik)}>
+                                    <div key={t.id || t.nama_tagihan} className="nl__topicItem" title={cleanTopic(t.topik)}>
+                                        <div className="nl__topicLabel">
+                                            {t.nama_tagihan.replace(/_/g, ' ')}
+                                        </div>
+                                        <div className="nl__topicText">
                                             {cleanTopic(t.topik)}
-                                        </span>
+                                        </div>
                                     </div>
                                 ))
                             }
@@ -1204,7 +1159,10 @@ export default function NilaiPage() {
                             {tagihanConfig
                                 .filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi)
                                 .filter(t => cleanTopic(t.topik)).length === 0 && (
-                                    <div className="text-slate-400 italic text-sm text-center py-4 col-span-full">Belum ada keterangan materi yang terisi.</div>
+                                    <div className="text-slate-400 italic text-sm text-center py-6 w-full flex items-center justify-center gap-2">
+                                        <i className="bi bi-inbox text-lg"></i>
+                                        Belum ada keterangan materi yang terisi.
+                                    </div>
                                 )}
                         </div>
                     </div>
@@ -1269,22 +1227,30 @@ export default function NilaiPage() {
                                         </div>
                                     )
                                 ) : (
-                                    tagihanConfig.filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi).map(t => {
-                                        const score = getScore(s.nisn, t.jenis, materi, t.nama_tagihan);
-                                        if (score && score !== "") {
-                                            return (
-                                                <div key={t.id} className="nl__scoreRow">
-                                                    <span className="nl__scoreLabel">{t.nama_tagihan}</span>
-                                                    <input
-                                                        className="nl__mobileScoreInput"
-                                                        value={score}
-                                                        onChange={e => handleScoreChange(s.nisn, t.jenis, materi, t.nama_tagihan, e.target.value)}
-                                                    />
-                                                </div>
-                                            );
-                                        }
-                                        return null;
-                                    })
+                                    tagihanConfig
+                                        .filter(t => t.jenis === (activeMode.charAt(0) + activeMode.slice(1).toLowerCase()) && t.materi_tp === materi)
+                                        .sort((a, b) => {
+                                            const re = new RegExp('[ _](\\d+)$');
+                                            const nA = parseInt(a.nama_tagihan.match(re)?.[1] || '0');
+                                            const nB = parseInt(b.nama_tagihan.match(re)?.[1] || '0');
+                                            return nA - nB;
+                                        })
+                                        .map(t => {
+                                            const score = getScore(s.nisn, t.jenis, materi, t.nama_tagihan);
+                                            if (score && score !== "") {
+                                                return (
+                                                    <div key={t.id} className="nl__scoreRow">
+                                                        <span className="nl__scoreLabel">{t.nama_tagihan}</span>
+                                                        <input
+                                                            className="nl__mobileScoreInput"
+                                                            value={score}
+                                                            onChange={e => handleScoreChange(s.nisn, t.jenis, materi, t.nama_tagihan, e.target.value)}
+                                                        />
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })
                                 )}
                             </div>
                         </div>
@@ -1379,6 +1345,11 @@ export default function NilaiPage() {
                                             const res = await fetch('/api/nilai/tagihan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                             const json = await res.json();
                                             if (!res.ok || !json.ok) throw new Error(json.error || 'Gagal menyimpan');
+
+                                            // Force visibility for the improved UX (so it doesn't disappear if empty)
+                                            const newKey = `${body.jenis}||${body.materi}||${body.nama}`;
+                                            setForcedVisibleTags(prev => new Set(prev).add(newKey));
+
                                             setShowTagihanModal(false); setEditingTagihan(null); loadData();
                                         } catch (err: any) { Swal.fire('Error', err.message, 'error'); } finally { setLoading(false); }
                                     }}>Simpan</button>
@@ -1400,39 +1371,49 @@ export default function NilaiPage() {
                             </div>
                             <div className="nl__modalBody">
                                 <div className="grid grid-cols-3 gap-4 mb-6">
-                                    {['kuis', 'tugas', 'uh'].map(k => (
-                                        <div key={k} className="nl__formGroup">
-                                            <label className="nl__formLabel">{k.toUpperCase()}</label>
-                                            <input
-                                                type="number"
-                                                className="nl__formInput text-center"
-                                                value={(bobot.ratioHarian as any)[k]}
-                                                onChange={e => setBobot({ ...bobot, ratioHarian: { ...bobot.ratioHarian, [k]: parseInt(e.target.value) || 0 } })}
-                                            />
-                                        </div>
-                                    ))}
+                                    {['kuis', 'tugas', 'uh'].map(k => {
+                                        const totalHarian = (bobot.ratioHarian.kuis || 0) + (bobot.ratioHarian.tugas || 0) + (bobot.ratioHarian.uh || 0);
+                                        const val = (bobot.ratioHarian as any)[k] || 0;
+                                        const percent = totalHarian > 0 ? Math.round((val / totalHarian) * 100) : 0;
+
+                                        return (
+                                            <div key={k} className="nl__formGroup">
+                                                <label className="nl__formLabel">{k.toUpperCase()}</label>
+                                                <input
+                                                    type="number"
+                                                    className="nl__formInput text-center"
+                                                    value={val}
+                                                    onChange={e => setBobot({ ...bobot, ratioHarian: { ...bobot.ratioHarian, [k]: parseInt(e.target.value) || 0 } })}
+                                                />
+                                                <div className="text-[10px] text-center mt-1 text-slate-400 font-bold">{percent}%</div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                                 <div className="border-t border-slate-100 pt-6 mb-2">
                                     <label className="nl__formLabel mb-4">Bobot Rapor</label>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div className="nl__formGroup">
-                                            <label className="nl__formLabel">Rerata SUM (Sumatif)</label>
-                                            <input
-                                                type="number"
-                                                className="nl__formInput text-center"
-                                                value={bobot.ratioRapor.sums}
-                                                onChange={e => setBobot({ ...bobot, ratioRapor: { ...bobot.ratioRapor, sums: parseInt(e.target.value) || 0 } })}
-                                            />
-                                        </div>
-                                        <div className="nl__formGroup">
-                                            <label className="nl__formLabel">Nilai PAS</label>
-                                            <input
-                                                type="number"
-                                                className="nl__formInput text-center"
-                                                value={bobot.ratioRapor.pas}
-                                                onChange={e => setBobot({ ...bobot, ratioRapor: { ...bobot.ratioRapor, pas: parseInt(e.target.value) || 0 } })}
-                                            />
-                                        </div>
+                                        {[
+                                            { label: 'Rerata SUM (Sumatif)', key: 'sums' },
+                                            { label: 'Nilai PAS', key: 'pas' }
+                                        ].map(item => {
+                                            const totalRapor = (bobot.ratioRapor.sums || 0) + (bobot.ratioRapor.pas || 0);
+                                            const val = (bobot.ratioRapor as any)[item.key] || 0;
+                                            const percent = totalRapor > 0 ? Math.round((val / totalRapor) * 100) : 0;
+
+                                            return (
+                                                <div key={item.key} className="nl__formGroup">
+                                                    <label className="nl__formLabel">{item.label}</label>
+                                                    <input
+                                                        type="number"
+                                                        className="nl__formInput text-center"
+                                                        value={val}
+                                                        onChange={e => setBobot({ ...bobot, ratioRapor: { ...bobot.ratioRapor, [item.key]: parseInt(e.target.value) || 0 } })}
+                                                    />
+                                                    <div className="text-[10px] text-center mt-1 text-slate-400 font-bold">{percent}%</div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                                 <div className="border-t border-slate-100 pt-6 mb-2">
@@ -1459,7 +1440,6 @@ export default function NilaiPage() {
                     </div>
                 )
             }
-
-        </PermissionGuard >
+        </PermissionGuard>
     );
 }

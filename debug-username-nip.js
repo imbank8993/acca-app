@@ -7,15 +7,9 @@ const supabase = createClient(
 );
 
 async function check() {
-    console.log('Checking users...');
-    const { data, error } = await supabase.from('users').select('*').limit(5);
-
-    if (error) {
-        console.error('Error:', error);
-        return;
-    }
-
-    console.log('Users Sample:', JSON.stringify(data, null, 2));
+    console.log('Checking for username-based NIP in nilai_data...');
+    const { count } = await supabase.from('nilai_data').select('*', { count: 'exact', head: true }).eq('nip', 'nurmadinah');
+    console.log(`Found: ${count}`);
 }
 
 check();

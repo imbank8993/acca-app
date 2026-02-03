@@ -7,15 +7,9 @@ const supabase = createClient(
 );
 
 async function check() {
-    console.log('Checking users...');
-    const { data, error } = await supabase.from('users').select('*').limit(5);
-
-    if (error) {
-        console.error('Error:', error);
-        return;
-    }
-
-    console.log('Users Sample:', JSON.stringify(data, null, 2));
+    console.log('Checking all grades in February 2026...');
+    const { data } = await supabase.from('nilai_data').select('nip, updated_at').gte('updated_at', '2026-02-01').limit(10);
+    console.log('Results:', JSON.stringify(data, null, 2));
 }
 
 check();

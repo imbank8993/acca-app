@@ -50,13 +50,7 @@ export interface JurnalGuru {
     created_at?: string;
 }
 
-export interface JurnalSettings {
-    is_auto_generate_enabled: boolean;
-    generate_start_date?: string;
-    generate_end_date?: string;
-    skip_holidays?: boolean;
-    created_by?: string;
-}
+
 
 export interface JadwalGuru {
     id?: number;

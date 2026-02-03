@@ -7,15 +7,11 @@ const supabase = createClient(
 );
 
 async function check() {
-    console.log('Checking users...');
-    const { data, error } = await supabase.from('users').select('*').limit(5);
+    const nip = '199402222020122022'; // Nurmadinah
+    console.log(`Checking Jan Jurnal for Nurmadinah...`);
 
-    if (error) {
-        console.error('Error:', error);
-        return;
-    }
-
-    console.log('Users Sample:', JSON.stringify(data, null, 2));
+    const { count } = await supabase.from('jurnal_guru').select('*', { count: 'exact', head: true }).eq('nip', nip).gte('tanggal', '2026-01-01').lte('tanggal', '2026-01-31');
+    console.log('Jan Jurnal Count:', count);
 }
 
 check();

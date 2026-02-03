@@ -47,12 +47,7 @@ export default function JurnalToolbar({
                     />
                 </div>
                 <div className="jt__actions">
-                    {canDo('manage') && (
-                        <Link href="/jurnal/pengaturan" className="jt__btn jt__btnSettings">
-                            <i className="bi bi-gear" />
-                            <span>Pengaturan</span>
-                        </Link>
-                    )}
+
                     <button
                         className="jt__btn jt__btnExport"
                         onClick={() => showExportOptions()}

@@ -7,15 +7,18 @@ const supabase = createClient(
 );
 
 async function check() {
-    console.log('Checking users...');
-    const { data, error } = await supabase.from('users').select('*').limit(5);
+    console.log('Checking lckh_periods...');
+    const { data, error } = await supabase
+        .from('lckh_periods')
+        .select('*')
+        .limit(5);
 
     if (error) {
         console.error('Error:', error);
         return;
     }
 
-    console.log('Users Sample:', JSON.stringify(data, null, 2));
+    console.log('Periods:', JSON.stringify(data, null, 2));
 }
 
 check();

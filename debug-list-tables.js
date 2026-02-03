@@ -7,15 +7,9 @@ const supabase = createClient(
 );
 
 async function check() {
-    console.log('Checking users...');
-    const { data, error } = await supabase.from('users').select('*').limit(5);
-
-    if (error) {
-        console.error('Error:', error);
-        return;
-    }
-
-    console.log('Users Sample:', JSON.stringify(data, null, 2));
+    console.log('Listing tables...');
+    const { data, error } = await supabase.from('users').select('id').limit(1); // just to check connection
+    // We can't list tables via regular REST API. 
+    // But I can try to query a table I suspect.
 }
-
 check();

@@ -7,15 +7,9 @@ const supabase = createClient(
 );
 
 async function check() {
-    console.log('Checking users...');
-    const { data, error } = await supabase.from('users').select('*').limit(5);
-
-    if (error) {
-        console.error('Error:', error);
-        return;
-    }
-
-    console.log('Users Sample:', JSON.stringify(data, null, 2));
+    console.log('Checking assignments for Nurmadinah (199402222020122022)...');
+    const { data } = await supabase.from('tugas_tambahan').select('*').eq('nip', '199402222020122022');
+    console.log('Results:', data);
 }
 
 check();

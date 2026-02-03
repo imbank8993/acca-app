@@ -224,11 +224,11 @@
     background: var(--n-soft);
     padding: 14px 16px;
     text-align: center;
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     font-weight: 700;
     color: var(--n-muted);
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.05em;
     border-bottom: 2px solid var(--n-border);
     transition: all 0.2s;
 }
@@ -286,9 +286,9 @@
     background: transparent;
     text-align: center;
     font-family: inherit;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    color: var(--n-ink);
+    color: #334155;
     outline: none;
     transition: all 0.2s;
 }
@@ -313,16 +313,21 @@
 
 /* --- Badges & Text --- */
 .nl__idBadge {
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    color: var(--n-muted);
-    font-family: 'JetBrains Mono', monospace;
+    color: #334155;
+}
+
+.nl__index {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #334155;
 }
 
 .nl__studentName {
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    color: var(--n-ink);
+    color: #334155;
     padding: 12px 24px;
 }
 
@@ -337,14 +342,14 @@
     border-radius: 10px;
     font-family: inherit;
     font-weight: 600;
-    font-size: 0.95rem;
-    color: var(--n-ink);
+    font-size: 0.9rem;
+    color: #334155;
     border: 1px solid var(--n-border);
 }
 
 .nl__scoreFinal {
     font-family: inherit;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 600;
     color: var(--n-primary);
 }
@@ -784,6 +789,97 @@
     .nl__modeSwitcher--mobile {
         display: none;
     }
+}
+
+/* --- Topic Description (Elegant Redesign) --- */
+.nl__topicsContainer {
+    background: var(--n-card);
+    border-radius: 28px;
+    border: 1px solid var(--n-border);
+    box-shadow: var(--n-shadow);
+    overflow: hidden;
+    margin-top: 24px;
+    transition: all 0.3s ease;
+}
+
+.nl__topicsHeader {
+    background: linear-gradient(to right, var(--n-soft), transparent);
+    padding: 18px 30px;
+    border-bottom: 1px solid var(--n-border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nl__topicsTitle {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--n-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.nl__topicsGrid {
+    padding: 24px 30px;
+    display: grid;
+    grid-template-columns: repeat(1, 1fr);
+    gap: 16px;
+}
+
+@media (min-width: 1024px) {
+    .nl__topicsGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.nl__topicItem {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    background: rgba(248, 250, 252, 0.5);
+    border: 1px solid rgba(15, 23, 42, 0.03);
+    border-radius: 16px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nl__topicItem:hover {
+    background: white;
+    border-color: var(--n-primary);
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0, 56, 168, 0.05);
+}
+
+.dark .nl__topicItem {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.dark .nl__topicItem:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.nl__topicLabel {
+    flex-shrink: 0;
+    background: white;
+    padding: 6px 12px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--n-primary);
+    box-shadow: 0 2px 4px rgba(0, 56, 168, 0.08);
+    border: 1px solid rgba(0, 56, 168, 0.1);
+    min-width: 60px;
+    text-align: center;
+}
+
+.nl__topicText {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #334155;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* 2x2 Select Matrix for Mobile */

@@ -143,9 +143,17 @@ export async function DELETE(request: NextRequest) {
             .eq('materi_tp', target.materi_tp)
             .eq('jenis', target.jenis)
             .eq('tahun_ajaran', target.tahun_ajaran || '2024/2025')
-            .order('created_at', { ascending: true }); // Keep original order
+            .eq('tahun_ajaran', target.tahun_ajaran || '2024/2025');
+        // .order('created_at', { ascending: true }); // Remove DB sort, use robust memory sort
 
         if (remaining && remaining.length > 0) {
+            // Sort by existing index (Reliable Stability)
+            remaining.sort((a, b) => {
+                const numA = parseInt(a.nama_tagihan.split('_')[1] || '999');
+                const numB = parseInt(b.nama_tagihan.split('_')[1] || '999');
+                return numA - numB;
+            });
+
             for (let i = 0; i < remaining.length; i++) {
                 const item = remaining[i];
                 const prefix = target.jenis.toUpperCase();
