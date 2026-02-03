@@ -101,7 +101,7 @@ export default function LckhPage() {
             // Update Module Counts
             setModules(prev => prev.map(m => {
                 if (m.id === 'JURNAL') return { ...m, count: data.snap_ringkasan_umum?.total_jurnal_isi || 0 };
-                if (m.id === 'ABSENSI') return { ...m, count: data.snap_total_jam_mengajar || 0 }; // Using hours/sessions
+                if (m.id === 'ABSENSI') return { ...m, count: data.rekap_absensi_siswa?.length || 0 }; // Count rekap entries
                 if (m.id === 'NILAI') return { ...m, count: data.snap_ringkasan_umum?.total_nilai_input || 0 };
                 if (m.id === 'TUGAS') return { ...m, count: data.lampiran_tugas?.length || 0 };
                 return m;
@@ -140,7 +140,7 @@ export default function LckhPage() {
                 // Update Module Counts from generated data
                 setModules(prev => prev.map(m => {
                     if (m.id === 'JURNAL') return { ...m, count: json.data.total_jurnal_isi || 0 };
-                    if (m.id === 'ABSENSI') return { ...m, count: json.data.total_jam_mengajar || 0 };
+                    if (m.id === 'ABSENSI') return { ...m, count: json.data.rekap_absensi_siswa?.length || 0 };
                     if (m.id === 'NILAI') return { ...m, count: json.data.total_nilai_input || 0 };
                     if (m.id === 'TUGAS') return { ...m, count: json.data.total_tugas || 0 };
                     return m;
