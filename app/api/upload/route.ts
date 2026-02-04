@@ -5,13 +5,19 @@ export async function POST(req: NextRequest) {
     try {
         const formData = await req.formData();
         const file = formData.get('file') as File;
+        const folder = formData.get('folder') as string || 'uploads';
+        const customName = formData.get('customName') as string;
 
         if (!file) {
             return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
         }
 
         const fileExt = file.name.split('.').pop();
-        const fileName = `tugas-tambahan/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+        const rawFileName = customName
+            ? `${customName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${Date.now()}.${fileExt}`
+            : `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+
+        const fileName = `${folder}/${rawFileName}`;
 
         // Convert file to ArrayBuffer for upload (Node.js environment)
         const arrayBuffer = await file.arrayBuffer();

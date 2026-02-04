@@ -47,17 +47,19 @@ export default function LckhPage() {
                 if (pData) setPeriods(pData);
 
                 // Fetch All Submissions for Side Menu
-                fetchSubmissionsList(user.id);
+                if (uData?.nip) {
+                    fetchSubmissionsList(uData.nip);
+                }
             }
         };
         init();
     }, []);
 
-    const fetchSubmissionsList = async (uid: string) => {
+    const fetchSubmissionsList = async (nip: string) => {
         const { data } = await supabase
             .from('lckh_submissions')
             .select('*, lckh_periods(periode_nama, tgl_awal)')
-            .eq('user_id', uid)
+            .eq('nip', nip)
             .order('created_at', { ascending: false });
 
         if (data) setSubmissionsList(data);
@@ -65,21 +67,21 @@ export default function LckhPage() {
 
     // When Period changes, fetch details
     useEffect(() => {
-        if (user && selectedPeriod) {
-            fetchSubmissionDetail(user.id, selectedPeriod);
+        if (userData && selectedPeriod) {
+            fetchSubmissionDetail(userData.nip, selectedPeriod);
         } else {
             setSubmission(null);
             setSummary(null);
             setCatatan('');
         }
-    }, [user, selectedPeriod]);
+    }, [userData, selectedPeriod]);
 
-    const fetchSubmissionDetail = async (uid: string, pCode: string) => {
+    const fetchSubmissionDetail = async (nip: string, pCode: string) => {
         setLoading(true);
         const { data } = await supabase
             .from('lckh_submissions')
             .select('*')
-            .eq('user_id', uid)
+            .eq('nip', nip)
             .eq('periode_kode', pCode)
             .single();
 
@@ -101,7 +103,7 @@ export default function LckhPage() {
             // Update Module Counts
             setModules(prev => prev.map(m => {
                 if (m.id === 'JURNAL') return { ...m, count: data.snap_ringkasan_umum?.total_jurnal_isi || 0 };
-                if (m.id === 'ABSENSI') return { ...m, count: data.rekap_absensi_siswa?.length || 0 }; // Count rekap entries
+                if (m.id === 'ABSENSI') return { ...m, count: data.lampiran_absensi?.length || 0 }; // FIX: use lampiran_absensi
                 if (m.id === 'NILAI') return { ...m, count: data.snap_ringkasan_umum?.total_nilai_input || 0 };
                 if (m.id === 'TUGAS') return { ...m, count: data.lampiran_tugas?.length || 0 };
                 return m;
@@ -259,8 +261,8 @@ export default function LckhPage() {
 
             const payload = {
                 user_id: user.id,
-                nama_guru_snap: userData.nama_lengkap,
                 nip: userData.nip,
+                nama_guru_snap: userData.nama_lengkap,
                 periode_kode: selectedPeriod,
                 bulan: pMeta.month,
                 tahun: pMeta.year,
@@ -289,8 +291,10 @@ export default function LckhPage() {
             if (res.error) throw res.error;
 
             Swal.fire('Sukses', isSubmit ? 'Laporan berhasil diajukan.' : 'Draft tersimpan.', 'success');
-            fetchSubmissionsList(user.id);
-            fetchSubmissionDetail(user.id, selectedPeriod);
+            if (userData?.nip) {
+                fetchSubmissionsList(userData.nip);
+                fetchSubmissionDetail(userData.nip, selectedPeriod);
+            }
 
         } catch (e: any) {
             Swal.fire('Gagal', e.message, 'error');
@@ -315,7 +319,7 @@ export default function LckhPage() {
             Swal.fire('Terhapus', 'Laporan dihapus.', 'success');
             setSubmission(null);
             setSummary(null);
-            fetchSubmissionsList(user.id);
+            if (userData?.nip) fetchSubmissionsList(userData.nip);
         }
     };
 
@@ -448,34 +452,77 @@ export default function LckhPage() {
                                     </div>
                                 </header>
 
+                                {/* Catatan Reviewer Alert - Show when there's feedback from reviewer */}
+                                {submission?.catatan_reviewer && (
+                                    <div className={`no-print mx-6 mt-4 p-4 rounded-2xl border-2 ${submission.status === 'Revisi'
+                                        ? 'bg-red-50 border-red-200'
+                                        : 'bg-blue-50 border-blue-200'
+                                        }`}>
+                                        <div className="flex items-start gap-3">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${submission.status === 'Revisi'
+                                                ? 'bg-red-100 text-red-600'
+                                                : 'bg-blue-100 text-blue-600'
+                                                }`}>
+                                                <i className={`bi ${submission.status === 'Revisi' ? 'bi-exclamation-triangle-fill' : 'bi-chat-left-text-fill'} text-lg`}></i>
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <h4 className={`font-black text-sm uppercase tracking-wider ${submission.status === 'Revisi'
+                                                        ? 'text-red-700'
+                                                        : 'text-blue-700'
+                                                        }`}>
+                                                        {submission.status === 'Revisi' ? '⚠️ PERLU PERBAIKAN' : '📝 CATATAN REVIEWER'}
+                                                    </h4>
+                                                    {submission.status === 'Revisi' && (
+                                                        <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[8px] font-bold uppercase">
+                                                            Revisi Diperlukan
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className={`text-sm font-medium leading-relaxed ${submission.status === 'Revisi'
+                                                    ? 'text-red-800'
+                                                    : 'text-blue-800'
+                                                    }`}>
+                                                    {submission.catatan_reviewer}
+                                                </div>
+                                                <div className="mt-3 flex items-center gap-2 text-[10px] text-gray-500 font-semibold">
+                                                    <i className="bi bi-person-badge"></i>
+                                                    <span>
+                                                        {submission.approved_by_waka && `Waka: ${submission.approved_by_waka}`}
+                                                        {submission.approved_by_kamad && ` • Kamad: ${submission.approved_by_kamad}`}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Float Action Toolbar */}
-                                <div className="no-print sticky top-0 z-[30] bg-white/80 backdrop-blur-md border-b border-gray-100/50 px-6 py-2 flex items-center justify-between">
-                                    <div className="flex items-center gap-1.5 bg-gray-50 p-1 rounded-lg border border-gray-200/50">
+                                <div className="no-print sticky top-0 z-[30] bg-white/80 backdrop-blur-md border-b border-gray-100/50 px-6 py-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
                                         <button
                                             onClick={handleDelete}
                                             disabled={!submission || !['Draft', 'Revisi', 'Submitted'].includes(submission.status)}
-                                            className="h-7 px-2.5 rounded-md border border-red-50 bg-white text-red-500 hover:bg-red-50 transition-all text-[9px] font-black uppercase tracking-wider flex items-center gap-1 disabled:opacity-30 disabled:grayscale"
+                                            className="h-9 px-4 rounded-md border border-red-200 bg-white text-red-600 hover:bg-red-50 hover:border-red-300 transition-all text-xs font-semibold flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
                                         >
-                                            <i className="bi bi-trash3 text-xs"></i> <span>Hapus</span>
+                                            <i className="bi bi-trash3 text-sm"></i> <span>Hapus</span>
                                         </button>
-
-                                        <div className="w-px h-4 bg-gray-200/60 mx-0.5"></div>
 
                                         <button
                                             onClick={generateSummary}
                                             disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
-                                            className="h-7 px-3 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all text-[9px] font-black uppercase tracking-wider flex items-center gap-1 disabled:opacity-50"
+                                            className="h-9 px-4 rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all text-xs font-semibold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                                         >
-                                            <i className={`bi bi-arrow-repeat text-xs ${loading ? 'animate-spin' : ''}`}></i>
+                                            <i className={`bi bi-arrow-repeat text-sm ${loading ? 'animate-spin' : ''}`}></i>
                                             <span>Refresh</span>
                                         </button>
 
                                         <button
                                             onClick={() => handleSave(false)}
                                             disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
-                                            className="h-7 px-3 rounded-md border border-blue-100 bg-white text-[#0038A8] hover:bg-blue-50 transition-all text-[9px] font-black uppercase tracking-wider flex items-center gap-1 disabled:opacity-50"
+                                            className="h-9 px-4 rounded-md border border-blue-200 bg-white text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all text-xs font-semibold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                                         >
-                                            <i className="bi bi-cloud-arrow-up text-xs"></i>
+                                            <i className="bi bi-cloud-arrow-up text-sm"></i>
                                             <span>Simpan</span>
                                         </button>
 
@@ -492,9 +539,9 @@ export default function LckhPage() {
                                                 }).then(r => { if (r.isConfirmed) handleSave(true); });
                                             }}
                                             disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
-                                            className="h-7 px-4 rounded-md bg-[#0038A8] text-white hover:bg-blue-800 transition-all text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md shadow-blue-900/10 disabled:opacity-50"
+                                            className="h-9 px-4 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all text-xs font-semibold flex items-center gap-2 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                                         >
-                                            <i className="bi bi-send-check text-xs"></i>
+                                            <i className="bi bi-send-check text-sm"></i>
                                             <span>{submission?.status === 'Submitted' ? 'Update' : 'Ajukan'}</span>
                                         </button>
                                     </div>
@@ -502,10 +549,9 @@ export default function LckhPage() {
                                     <button
                                         onClick={() => window.print()}
                                         disabled={!summary}
-                                        className="h-7 px-4 rounded-md bg-gray-900 text-white hover:bg-black transition-all text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-gray-900/10 disabled:opacity-50"
+                                        className="h-9 px-5 rounded-md bg-gray-900 text-white hover:bg-black transition-all text-xs font-semibold flex items-center gap-2 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
-                                        <i className="bi bi-printer text-xs"></i>
-                                        <span>Cetak PDF</span>
+                                        <i className="bi bi-printer text-sm"></i> <span>Cetak PDF</span>
                                     </button>
                                 </div>
 
@@ -858,6 +904,17 @@ export default function LckhPage() {
 function ModulePreviewModal({ moduleCode, data, onClose }: any) {
     const [tabLocal, setTabLocal] = useState<'RECAP' | 'GRID'>('RECAP');
     const [selectedClass, setSelectedClass] = useState<string>('');
+    const [nilaiDetailModal, setNilaiDetailModal] = useState<{
+        open: boolean;
+        loading: boolean;
+        data: any;
+        error: string | null;
+    }>({
+        open: false,
+        loading: false,
+        data: null,
+        error: null
+    });
 
     useEffect(() => {
         if (moduleCode === 'ABSENSI' && data?.rekap_absensi_siswa?.length > 0) {
@@ -1163,14 +1220,18 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
     } else if (moduleCode === 'TUGAS') {
         title = 'Analisis Tugas Tambahan';
         content = (
-            <div className="p-6 md:p-10 max-w-5xl mx-auto w-full">
-                <div className="bg-gradient-to-tr from-[#0038A8] to-blue-600 rounded-3xl p-8 md:p-10 mb-10 text-white relative overflow-hidden shadow-xl shadow-blue-200/50">
-                    <div className="relative z-10">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.3em] mb-2 opacity-80">DAILY EXECUTIVE SUMMARY</div>
-                        <div className="text-3xl md:text-4xl font-black mb-2 tracking-tight">Kinerja Harian</div>
-                        <div className="text-sm opacity-70 font-medium max-w-lg leading-relaxed">Rekapitulasi komprehensif seluruh aktivitas manajerial, koordinasi, dan tugas tambahan harian.</div>
+            <div className="p-6 md:p-8 max-w-5xl mx-auto w-full">
+                {/* Professional Stats Row */}
+                <div className="flex items-center gap-8 mb-6 pb-5 border-b border-gray-200">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <i className="bi bi-briefcase text-blue-600 text-lg"></i>
+                        </div>
+                        <div>
+                            <div className="text-xs text-gray-500 mb-0.5">Total Tugas</div>
+                            <div className="text-xl font-bold text-gray-900">{data.detail_tugas?.length || 0}</div>
+                        </div>
                     </div>
-                    <div className="absolute -bottom-20 -right-20 w-60 h-60 bg-white/10 rounded-full blur-[60px]"></div>
                 </div>
 
                 <div className="space-y-10 pl-4 md:pl-6">
@@ -1215,8 +1276,12 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                         </div>
                     ))}
                     {!data.detail_tugas?.length && (
-                        <div className="text-center py-20 opacity-10">
-                            <i className="bi bi-journal-x text-[8rem]"></i>
+                        <div className="text-center py-16">
+                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center">
+                                <i className="bi bi-briefcase text-3xl text-gray-400"></i>
+                            </div>
+                            <div className="text-sm font-semibold text-gray-900 mb-1">Belum ada tugas tambahan</div>
+                            <p className="text-xs text-gray-500">Data tugas tambahan akan muncul di sini</p>
                         </div>
                     )}
                 </div>
@@ -1225,65 +1290,125 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
     } else if (moduleCode === 'NILAI') {
         title = 'Dashboard Capaian Akademik';
         content = (
-            <div className="p-6 md:p-10 max-w-6xl mx-auto w-full">
-                <div className="bg-gradient-to-br from-[#0038A8] to-indigo-900 rounded-3xl p-8 md:p-10 mb-10 text-white shadow-xl shadow-blue-200/50 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
-                    <div className="relative z-10 text-center md:text-left">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.3em] opacity-80 mb-2">ACADEMIC PERFORMANCE TRACKER</div>
-                        <div className="text-3xl md:text-4xl font-black mb-2 tracking-tight">Evaluasi Pembelajaran</div>
-                        <div className="text-sm opacity-70 font-medium">Monitoring input nilai formatif dan sumatif secara real-time.</div>
+            <div className="p-6 md:p-8 max-w-5xl mx-auto w-full">
+                {/* Professional Stats Row */}
+                <div className="flex items-center gap-8 mb-6 pb-5 border-b border-gray-200">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+                            <i className="bi bi-bar-chart-fill text-indigo-600 text-lg"></i>
+                        </div>
+                        <div>
+                            <div className="text-xs text-gray-500 mb-0.5">Kolom Terinput</div>
+                            <div className="text-xl font-bold text-gray-900">{data.total_nilai_input}</div>
+                        </div>
                     </div>
-                    <div className="relative z-10 text-center bg-white/10 backdrop-blur-3xl px-8 py-6 rounded-2xl border border-white/20 shadow-xl">
-                        <div className="text-4xl font-black mb-0.5">{data.total_nilai_input}</div>
-                        <div className="text-[9px] font-bold uppercase tracking-widest opacity-60">Kolom Terinput</div>
-                    </div>
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2"></div>
                 </div>
 
-                <div className="overflow-x-auto rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 bg-white">
-                    <table className="w-full text-xs text-left border-collapse">
-                        <thead className="bg-gray-50/80 text-gray-400">
+                {/* Enhanced Professional Table */}
+                <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+                    <table className="w-full text-sm border-separate" style={{ borderSpacing: '0 1px' }}>
+                        <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                             <tr>
-                                <th className="px-6 py-3 text-[10px] uppercase font-bold tracking-widest w-48">Kelas & Mapel</th>
-                                <th className="px-4 py-3 text-[10px] uppercase font-bold tracking-widest text-center w-32">Jenis Tes</th>
-                                <th className="px-6 py-3 text-[10px] uppercase font-bold tracking-widest">Materi</th>
-                                <th className="px-6 py-3 text-[10px] uppercase font-bold tracking-widest text-right w-40">Update</th>
+                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider w-48 first:rounded-tl-lg">Kelas & Mapel</th>
+                                <th className="px-6 py-6 text-center text-xs font-bold uppercase tracking-wider w-32">Jenis Tes</th>
+                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider">Materi</th>
+                                <th className="px-6 py-6 text-right text-xs font-bold uppercase tracking-wider w-40">Update</th>
+                                <th className="px-6 py-6 text-center text-xs font-bold uppercase tracking-wider w-24 last:rounded-tr-lg">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="bg-gray-50">
                             {data.detail_nilai?.map((n: any, idx: number) => (
-                                <tr key={idx} className="hover:bg-blue-50/20 transition-all group">
-                                    <td className="px-6 py-4">
-                                        <div className="font-bold text-gray-800 text-sm mb-0.5">{n.kelas}</div>
-                                        <div className="text-[#0038A8] font-bold text-[9px] uppercase tracking-wider">{n.mapel}</div>
+                                <tr key={idx} className="bg-white hover:bg-blue-50/40 transition-colors">
+                                    <td className="px-6 py-4 rounded-l-md">
+                                        <div className="text-sm font-semibold text-gray-900">{n.kelas}</div>
+                                        <div className="text-xs text-gray-600 mt-0.5">{n.mapel}</div>
                                     </td>
-                                    <td className="px-4 py-4 text-center">
-                                        <span className={`inline-block px-3 py-1 rounded-lg text-[8px] font-bold tracking-widest uppercase border border-opacity-50 shadow-sm ${n.jenis === 'Sum' ? 'bg-purple-50 text-purple-600 border-purple-100' :
-                                            n.jenis === 'Pas' ? 'bg-orange-50 text-orange-600 border-orange-100' :
-                                                'bg-blue-50 text-blue-600 border-blue-100'
+                                    <td className="px-6 py-4 text-center">
+                                        <span className={`inline-block px-3 py-1.5 text-xs font-semibold rounded-md ${n.jenis === 'Sum' ? 'bg-purple-100 text-purple-700' :
+                                            n.jenis === 'Pas' ? 'bg-orange-100 text-orange-700' :
+                                                'bg-blue-100 text-blue-700'
                                             }`}>
                                             {n.jenis === 'Sum' ? 'SUMATIF' : n.jenis === 'Pas' ? 'SAS / PAS' : 'FORMATIF'}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="text-gray-800 font-bold leading-snug text-sm mb-1">{n.materi}</div>
-                                        <div className="text-[9px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
-                                            <span className="w-1 h-1 rounded-full bg-gray-300"></span> {n.tagihan || 'KOLOM UTAMA'}
-                                        </div>
+                                        <div className="text-sm text-gray-900 mb-1">{n.materi}</div>
+                                        <div className="text-xs text-gray-500">{n.tagihan || 'Kolom Utama'}</div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <div className="text-xs font-bold text-gray-800 mb-0.5">{n.last_update ? new Date(n.last_update).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}</div>
-                                        <div className="text-[8px] text-gray-400 font-bold uppercase tracking-widest flex items-center justify-end gap-1.5">
-                                            <i className="bi bi-clock text-[9px]"></i> {n.last_update ? new Date(n.last_update).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                        <div className="text-xs text-gray-900">
+                                            {n.last_update ? new Date(n.last_update).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
                                         </div>
+                                        <div className="text-xs text-gray-500 mt-0.5">
+                                            {n.last_update ? new Date(n.last_update).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-center rounded-r-md">
+                                        <button
+                                            onClick={async () => {
+                                                setNilaiDetailModal({ open: true, loading: true, data: null, error: null });
+
+                                                try {
+                                                    // Pass kolom_id AND metadata as fallback for older saved data
+                                                    const params = new URLSearchParams();
+                                                    if (n.kolom_id) params.append('kolom_id', n.kolom_id);
+                                                    params.append('kelas', n.kelas || '');
+                                                    params.append('mapel', n.mapel || '');
+                                                    params.append('jenis', n.jenis || '');
+                                                    params.append('materi', n.materi || '');
+                                                    params.append('tagihan', n.tagihan || '');
+
+                                                    const res = await fetch(`/api/lckh/nilai-detail?${params.toString()}`);
+                                                    const result = await res.json();
+
+                                                    if (!res.ok || !result.ok) {
+                                                        throw new Error(result.error || 'Gagal memuat data');
+                                                    }
+
+                                                    setNilaiDetailModal({
+                                                        open: true,
+                                                        loading: false,
+                                                        data: result,
+                                                        error: null
+                                                    });
+                                                } catch (error: any) {
+                                                    setNilaiDetailModal({
+                                                        open: true,
+                                                        loading: false,
+                                                        data: null,
+                                                        error: error.message || 'Terjadi kesalahan'
+                                                    });
+                                                }
+                                            }}
+                                            disabled={nilaiDetailModal.loading}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {nilaiDetailModal.loading ? (
+                                                <>
+                                                    <i className="bi bi-arrow-repeat animate-spin text-sm"></i>
+                                                    <span>Loading...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <i className="bi bi-eye text-sm"></i>
+                                                    <span>View</span>
+                                                </>
+                                            )}
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                     {(!data.detail_nilai || data.detail_nilai.length === 0) && (
-                        <div className="text-center py-20 opacity-20">
-                            <i className="bi bi-patch-minus text-[6rem]"></i>
-                            <p className="text-sm font-bold mt-4 uppercase tracking-widest">No Data Recorded</p>
+                        <div className="px-6 py-16 text-center bg-white rounded-b-lg">
+                            <div className="flex flex-col items-center">
+                                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center">
+                                    <i className="bi bi-bar-chart text-3xl text-gray-400"></i>
+                                </div>
+                                <div className="text-sm font-semibold text-gray-900 mb-1">Belum ada data nilai</div>
+                                <p className="text-xs text-gray-500">Data nilai yang diinput akan muncul di sini</p>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -1320,6 +1445,116 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
                 </div>
 
             </div>
+
+            {/* Nilai Detail Modal */}
+            {nilaiDetailModal.open && (
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 animate-fade-in" onClick={() => setNilaiDetailModal({ open: false, loading: false, data: null, error: null })}>
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+
+                    <div className="bg-white rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl relative z-10" onClick={(e) => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Detail Daftar Nilai</h3>
+                                {nilaiDetailModal.data?.kolom_info && (
+                                    <div className="text-xs text-gray-600 mt-1">
+                                        {nilaiDetailModal.data.kolom_info.kelas} • {nilaiDetailModal.data.kolom_info.mapel} • {nilaiDetailModal.data.kolom_info.jenis}
+                                    </div>
+                                )}
+                            </div>
+                            <button
+                                onClick={() => setNilaiDetailModal({ open: false, loading: false, data: null, error: null })}
+                                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <i className="bi bi-x-lg text-lg"></i>
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {nilaiDetailModal.loading && (
+                                <div className="flex flex-col items-center justify-center py-16">
+                                    <i className="bi bi-arrow-repeat animate-spin text-4xl text-blue-600 mb-4"></i>
+                                    <p className="text-sm font-semibold text-gray-600">Memuat data nilai...</p>
+                                </div>
+                            )}
+
+                            {nilaiDetailModal.error && (
+                                <div className="flex flex-col items-center justify-center py-16">
+                                    <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
+                                        <i className="bi bi-exclamation-triangle text-3xl text-red-600"></i>
+                                    </div>
+                                    <p className="text-sm font-semibold text-gray-900 mb-1">Gagal memuat data</p>
+                                    <p className="text-xs text-gray-500">{nilaiDetailModal.error}</p>
+                                </div>
+                            )}
+
+                            {nilaiDetailModal.data && !nilaiDetailModal.loading && !nilaiDetailModal.error && (
+                                <div>
+                                    {/* Info Section */}
+                                    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                                        <div className="grid grid-cols-2 gap-3 text-sm">
+                                            <div>
+                                                <span className="text-gray-600">Materi:</span>
+                                                <span className="ml-2 font-semibold text-gray-900">{nilaiDetailModal.data.kolom_info.materi}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-600">Tagihan:</span>
+                                                <span className="ml-2 font-semibold text-gray-900">{nilaiDetailModal.data.kolom_info.tagihan}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Table */}
+                                    <div className="overflow-hidden rounded-lg border border-gray-200">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                                                <tr>
+                                                    <th className="px-4 py-4 text-left text-xs font-bold uppercase w-24">NISN</th>
+                                                    <th className="px-4 py-4 text-left text-xs font-bold uppercase">Nama Siswa</th>
+                                                    <th className="px-4 py-4 text-center text-xs font-bold uppercase w-24">Nilai</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-gray-50">
+                                                {nilaiDetailModal.data.students?.map((student: any, idx: number) => (
+                                                    <tr key={idx} className="bg-white hover:bg-blue-50/40 transition-colors border-t border-gray-100">
+                                                        <td className="px-4 py-3 text-gray-600 font-mono text-xs">{student.nisn}</td>
+                                                        <td className="px-4 py-3 text-gray-900 font-semibold">{student.nama}</td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            {student.nilai !== null && student.nilai !== undefined ? (
+                                                                <span className="inline-block px-3 py-1 rounded-md bg-emerald-100 text-emerald-700 font-bold">
+                                                                    {student.nilai}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-gray-400 text-xs">Belum dinilai</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {(!nilaiDetailModal.data.students || nilaiDetailModal.data.students.length === 0) && (
+                                                    <tr>
+                                                        <td colSpan={3} className="px-4 py-12 text-center bg-white">
+                                                            <div className="text-sm text-gray-500">Tidak ada data siswa</div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Summary */}
+                                    {nilaiDetailModal.data.students && nilaiDetailModal.data.students.length > 0 && (
+                                        <div className="mt-4 flex items-center justify-between text-xs text-gray-600 px-2">
+                                            <span>Total Siswa: <strong>{nilaiDetailModal.data.students.length}</strong></span>
+                                            <span>Sudah Dinilai: <strong>{nilaiDetailModal.data.students.filter((s: any) => s.nilai !== null && s.nilai !== undefined).length}</strong></span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style jsx>{`
                 @keyframes modals-in {

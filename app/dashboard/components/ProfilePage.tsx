@@ -339,7 +339,11 @@ export default function ProfilePage({ user, onRefreshUser }: ProfilePageProps) {
                         <div className="avatar-wrapper">
                             <div className="avatar-preview">
                                 {uploading ? (
-                                    <div className="upload-spinner"><i className="bi bi-arrow-repeat animate-spin"></i></div>
+                                    <div className="loading-bars-inline">
+                                        <div className="bar"></div>
+                                        <div className="bar"></div>
+                                        <div className="bar"></div>
+                                    </div>
                                 ) : formData.photoUrl ? (
                                     <img src={formData.photoUrl} alt="Avatar" />
                                 ) : (
@@ -471,7 +475,14 @@ export default function ProfilePage({ user, onRefreshUser }: ProfilePageProps) {
                     <div className="form-actions">
                         <button type="submit" className="save-btn" disabled={loading || uploading}>
                             {loading ? (
-                                <><span className="spinner"></span> Memproses...</>
+                                <>
+                                    <div className="loading-bars-inline">
+                                        <div className="bar"></div>
+                                        <div className="bar"></div>
+                                        <div className="bar"></div>
+                                    </div>
+                                    <span style={{ marginLeft: '8px' }}>Memproses...</span>
+                                </>
                             ) : (
                                 <><i className="bi bi-shield-check"></i> Simpan Perubahan</>
                             )}
@@ -517,8 +528,30 @@ export default function ProfilePage({ user, onRefreshUser }: ProfilePageProps) {
                 .avatar-btn.remove { background: #ef4444; color: white; }
                 .avatar-btn:hover { transform: scale(1.1); }
 
-                .upload-spinner { font-size: 1.5rem; color: white; }
-                .animate-spin { animation: spin 1s linear infinite; }
+                .loading-bars-inline {
+                    display: flex;
+                    gap: 3px;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .loading-bars-inline .bar {
+                    width: 3px;
+                    height: 12px;
+                    background: #fff;
+                    border-radius: 99px;
+                    animation: waveInline 1s infinite ease-in-out;
+                }
+
+                .loading-bars-inline .bar:nth-child(2) { animation-delay: 0.1s; opacity: 0.8; }
+                .loading-bars-inline .bar:nth-child(3) { animation-delay: 0.2s; opacity: 0.6; }
+
+                @keyframes waveInline {
+                    0%, 40%, 100% { transform: scaleY(0.5); }
+                    20% { transform: scaleY(1.2); }
+                }
+
+                .animate-spin { display: none; }
 
                 .avatar-info h2 { margin: 0; font-size: 1.9rem; font-weight: 850; letter-spacing: -0.02em; }
                 .avatar-info p { margin: 6px 0 0; opacity: 0.8; font-size: 1rem; }
@@ -564,7 +597,7 @@ export default function ProfilePage({ user, onRefreshUser }: ProfilePageProps) {
                 .cam-btn.take:hover { transform: scale(1.1); }
                 .cam-btn.close { background: #ef4444; color: white; }
 
-                .spinner { width: 22px; height: 22px; border: 3px solid rgba(255, 255, 255, 0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
+                .spinner { display: none; }
                 @keyframes spin { to { transform: rotate(360deg); } }
 
                 /* CROP STYLES */

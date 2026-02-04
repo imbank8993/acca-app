@@ -52,7 +52,11 @@ export default function JurnalTable({
                         <tr>
                             <td colSpan={7} className="jt__empty">
                                 <div className="jt__loading">
-                                    <div className="jt__spinner"></div>
+                                    <div className="loading-bars-inline">
+                                        <div className="bar"></div>
+                                        <div className="bar"></div>
+                                        <div className="bar"></div>
+                                    </div>
                                     Memuat data...
                                 </div>
                             </td>
@@ -281,10 +285,30 @@ export default function JurnalTable({
                 .jt__loading { 
                     display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; gap: 12px; color: var(--n-muted); font-weight: 500;
                 }
-                .jt__spinner {
-                    width: 32px; height: 32px; border: 3px solid var(--n-soft); border-top-color: var(--n-primary); border-radius: 50%; animation: spin 0.8s linear infinite;
+                .loading-bars-inline {
+                    display: flex;
+                    gap: 4px;
+                    align-items: center;
+                    justify-content: center;
                 }
-                @keyframes spin { to { transform: rotate(360deg); } }
+
+                .loading-bars-inline .bar {
+                    width: 4px;
+                    height: 16px;
+                    background: var(--n-primary);
+                    border-radius: 99px;
+                    animation: waveInline 1s infinite ease-in-out;
+                }
+
+                .loading-bars-inline .bar:nth-child(2) { animation-delay: 0.1s; opacity: 0.8; }
+                .loading-bars-inline .bar:nth-child(3) { animation-delay: 0.2s; opacity: 0.6; }
+
+                @keyframes waveInline {
+                    0%, 40%, 100% { transform: scaleY(0.5); }
+                    20% { transform: scaleY(1.3); }
+                }
+
+                .jt__spinner { display: none; }
 
                 @media (max-width: 1024px) {
                     .hidden-lg { display: none; }

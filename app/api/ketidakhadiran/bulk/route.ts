@@ -19,6 +19,7 @@ interface BulkSubmitPayload {
     tgl_selesai: string;
     status: string;
     keterangan: string;
+    file_url?: string;
 }
 
 interface OverlapWarning {
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     try {
         const supabase = getSupabaseAdmin();
         const body: BulkSubmitPayload = await request.json();
-        const { jenis, nisList, tgl_mulai, tgl_selesai, status, keterangan } = body;
+        const { jenis, nisList, tgl_mulai, tgl_selesai, status, keterangan, file_url } = body;
 
         // Get current authenticated user from request headers
         let petugas_role = null;
@@ -54,11 +55,17 @@ export async function POST(request: NextRequest) {
                 if (user && user.id) {
                     console.log('[BULK] Logged in user UUID:', user.id); // Debug
 
+                    // Create admin client for user table read
+                    const supabaseAdmin = createClient(
+                        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                        process.env.SUPABASE_SERVICE_ROLE_KEY!
+                    );
+
                     // Query users table to get role and nip using auth_id column
-                    const { data: userData, error: userError } = await supabase
+                    const { data: userData, error: userError } = await supabaseAdmin
                         .from('users')
                         .select('role, nip, nama')
-                        .eq('auth_id', user.id)  // Changed from 'id' to 'auth_id'
+                        .eq('auth_id', user.id)
                         .single();
 
                     if (userData && !userError) {
@@ -164,7 +171,7 @@ export async function POST(request: NextRequest) {
         // Fetch student data for all NISNs (WHERE aktif = true)
         const { data: siswaData, error: siswaError } = await supabase
             .from('siswa_kelas')
-            .select('nisn, nama, kelas, aktif')
+            .select('nisn, nama_siswa, kelas, aktif')
             .in('nisn', nisList)
             .eq('aktif', true);
 
@@ -177,7 +184,7 @@ export async function POST(request: NextRequest) {
         }
 
         const siswaMap = new Map(
-            (siswaData || []).map(s => [s.nisn, { nama: s.nama, kelas: s.kelas }])
+            (siswaData || []).map(s => [s.nisn, { nama: s.nama_siswa, kelas: s.kelas }])
         );
 
         // Check overlaps for each NISN
@@ -240,6 +247,7 @@ export async function POST(request: NextRequest) {
                 tgl_selesai,
                 status,
                 keterangan,
+                file_url,
                 petugas_role,
                 petugas_nip,
                 petugas_nama,

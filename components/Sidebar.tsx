@@ -82,10 +82,13 @@ export default function Sidebar({
       <aside className={`sidebar ${isOpen ? 'open' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           <div className="brand">
-            <div className="brand-logo-placeholder">
-              <i className="fa-solid fa-graduation-cap"></i>
-            </div>
-            {!isCollapsed && <h1 className="sidebar-title">ACCA</h1>}
+            {isCollapsed ? (
+              <div className="brand-logo">
+                <img src="/logo-a.png" alt="Logo A" className="logo-icon-img" />
+              </div>
+            ) : (
+              <img src="/logo-acca.png" alt="ACCA" className="logo-text-img full-logo" />
+            )}
           </div>
           <button className="collapse-toggle" onClick={onCollapse}>
             <i className={`fa-solid fa-chevron-${isCollapsed ? 'right' : 'left'}`}></i>

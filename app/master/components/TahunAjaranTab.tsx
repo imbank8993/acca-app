@@ -162,10 +162,10 @@ export default function TahunAjaranTab({ user }: { user?: any }) {
                         ) : (
                             list.map((item, idx) => (
                                 <tr key={item.id}>
-                                    <td className="tCenter">{idx + 1}</td>
-                                    <td className="ta__name">{item.tahun_ajaran}</td>
-                                    <td><span className="badge-semester">{item.semester}</span></td>
-                                    <td>
+                                    <td data-label="No" className="tCenter">{idx + 1}</td>
+                                    <td data-label="Tahun Ajaran" className="ta__name">{item.tahun_ajaran}</td>
+                                    <td data-label="Semester"><span className={`badge-semester ${item.semester.toLowerCase()}`}>{item.semester}</span></td>
+                                    <td data-label="Status">
                                         <div className="ta__status">
                                             <div
                                                 className={`ta__toggle ${item.is_active ? 'isActive' : ''} ${!canManage ? 'isReadOnly' : ''}`}
@@ -179,7 +179,7 @@ export default function TahunAjaranTab({ user }: { user?: any }) {
                                         </div>
                                     </td>
                                     {canManage && (
-                                        <td>
+                                        <td data-label="Aksi">
                                             <button className="ta__delBtn" onClick={() => handleDelete(item.id)}>
                                                 <i className="bi bi-trash"></i>
                                             </button>
@@ -245,46 +245,58 @@ export default function TahunAjaranTab({ user }: { user?: any }) {
                 @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
                 .ta__header { display: flex; justify-content: space-between; align-items: center; background: transparent; padding: 0 0 10px 0; border: none; }
-                .ta__info h3 { margin: 0; font-size: 1.15rem; font-weight: 800; color: #0038A8; }
-                .ta__info p { margin: 4px 0 0; font-size: 0.9rem; color: #64748b; }
+                .ta__info h3 { margin: 0; font-size: 1.1rem; font-weight: 800; color: #1e3a8a; }
+                .ta__info p { margin: 4px 0 0; font-size: 0.85rem; color: #64748b; }
 
                 .ta__addBtn { 
-                    padding: 10px 18px; background: #0038A8; color: white; border: none; 
+                    padding: 8px 16px; background: #1e40af; color: white; border: none; 
                     border-radius: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px;
-                    transition: all 0.2s; box-shadow: 0 4px 12px rgba(0, 56, 168, 0.2);
+                    transition: all 0.2s; box-shadow: 0 4px 12px rgba(30, 64, 175, 0.2); font-size: 0.85rem;
                 }
-                .ta__addBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0, 56, 168, 0.3); }
+                .ta__addBtn:hover { transform: translateY(-2px); background: #1e3a8a; }
 
-                .ta__tableWrap { background: rgba(255, 255, 255, 0.8); border-radius: 20px; border: 1px solid rgba(0, 56, 168, 0.1); overflow: hidden; box-shadow: 0 10px 30px rgba(0, 56, 168, 0.05); }
+                .ta__tableWrap { background: white; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; }
                 .ta__table { width: 100%; border-collapse: collapse; }
-                .ta__table th { padding: 16px; text-align: left; background: rgba(0, 56, 168, 0.02); color: #0038A8; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; border-bottom: 2px solid rgba(0, 56, 168, 0.08); }
-                .ta__table td { padding: 16px; border-bottom: 1px solid rgba(0, 56, 168, 0.05); vertical-align: middle; }
+                .ta__table th { padding: 12px 16px; text-align: left; background: #f8fafc; color: #475569; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; }
+                .ta__table td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; color: #334155; font-size: 0.82rem; }
                 .ta__table tr:last-child td { border-bottom: none; }
                 
                 .tCenter { text-align: center; }
-                .ta__name { font-weight: 700; color: #0f172a; font-size: 1rem; }
+                .ta__name { font-weight: 700; color: #1e293b; font-size: 0.88rem; }
                 
-                .badge-semester { background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; border: 1px solid #e2e8f0; }
-
-                .ta__status { display: flex; align-items: center; gap: 12px; }
+                .badge-semester { padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; }
+                .badge-semester.ganjil { background: #eff6ff; color: #1e40af; }
+                .badge-semester.genap { background: #f0fdf4; color: #166534; }
+                .badge-semester.semua { background: #f5f3ff; color: #5b21b6; }
+ 
+                .ta__status { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; }
                 .ta__toggle { 
-                    width: 48px; height: 24px; background: #e2e8f0; border-radius: 20px; position: relative; cursor: pointer; 
+                    width: 36px; height: 18px; background: #e2e8f0; border-radius: 20px; position: relative; cursor: pointer; 
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 }
                 .ta__toggle.isActive { background: #3b82f6; }
                 .ta__toggle.isReadOnly { cursor: default; opacity: 0.8; }
                 .ta__toggleDot { 
-                    width: 18px; height: 18px; background: white; border-radius: 50%; position: absolute; 
-                    top: 3px; left: 3px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    width: 14px; height: 14px; background: white; border-radius: 50%; position: absolute; 
+                    top: 2px; left: 2px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                 }
-                .ta__toggle.isActive .ta__toggleDot { transform: translateX(24px); }
+                .ta__toggle.isActive .ta__toggleDot { transform: translateX(18px); }
                 
                 .ta__delBtn { 
-                    width: 36px; height: 36px; border-radius: 10px; border: 1px solid #fee2e2; background: #fef2f2; 
+                    width: 32px; height: 32px; border-radius: 8px; border: 1px solid #fee2e2; background: #fef2f2; 
                     color: #ef4444; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
                 }
-                .ta__delBtn:hover { background: #fee2e2; transform: scale(1.1); }
+                .ta__delBtn:hover { background: #fee2e2; transform: scale(1.05); }
+
+                @media (max-width: 768px) {
+                    .ta__table thead { display: none; }
+                    .ta__table, .ta__table tbody, .ta__table tr, .ta__table td { display: block; width: 100%; }
+                    .ta__table tr { border-bottom: 8px solid #f8fafc; padding: 12px 0; }
+                    .ta__table td { border: none; padding: 6px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+                    .ta__table td::before { content: attr(data-label); font-weight: 700; font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; min-width: 90px; }
+                    .ta__status { justify-content: flex-end; }
+                }
 
                 .ta__empty { padding: 40px; text-align: center; color: #94a3b8; font-style: italic; }
 

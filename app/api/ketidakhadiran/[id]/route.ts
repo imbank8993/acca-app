@@ -21,6 +21,7 @@ interface UpdatePayload {
     tgl_selesai?: string;
     status?: string;
     keterangan?: string;
+    file_url?: string;
 }
 
 export async function PATCH(
@@ -72,7 +73,7 @@ export async function PATCH(
         console.log(`[PATCH] Request for ID: ${id}`);
 
         const body: UpdatePayload = await request.json();
-        const { scope = 'ONE', tgl_mulai, tgl_selesai, status, keterangan } = body;
+        const { scope = 'ONE', tgl_mulai, tgl_selesai, status, keterangan, file_url } = body;
 
         // Fetch the target record
         const { data: targetRecord, error: fetchError } = await supabase
@@ -137,6 +138,7 @@ export async function PATCH(
             if (tgl_selesai) updateData.tgl_selesai = tgl_selesai;
             if (status) updateData.status = status;
             if (keterangan) updateData.keterangan = keterangan;
+            if (file_url !== undefined) updateData.file_url = file_url;
 
             const { error: updateError } = await supabase
                 .from('ketidakhadiran')
@@ -174,6 +176,7 @@ export async function PATCH(
         if (tgl_selesai) updateData.tgl_selesai = tgl_selesai;
         if (status) updateData.status = status;
         if (keterangan) updateData.keterangan = keterangan;
+        if (file_url !== undefined) updateData.file_url = file_url;
 
         const { error: updateError } = await supabase
             .from('ketidakhadiran')

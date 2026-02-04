@@ -23,6 +23,7 @@ export function matchResource(required: string, possessed: string): boolean {
  */
 export function matchAction(required: string, possessed: string): boolean {
     if (possessed === '*') return true;
+    if (possessed === 'manage') return true; // manage implies all other actions (view, create, etc)
     return possessed === required;
 }
 

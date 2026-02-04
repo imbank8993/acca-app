@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Swal from "sweetalert2";
 
 interface EditModalProps {
@@ -18,6 +18,9 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
   const [keterangan, setKeterangan] = useState("");
   const [scope, setScope] = useState<"ONE" | "ALL">("ONE");
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen && data) {
@@ -25,6 +28,7 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
       setTglMulai(data.tgl_mulai ?? "");
       setTglSelesai(data.tgl_selesai ?? "");
       setKeterangan(data.keterangan ?? "");
+      setUploadedFileUrl(data.file_url ?? "");
       setScope("ONE");
     }
   }, [isOpen, data]);
@@ -51,16 +55,61 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
 
   const isIzin = String(data.jenis || "").toUpperCase() === "IZIN";
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const jenis = String(data.jenis || "Lainnya").charAt(0).toUpperCase() + String(data.jenis || "Lainnya").slice(1).toLowerCase();
+      formData.append("folder", `Ketidakhadiran/${jenis}`);
+      formData.append("customName", `dokumen_${String(data.jenis).toLowerCase()}_${Date.now()}`);
+
+      if (uploadedFileUrl) {
+        formData.append("old_file", uploadedFileUrl);
+      }
+
+      const res = await fetch("https://icgowa.sch.id/acca.icgowa.sch.id/acca_upload.php", {
+        method: "POST",
+        body: formData,
+      });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.ok) throw new Error(resData.error || "Upload gagal");
+
+      setUploadedFileUrl(resData.publicUrl);
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "success",
+        title: "File berhasil diupload",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      console.error(error);
+      Swal.fire("Upload Gagal", error.message || "Gagal menghubungi server", "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!status || !tglMulai || !tglSelesai) {
+    if (!status || !tglMulai) {
       await Swal.fire({
         title: "Validasi",
-        text: "Semua field wajib diisi",
+        text: "Status dan Tanggal Mulai wajib diisi",
         icon: "warning",
         confirmButtonColor: "#0b1b3a",
       });
       return;
     }
+
+    // Jika tglSelesai kosong, gunakan tglMulai (absen 1 hari)
+    const finalTglSelesai = tglSelesai || tglMulai;
 
     // [CAPABILITY CHECK]
     const jenis = String(data.jenis || "").toUpperCase();
@@ -80,8 +129,9 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
         scope,
         status,
         tgl_mulai: tglMulai,
-        tgl_selesai: tglSelesai,
+        tgl_selesai: finalTglSelesai,
         keterangan,
+        file_url: uploadedFileUrl || null,
       };
 
       const { supabase } = await import("@/lib/supabase");
@@ -286,6 +336,52 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
                 Gunakan <b>Semua (Grup)</b> jika perubahan berlaku untuk data sejenis pada periode yang sama.
               </div>
             </div>
+
+            {/* File Upload */}
+            <div className="kh-field">
+              <label className="kh-label">Dokumen Pendukung (Opsional)</label>
+              <div className="kh-upload">
+                <input
+                  type="file"
+                  id="edit-file-upload"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept="image/*,application/pdf"
+                  disabled={uploading}
+                />
+                <label
+                  htmlFor="edit-file-upload"
+                  className={`kh-upload__box ${uploading ? "is-uploading" : ""}`}
+                >
+                  {uploading ? (
+                    <div className="kh-spin-sm"><span className="kh-spin-sm-inner" /></div>
+                  ) : uploadedFileUrl ? (
+                    <div className="kh-upload__info">
+                      <i className="bi bi-file-earmark-check-fill" />
+                      <span className="truncate">File terlampir</span>
+                    </div>
+                  ) : (
+                    <div className="kh-upload__placeholder">
+                      <i className="bi bi-cloud-arrow-up" />
+                      <span>Ganti dokumen (PDF/Gambar)</span>
+                    </div>
+                  )}
+                </label>
+                {uploadedFileUrl && (
+                  <button
+                    type="button"
+                    className="kh-upload__remove"
+                    onClick={() => {
+                      setUploadedFileUrl("");
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                  >
+                    <i className="bi bi-trash" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -306,7 +402,7 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
             disabled={submitting}
             className="kh-btn kh-btn--primary"
           >
-            {submitting ? <span className="kh-spin" /> : <i className="bi bi-check-lg" />}
+            {submitting ? <span className="kh-spin"><span className="kh-spin-inner" /></span> : <i className="bi bi-check-lg" />}
             Simpan
           </button>
         </div>

@@ -27,7 +27,11 @@ export default function DashboardPage() {
       fallback={
         <div className="loading-screen">
           <div className="loading-content">
-            <div className="spinner"></div>
+            <div className="loading-bars">
+              <div className="bar"></div>
+              <div className="bar"></div>
+              <div className="bar"></div>
+            </div>
             <p>Memuat Dashboard...</p>
           </div>
           <style jsx>{`
@@ -42,20 +46,24 @@ export default function DashboardPage() {
               text-align: center;
               color: #eaf2ff;
             }
-            .spinner {
-              display: inline-block;
-              width: 48px;
-              height: 48px;
-              border: 4px solid rgba(58, 166, 255, 0.2);
-              border-top-color: #0038A8;
-              border-radius: 50%;
-              animation: spin 0.8s linear infinite;
-              margin-bottom: 16px;
+            .loading-bars {
+              display: flex;
+              justify-content: center;
+              gap: 6px;
+              margin-bottom: 20px;
             }
-            @keyframes spin {
-              to {
-                transform: rotate(360deg);
-              }
+            .bar {
+              width: 4px;
+              height: 24px;
+              background: #0038A8;
+              border-radius: 99px;
+              animation: wave 1.2s infinite ease-in-out;
+            }
+            .bar:nth-child(2) { animation-delay: 0.1s; background: #3aa6ff; }
+            .bar:nth-child(3) { animation-delay: 0.2s; }
+            @keyframes wave {
+              0%, 40%, 100% { transform: scaleY(0.4); opacity: 0.5; }
+              20% { transform: scaleY(1); opacity: 1; }
             }
           `}</style>
         </div>
@@ -164,7 +172,11 @@ function DashboardLogic() {
     return (
       <div className="loading-screen">
         <div className="loading-content">
-          <div className="spinner"></div>
+          <div className="loading-bars">
+            <div className="bar"></div>
+            <div className="bar"></div>
+            <div className="bar"></div>
+          </div>
           <p>Memuat...</p>
         </div>
 
@@ -182,21 +194,27 @@ function DashboardLogic() {
             color: #eaf2ff;
           }
 
-          .spinner {
-            display: inline-block;
-            width: 48px;
-            height: 48px;
-            border: 4px solid rgba(58, 166, 255, 0.2);
-            border-top-color: #3aa6ff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-bottom: 16px;
+          .loading-bars {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 20px;
           }
 
-          @keyframes spin {
-            to {
-              transform: rotate(360deg);
-            }
+          .bar {
+            width: 4px;
+            height: 24px;
+            background: #0038A8;
+            border-radius: 99px;
+            animation: wave 1.2s infinite ease-in-out;
+          }
+
+          .bar:nth-child(2) { animation-delay: 0.1s; background: #3aa6ff; }
+          .bar:nth-child(3) { animation-delay: 0.2s; }
+
+          @keyframes wave {
+            0%, 40%, 100% { transform: scaleY(0.4); opacity: 0.5; }
+            20% { transform: scaleY(1); opacity: 1; }
           }
         `}</style>
       </div>
@@ -317,6 +335,7 @@ const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<
   // MODUL KHUSUS
   'LCKH': () => <LckhPage />,
   'LCKHApproval': () => <LckhApprovalPage />,
+  'lckh-approval': () => <LckhApprovalPage />, // Alias untuk routing dari migration
   'Nilai': () => <NilaiPage />,
 
   // MASTER DATA SUBMENU

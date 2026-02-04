@@ -99,12 +99,12 @@ export async function GET(request: NextRequest) {
                 if (dAny && dAny.length > 0) { siswaData = dAny; errorSiswa = null; }
             }
             if (errorSiswa || !siswaData || siswaData.length === 0) {
-                let qRetry = supabase.from('siswa_kelas').select('nisn, nama').eq('kelas', kelasTrimmed).eq('aktif', true);
+                let qRetry = supabase.from('siswa_kelas').select('nisn, nama_siswa').eq('kelas', kelasTrimmed).eq('aktif', true);
                 if (tahun_ajaran) qRetry = qRetry.ilike('tahun_ajaran', `%${tahun_ajaran.trim()}%`);
                 qRetry = qRetry.eq('semester', semVal);
-                const { data: dRetry } = await qRetry.order('nama', { ascending: true });
+                const { data: dRetry } = await qRetry.order('nama_siswa', { ascending: true });
                 if (dRetry && dRetry.length > 0) {
-                    siswaData = dRetry.map(s => ({ nisn: s.nisn, nama_siswa: (s as any).nama }));
+                    siswaData = dRetry.map(s => ({ nisn: s.nisn, nama_siswa: s.nama_siswa }));
                     errorSiswa = null;
                 }
             }
@@ -166,11 +166,11 @@ export async function GET(request: NextRequest) {
                 if (dAny && dAny.length > 0) { siswaData = dAny; errorSiswa = null; }
             }
             if (errorSiswa || !siswaData || siswaData.length === 0) {
-                let qRetry = supabase.from('siswa_kelas').select('nisn, nama').eq('kelas', kelasTrimmed).eq('aktif', true);
+                let qRetry = supabase.from('siswa_kelas').select('nisn, nama_siswa').eq('kelas', kelasTrimmed).eq('aktif', true);
                 qRetry = qRetry.eq('semester', semVal);
-                const { data: dRetry } = await qRetry.order('nama', { ascending: true });
+                const { data: dRetry } = await qRetry.order('nama_siswa', { ascending: true });
                 if (dRetry && dRetry.length > 0) {
-                    siswaData = dRetry.map(s => ({ nisn: s.nisn, nama_siswa: (s as any).nama }));
+                    siswaData = dRetry.map(s => ({ nisn: s.nisn, nama_siswa: s.nama_siswa }));
                     errorSiswa = null;
                 }
             }

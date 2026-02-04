@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import Swal from 'sweetalert2';
 import './ketidakhadiran.css';
@@ -29,6 +29,7 @@ interface KetidakhadiranRow {
     status: string; // MADRASAH, PERSONAL, Ringan, Sedang, dll
     keterangan: string;
     aktif: boolean;
+    file_url?: string;
     created_at: string;
 }
 
@@ -283,21 +284,34 @@ export default function KetidakhadiranPage() {
                 headers['Authorization'] = `Bearer ${session.access_token}`;
             }
 
+            console.log('[loadData] Fetching with token present:', !!session?.access_token);
+
             const res = await fetch(`/api/ketidakhadiran?${params.toString()}`, { headers });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                console.error('[loadData] API Error response:', res.status, errorText);
+                setRows([]);
+                return;
+            }
+
             const data = await res.json();
+            console.log('[loadData] API Response:', data);
 
             if (data.ok) {
-                let fetchedRows = data.data || [];
-
-                // Client-side filtering based on Granular "View" Permission
-                fetchedRows = fetchedRows.filter((r: KetidakhadiranRow) => {
-                    if (r.jenis === 'IZIN') return canViewIzin;
-                    if (r.jenis === 'SAKIT') return canViewSakit;
-                    return false;
-                });
-
+                const fetchedRows = data.data || [];
                 setRows(fetchedRows);
                 calculateKPI(fetchedRows);
+            } else {
+                console.warn('[loadData] API returned ok:false', data.error);
+                setRows([]);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal Memuat Data',
+                    text: data.error || 'Terjadi kesalahan saat memproses data.',
+                    timer: 3000,
+                    showConfirmButton: false
+                });
             }
         } catch (error) {
             console.error('Load error:', error);
@@ -426,6 +440,11 @@ export default function KetidakhadiranPage() {
         );
     }
 
+    const allowedTypes = useMemo(() => ({
+        IZIN: canManageIzin,
+        SAKIT: canManageSakit
+    }), [canManageIzin, canManageSakit]);
+
     return (
         <div className="kh-wrap">
             <AddModal
@@ -433,10 +452,7 @@ export default function KetidakhadiranPage() {
                 onClose={() => setIsAddModalOpen(false)}
                 onSuccess={loadData}
                 canDo={canDo} // Pass generic if needed or remove if updated to specific
-                allowedTypes={{
-                    IZIN: canManageIzin,
-                    SAKIT: canManageSakit
-                }}
+                allowedTypes={allowedTypes}
             />
             {editRow && (
                 <EditModal
@@ -470,27 +486,6 @@ export default function KetidakhadiranPage() {
                     <div>
                         <h1 className="kh-title">Ketidakhadiran</h1>
                         <div className="kh-sub">Kelola data izin dan sakit siswa</div>
-                    </div>
-                    <div className="kh-toolbar">
-                        <button className="btn-kh-soft" onClick={loadData} title="Refresh Data">
-                            <i className="bi bi-arrow-clockwise"></i>
-                        </button>
-                        <button
-                            className="btn-kh-excel"
-                            onClick={handleExport}
-                            title="Export to Excel"
-                            disabled={!canExportIzin && !canExportSakit}
-                        >
-                            <i className="bi bi-file-earmark-excel-fill"></i>Export
-                        </button>
-                        {(canManageIzin || canManageSakit) && (
-                            <button
-                                className="btn-kh-navy"
-                                onClick={() => setIsAddModalOpen(true)}
-                            >
-                                + Tambah
-                            </button>
-                        )}
                     </div>
                 </div>
 
@@ -528,6 +523,25 @@ export default function KetidakhadiranPage() {
                                 </span>
                             </div>
                         </div>
+                    </div>
+
+                    <div className="kh-kpi-actions">
+                        <button
+                            className="btn-kh-excel"
+                            onClick={handleExport}
+                            title="Export to Excel"
+                            disabled={!canExportIzin && !canExportSakit}
+                        >
+                            <i className="bi bi-file-earmark-excel-fill"></i>Export
+                        </button>
+                        {(canManageIzin || canManageSakit) && (
+                            <button
+                                className="btn-kh-navy"
+                                onClick={() => setIsAddModalOpen(true)}
+                            >
+                                + Tambah
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -601,24 +615,25 @@ export default function KetidakhadiranPage() {
                                 <tr>
                                     <th style={{ width: '8%', whiteSpace: 'nowrap' }}>Jenis</th>
                                     <th style={{ width: '10%' }}>NISN</th>
-                                    <th style={{ width: '18%' }}>Nama</th>
+                                    <th style={{ width: '16%' }}>Nama</th>
                                     <th style={{ width: '8%', textAlign: 'center' }}>Kelas</th>
                                     <th style={{ width: '14%' }}>Periode</th>
                                     <th style={{ width: '12%' }}>Status</th>
-                                    <th style={{ width: '20%' }}>Keterangan</th>
-                                    <th style={{ width: '10%', textAlign: 'right' }}>Aksi</th>
+                                    <th style={{ width: '18%' }}>Keterangan</th>
+                                    <th style={{ width: '6%', textAlign: 'center' }}>Dok</th>
+                                    <th style={{ width: '8%', textAlign: 'right' }}>Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                                        <td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
                                             Memuat data...
                                         </td>
                                     </tr>
                                 ) : rows.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                                        <td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
                                             {!canViewIzin && !canViewSakit ? 'Anda tidak memiliki hak akses untuk melihat data ini.' : 'Tidak ada data'}
                                         </td>
                                     </tr>
@@ -649,10 +664,26 @@ export default function KetidakhadiranPage() {
                                                     </span>
                                                 )}
                                             </td>
-                                            <td data-label="Keterangan" style={{ maxWidth: '200px' }}>
+                                            <td data-label="Keterangan" style={{ maxWidth: '180px' }}>
                                                 <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.keterangan}>
                                                     {row.keterangan}
                                                 </div>
+                                            </td>
+                                            <td data-label="Dokumen" style={{ textAlign: 'center' }}>
+                                                {row.file_url ? (
+                                                    <a
+                                                        href={row.file_url}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="btn-icon-soft"
+                                                        style={{ color: '#3b82f6', display: 'inline-flex' }}
+                                                        title="Lihat Dokumen"
+                                                    >
+                                                        <i className="bi bi-file-earmark-check-fill"></i>
+                                                    </a>
+                                                ) : (
+                                                    <span style={{ color: '#cbd5e1' }}>-</span>
+                                                )}
                                             </td>
                                             <td data-label="Aksi" style={{ textAlign: 'right' }}>
                                                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -127,6 +129,7 @@ export async function GET(request: NextRequest) {
                     jenis: row.jenis,
                     materi: row.materi_tp,
                     tagihan: row.tagihan,
+                    kolom_id: row.id || row.nilai_id || null, // Fallback check
                     last_update: row.updated_at
                 });
             }
@@ -149,6 +152,7 @@ export async function GET(request: NextRequest) {
                         jenis: t.jenis,
                         materi: t.materi_tp,
                         tagihan: t.nama_tagihan,
+                        kolom_id: t.id || null,
                         last_update: t.created_at
                     });
                 }

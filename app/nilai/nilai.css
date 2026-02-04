@@ -889,3 +889,43 @@
     gap: 8px;
     width: 100%;
 }
+
+/* Tech Wave Animation */
+.nl__loading-bars {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+    justify-content: center;
+    height: 14px;
+}
+
+.nl__loading-bars .bar {
+    width: 3px;
+    height: 12px;
+    background: #fff;
+    border-radius: 99px;
+    animation: nlWave 1s infinite ease-in-out;
+}
+
+.nl__loading-bars .bar:nth-child(1) {
+    animation-delay: -0.2s;
+}
+
+.nl__loading-bars .bar:nth-child(2) {
+    animation-delay: -0.1s;
+}
+
+@keyframes nlWave {
+
+    0%,
+    40%,
+    100% {
+        transform: scaleY(0.6);
+        opacity: 0.6;
+    }
+
+    20% {
+        transform: scaleY(1.3);
+        opacity: 1;
+    }
+}

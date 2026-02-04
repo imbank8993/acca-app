@@ -126,28 +126,48 @@
 .brand {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   min-width: 0;
+  flex: 1;
 }
 
-.brand-logo-placeholder {
+.brand-logo {
   width: 40px;
   height: 40px;
-  border-radius: 12px;
-  background: #0038A8;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 1.2rem;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(0, 56, 168, 0.2);
   transition: var(--sidebar-transition);
 }
 
-.sidebar.collapsed .brand-logo-placeholder {
-  width: 44px;
-  height: 44px;
+.logo-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.logo-text-img {
+  height: 24px;
+  /* Reduced to make it looks more elegant */
+  width: auto;
+  object-fit: contain;
+  transition: all 0.3s ease;
+}
+
+.logo-text-img.full-logo {
+  max-width: 140px;
+}
+
+.sidebar.collapsed .brand {
+  flex: none;
+  width: 100%;
+}
+
+.sidebar.collapsed .brand-logo {
+  width: 28px;
+  height: 28px;
 }
 
 .sidebar-title {
@@ -167,7 +187,8 @@
 }
 
 .sidebar.collapsed .collapse-toggle {
-  margin-top: 10px;
+  position: static;
+  margin-top: 12px;
 }
 
 .sidebar.collapsed .menu-btn {
@@ -192,6 +213,9 @@
   cursor: pointer;
   color: var(--sidebar-text);
   transition: all 0.2s ease;
+  flex-shrink: 0;
+  position: absolute;
+  right: 20px;
 }
 
 .collapse-toggle:hover {

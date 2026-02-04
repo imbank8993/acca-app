@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getUserByAuthId } from '@/lib/auth';
 import Swal from 'sweetalert2';
+import PermissionGuard from '@/components/PermissionGuard';
+import './lckh-approval.css';
 
 export default function LckhApprovalPage() {
     const [loading, setLoading] = useState(false);
@@ -15,10 +17,19 @@ export default function LckhApprovalPage() {
     const [selectedPeriod, setSelectedPeriod] = useState<string>('');
     const [filterStatus, setFilterStatus] = useState('ALL');
 
-    // Review Modal
+    // Detail View
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [reviewerNote, setReviewerNote] = useState('');
-    const [showModal, setShowModal] = useState(false);
+    const [saving, setSaving] = useState(false);
+
+    // Modals
+    const [showNilaiModal, setShowNilaiModal] = useState(false);
+    const [nilaiDetailQuery, setNilaiDetailQuery] = useState<any>(null);
+    const [nilaiStudents, setNilaiStudents] = useState<any[]>([]);
+    const [loadingNilai, setLoadingNilai] = useState(false);
+
+    const [showJurnalModal, setShowJurnalModal] = useState(false);
+    const [activeJurnal, setActiveJurnal] = useState<any>(null);
 
     useEffect(() => {
         const init = async () => {
@@ -31,6 +42,7 @@ export default function LckhApprovalPage() {
                 const { data: pData } = await supabase
                     .from('lckh_periods')
                     .select('*')
+                    .or('status_periode.eq.OPEN,status_periode.eq.CLOSED')
                     .order('periode_kode', { ascending: false });
 
                 if (pData && pData.length > 0) {
@@ -62,13 +74,15 @@ export default function LckhApprovalPage() {
 
     // Refresh when filter changes
     useEffect(() => {
-        if (user && selectedPeriod) fetchSubmissions(selectedPeriod);
+        if (user && selectedPeriod) {
+            fetchSubmissions(selectedPeriod);
+            setSelectedItem(null);
+        }
     }, [filterStatus, selectedPeriod, user]);
 
     const handleApprove = async () => {
         if (!selectedItem || !user) return;
 
-        // Role Check logic
         const userRoles = Array.isArray(user.roles) ? user.roles : [user.role || ''];
         const isWaka = userRoles.some((r: string) => r.toUpperCase().includes('WAKA') || r.toUpperCase().includes('ADMIN'));
         const isKamad = userRoles.some((r: string) => r.toUpperCase().includes('KAMAD') || r.toUpperCase().includes('ADMIN'));
@@ -88,24 +102,33 @@ export default function LckhApprovalPage() {
                 Swal.fire('Akses Ditolak', 'Hanya Kepala Madrasah yang dapat melakukan persetujuan tahap akhir.', 'error');
                 return;
             }
-        } else if (current === 'Approved_Kamad') {
-            Swal.fire('Info', 'Dokumen sudah disetujui sepenuhnya.', 'info');
-            return;
         } else {
             Swal.fire('Status Invalid', `Status dokumen ${current} tidak dapat disetujui.`, 'warning');
             return;
         }
 
-        // Generate Approval Code
-        let approvalCode = null;
-        if (nextStatus === 'Approved_Kamad') {
-            const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-            // Format: LCKH-{Periode}-{NIP}-{Random}
-            const nipSafe = selectedItem.nip ? selectedItem.nip.replace(/[^0-9]/g, '').substring(0, 6) : 'NONIP';
-            approvalCode = `LCKH-${selectedItem.periode_kode}-${nipSafe}-${randomSuffix}`;
-        }
+        const confirm = await Swal.fire({
+            title: 'Setujui Laporan?',
+            text: `Anda akan memberikan persetujuan untuk laporan ${selectedItem.nama_guru_snap}.`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Setujui',
+            confirmButtonColor: '#0038A8',
+            cancelButtonText: 'Batal'
+        });
 
+        if (!confirm.isConfirmed) return;
+
+        setSaving(true);
         try {
+            // Generate Approval Code
+            let approvalCode = null;
+            if (nextStatus === 'Approved_Kamad') {
+                const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+                const nipSafe = selectedItem.nip ? selectedItem.nip.replace(/[^0-9]/g, '').substring(0, 6) : 'NONIP';
+                approvalCode = `LCKH-${selectedItem.periode_kode}-${nipSafe}-${randomSuffix}`;
+            }
+
             const updatePayload: any = {
                 status: nextStatus,
                 catatan_reviewer: reviewerNote,
@@ -126,32 +149,45 @@ export default function LckhApprovalPage() {
             // Insert Log
             await supabase.from('lckh_approvals').insert({
                 lckh_submission_id: selectedItem.id,
-                level: isKamad && nextStatus === 'Approved_Kamad' ? 'KAMAD' : 'WAKA',
+                level: nextStatus === 'Approved_Kamad' ? 'KAMAD' : 'WAKA',
                 status_approval: 'APPROVED',
                 approver_id: user.id,
-                approver_name: user?.nama_lengkap || 'Unknown',
+                approver_name: user?.nama || user?.username || 'Unknown',
                 approved_at: new Date().toISOString(),
                 catatan: reviewerNote
             });
 
             Swal.fire('Berhasil', 'Laporan berhasil disetujui.', 'success');
             setSelectedItem(null);
-            setReviewerNote('');
-            setShowModal(false);
             fetchSubmissions(selectedPeriod);
-
+            // Trigger notification refresh in header
+            window.dispatchEvent(new Event('refresh-lckh-notification'));
         } catch (e: any) {
             Swal.fire('Error', e.message, 'error');
+        } finally {
+            setSaving(false);
         }
     };
 
     const handleReject = async () => {
         if (!selectedItem) return;
         if (!reviewerNote.trim()) {
-            Swal.fire('Wajib Diisi', 'Harap isi catatan revisi untuk guru ybs.', 'warning');
+            Swal.fire('Catatan Wajib', 'Harap isi alasan pengembalian/revisi.', 'warning');
             return;
         }
 
+        const confirm = await Swal.fire({
+            title: 'Kembalikan Laporan?',
+            text: 'Laporan akan dikembalikan ke Guru untuk diperbaiki.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Kembalikan',
+            confirmButtonColor: '#dc2626'
+        });
+
+        if (!confirm.isConfirmed) return;
+
+        setSaving(true);
         try {
             const { error } = await supabase.from('lckh_submissions').update({
                 status: 'Revisi',
@@ -161,304 +197,507 @@ export default function LckhApprovalPage() {
 
             if (error) throw error;
 
-            // Insert Log
             await supabase.from('lckh_approvals').insert({
                 lckh_submission_id: selectedItem.id,
-                level: 'WAKA',
+                level: 'VERIFICATOR',
                 status_approval: 'REJECTED',
                 approver_id: user.id,
-                approver_name: user?.nama_lengkap || 'Unknown',
+                approver_name: user?.nama || user?.username || 'Unknown',
                 approved_at: new Date().toISOString(),
                 catatan: reviewerNote
             });
 
-            Swal.fire('Dikembalikan', 'Laporan dikembalikan ke guru untuk revisi.', 'info');
-            setShowModal(false);
+            Swal.fire('Berhasil', 'Laporan telah dikembalikan.', 'info');
+            setSelectedItem(null);
             fetchSubmissions(selectedPeriod);
+            // Trigger notification refresh in header
+            window.dispatchEvent(new Event('refresh-lckh-notification'));
         } catch (e: any) {
             Swal.fire('Error', e.message, 'error');
+        } finally {
+            setSaving(false);
         }
     };
 
-    const getStatusBadge = (s: string) => {
-        const cls: any = {
-            'Submitted': 'bg-blue-50 text-[#0038A8] border border-blue-100',
-            'Approved_Waka': 'bg-emerald-100 text-emerald-700',
-            'Approved_Kamad': 'bg-green-100 text-green-700',
-            'Revisi': 'bg-red-100 text-red-700',
-            'Rejected': 'bg-red-100 text-red-700',
-        };
-        return <span className={`px-2 py-1 rounded text-xs font-bold ${cls[s] || 'bg-gray-100'}`}>{s.replace('_', ' ')}</span>
-    }
+    const getStatusStyle = (s: string) => {
+        switch (s) {
+            case 'Submitted': return { bg: '#eff6ff', color: '#1d4ed8', label: 'MENUNGGU WAKA' };
+            case 'Approved_Waka': return { bg: '#ecfdf5', color: '#059669', label: 'MENUNGGU KAMAD' };
+            case 'Approved_Kamad': return { bg: '#f0fdf4', color: '#16a34a', label: 'DISAHKAN' };
+            case 'Revisi': return { bg: '#fef2f2', color: '#dc2626', label: 'REVISI' };
+            default: return { bg: '#f1f5f9', color: '#64748b', label: s };
+        }
+    };
+
+    const parsedRingkasan = useMemo(() => {
+        if (!selectedItem?.catatan_guru) return [];
+        try {
+            const clean = selectedItem.catatan_guru.trim();
+            if (clean.startsWith('[{')) return JSON.parse(clean);
+            return [];
+        } catch (e) {
+            return [];
+        }
+    }, [selectedItem]);
+
+    const openNilaiDetail = async (item: any) => {
+        setNilaiDetailQuery(item);
+        setShowNilaiModal(true);
+        setLoadingNilai(true);
+        setNilaiStudents([]);
+
+        try {
+            const params = new URLSearchParams({
+                kelas: item.kelas,
+                mapel: item.mapel,
+                jenis: item.jenis,
+                tagihan: item.tagihan || '',
+                materi: item.materi_tp || item.materi || ''
+            });
+
+            const res = await fetch(`/api/lckh/nilai-detail?${params.toString()}`);
+            const data = await res.json();
+            if (data.ok) {
+                setNilaiStudents(data.students);
+            }
+        } catch (e) {
+            console.error('Error fetching nilai detail:', e);
+        } finally {
+            setLoadingNilai(false);
+        }
+    };
+
+    const openJurnalDetail = (j: any) => {
+        setActiveJurnal(j);
+        setShowJurnalModal(true);
+    };
 
     return (
-        <div className="container mx-auto px-4 py-8 max-w-6xl">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-[#0038A8]">Approval LCKH</h1>
-                    <p className="text-gray-500">Verifikasi Laporan Kinerja Harian Guru</p>
-                </div>
+        <PermissionGuard requiredPermission={{ resource: 'lckh_approval', action: 'view' }}>
+            <div className="la-container">
+                {/* Dual-Pane View: Sidebar List */}
+                <aside className="la-sidebar">
+                    <div className="la-sidebar-header">
+                        <h2>APPROVAL LCKH</h2>
+                        <div className="la-filters">
+                            <select
+                                className="la-select"
+                                value={selectedPeriod}
+                                onChange={(e) => setSelectedPeriod(e.target.value)}
+                            >
+                                {periods.map(p => (
+                                    <option key={p.periode_kode} value={p.periode_kode}>{p.periode_nama}</option>
+                                ))}
+                            </select>
+                            <select
+                                className="la-select text-[10px]"
+                                value={filterStatus}
+                                onChange={(e) => setFilterStatus(e.target.value)}
+                            >
+                                <option value="ALL">SEMUA STATUS</option>
+                                <option value="Submitted">MENUNGGU WAKA</option>
+                                <option value="Approved_Waka">MENUNGGU KAMAD</option>
+                                <option value="Approved_Kamad">SUDAH SAH</option>
+                                <option value="Revisi">REVISI</option>
+                            </select>
+                        </div>
+                    </div>
 
-                <div className="flex gap-2">
-                    <select
-                        value={selectedPeriod}
-                        onChange={(e) => setSelectedPeriod(e.target.value)}
-                        className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold outline-none min-w-[200px]"
-                    >
-                        {periods.length === 0 && <option value="">Tidak ada periode</option>}
-                        {periods.map(p => (
-                            <option key={p.id} value={p.periode_kode}>{p.periode_nama}</option>
-                        ))}
-                    </select>
-
-                    <select
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                        className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-semibold outline-none"
-                    >
-                        <option value="ALL">Semua Status</option>
-                        <option value="Submitted">Menunggu Verifikasi (Waka)</option>
-                        <option value="Approved_Waka">Menunggu Sah (Kamad)</option>
-                        <option value="Approved_Kamad">Selesai</option>
-                        <option value="Revisi">Revisi</option>
-                    </select>
-                </div>
-            </div>
-
-            {/* Submissions Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b border-gray-100">
-                        <tr>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Info Guru</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Jam Mengajar</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Jurnal & Nilai</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm">Status</th>
-                            <th className="px-6 py-4 font-semibold text-gray-600 text-sm text-right">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <div className="la-item-list">
                         {loading && (
-                            <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">Memuat data...</td></tr>
+                            <div className="flex flex-col gap-3 p-4">
+                                {[1, 2, 3, 4].map(i => (
+                                    <div key={i} className="h-24 bg-slate-50 animate-pulse rounded-2xl border border-slate-100"></div>
+                                ))}
+                            </div>
                         )}
                         {!loading && submissions.length === 0 && (
-                            <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">Tidak ada pengajuan laporan pada periode ini.</td></tr>
+                            <div className="text-center py-20 text-gray-400">
+                                <i className="bi bi-inbox text-4xl block mb-2 opacity-20"></i>
+                                <span className="text-sm font-medium">Tidak ada laporan masuk</span>
+                            </div>
                         )}
-                        {submissions.map((sub: any) => (
-                            <tr key={sub.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-4">
-                                    <div className="font-bold text-[#0038A8]">{sub.nama_guru_snap}</div>
-                                    <div className="text-xs text-gray-500">NIP. {sub.nip}</div>
-                                    <div className="text-xs text-gray-400 mt-1">
-                                        <i className="bi bi-clock"></i> {new Date(sub.submitted_at).toLocaleDateString()}
+                        {submissions.map(sub => {
+                            const style = getStatusStyle(sub.status);
+                            return (
+                                <div
+                                    key={sub.id}
+                                    className={`la-item ${selectedItem?.id === sub.id ? 'active' : ''}`}
+                                    onClick={() => {
+                                        setSelectedItem(sub);
+                                        setReviewerNote(sub.catatan_reviewer || '');
+                                    }}
+                                >
+                                    <div className="la-item-name">{sub.nama_guru_snap}</div>
+                                    <div className="la-item-meta">
+                                        <i className="bi bi-person-badge"></i>
+                                        {sub.nip || '-'}
                                     </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="text-sm font-semibold">{sub.snap_total_jam_mengajar || 0} JP</div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="text-xs text-gray-600">
-                                        <div><span className="font-bold">{sub.snap_ringkasan_umum?.total_jurnal_isi || 0}</span> Jurnal</div>
-                                        <div><span className="font-bold">{sub.snap_ringkasan_umum?.total_nilai_input || 0}</span> Nilai Input</div>
+                                    <div className="la-item-meta mt-1">
+                                        <i className="bi bi-clock"></i>
+                                        {new Date(sub.submitted_at).toLocaleDateString('id-ID', { dateStyle: 'medium' })}
                                     </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    {getStatusBadge(sub.status)}
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                    <button
-                                        onClick={() => {
-                                            setSelectedItem(sub);
-                                            setReviewerNote(sub.catatan_reviewer || '');
-                                            setShowModal(true);
-                                        }}
-                                        className="bg-navy-50 text-navy-600 hover:bg-navy-100 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all"
+                                    <div
+                                        className="la-status-pill"
+                                        style={{ backgroundColor: style.bg, color: style.color }}
                                     >
-                                        Review
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                                        {style.label}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </aside>
+
+                {/* Main Content Area */}
+                <main className="la-content">
+                    {selectedItem ? (
+                        <>
+                            <header className="la-content-header">
+                                <div>
+                                    <h1 className="text-lg font-black text-slate-800 uppercase tracking-tight">
+                                        {selectedItem.nama_guru_snap}
+                                    </h1>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                        NIP. {selectedItem.nip || '-'} • PERIODE {periods.find(p => p.periode_kode === selectedPeriod)?.periode_nama}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="text-right">
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase">Status Saat Ini</div>
+                                        <div className="text-xs font-black text-blue-600 uppercase">
+                                            {getStatusStyle(selectedItem.status).label}
+                                        </div>
+                                    </div>
+                                </div>
+                            </header>
+
+                            <div className="la-scroll-body">
+                                {/* Summary Stats */}
+                                <div className="la-stats-grid">
+                                    <div className="la-stat-card bg-[#0038A8] text-white">
+                                        <span className="la-stat-label">Total Jam Mengajar</span>
+                                        <span className="la-stat-value">{selectedItem.snap_total_jam_mengajar || 0}</span>
+                                    </div>
+                                    <div className="la-stat-card bg-emerald-500 text-white">
+                                        <span className="la-stat-label">Jurnal Terisi</span>
+                                        <span className="la-stat-value">{selectedItem.snap_ringkasan_umum?.total_jurnal_isi || 0}</span>
+                                    </div>
+                                    <div className="la-stat-card bg-amber-500 text-white">
+                                        <span className="la-stat-label">Input Nilai</span>
+                                        <span className="la-stat-value">{selectedItem.snap_ringkasan_umum?.total_nilai_input || 0}</span>
+                                    </div>
+                                </div>
+
+                                {/* Ringkasan Capaian */}
+                                <div className="la-card">
+                                    <h3 className="la-card-title">
+                                        <i className="bi bi-card-list text-[#0038A8]"></i>
+                                        RINGKASAN CAPAIAN KINERJA
+                                    </h3>
+                                    <div className="la-table-wrap">
+                                        <table className="la-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>No</th>
+                                                    <th>Tanggal</th>
+                                                    <th>Nama Kegiatan</th>
+                                                    <th>Hasil Capaian</th>
+                                                    <th>Keterangan</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {parsedRingkasan.length > 0 ? parsedRingkasan.map((it: any, i: number) => (
+                                                    <tr key={i}>
+                                                        <td className="font-bold text-slate-400">{i + 1}</td>
+                                                        <td className="whitespace-nowrap font-semibold">{it.dateStr}</td>
+                                                        <td>{it.activity}</td>
+                                                        <td>{it.result}</td>
+                                                        <td className="text-slate-500 italic">{it.note}</td>
+                                                    </tr>
+                                                )) : (
+                                                    <tr>
+                                                        <td colSpan={5} className="text-center py-8 text-slate-400 italic">Tidak ada rincian data ringkasan</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Lampiran Absensi */}
+                                <div className="la-card">
+                                    <h3 className="la-card-title">
+                                        <i className="bi bi-clipboard-check text-blue-500"></i>
+                                        LAMPIRAN ABSENSI SISWA
+                                    </h3>
+                                    <div className="la-table-wrap">
+                                        <table className="la-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Kelas / Mapel</th>
+                                                    <th className="text-center">Sakit</th>
+                                                    <th className="text-center">Izin</th>
+                                                    <th className="text-center">Alfa</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedItem.lampiran_absensi?.length > 0 ? selectedItem.lampiran_absensi.map((a: any, i: number) => (
+                                                    <tr key={i}>
+                                                        <td>
+                                                            <div className="font-bold">{a.kelas}</div>
+                                                            <div className="text-[10px] uppercase text-slate-400 font-bold">{a.mapel}</div>
+                                                        </td>
+                                                        <td className="text-center font-bold text-blue-600">{a.S || 0}</td>
+                                                        <td className="text-center font-bold text-amber-600">{a.I || 0}</td>
+                                                        <td className="text-center font-bold text-red-600">{a.A || 0}</td>
+                                                    </tr>
+                                                )) : (
+                                                    <tr><td colSpan={4} className="text-center py-8 text-slate-400 italic">Tidak ada lampiran absensi</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Lampiran Jurnal */}
+                                <div className="la-card">
+                                    <h3 className="la-card-title">
+                                        <i className="bi bi-journal-text text-emerald-500"></i>
+                                        LAMPIRAN JURNAL MENGAJAR
+                                    </h3>
+                                    <div className="la-table-wrap">
+                                        <table className="la-table la-interactive">
+                                            <thead>
+                                                <tr>
+                                                    <th>No</th>
+                                                    <th>Tgl/Jam</th>
+                                                    <th>Kelas/Mapel</th>
+                                                    <th>Materi Pokok</th>
+                                                    <th className="text-center">H</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedItem.lampiran_jurnal?.length > 0 ? selectedItem.lampiran_jurnal.map((j: any, i: number) => (
+                                                    <tr key={i} onClick={() => openJurnalDetail(j)}>
+                                                        <td className="text-slate-300">{i + 1}</td>
+                                                        <td>
+                                                            <div className="font-bold uppercase text-[10px]">{j.hari}</div>
+                                                            <div>{new Date(j.tanggal).toLocaleDateString('id-ID')}</div>
+                                                            <div className="text-[9px] text-slate-400 font-bold uppercase">Jam Ke-{j.jam_ke}</div>
+                                                        </td>
+                                                        <td>
+                                                            <div className="font-black text-blue-600">{j.kelas}</div>
+                                                            <div className="text-[10px] font-bold uppercase text-slate-500">{j.mapel}</div>
+                                                        </td>
+                                                        <td className="max-w-[200px] truncate" title={j.materi}>{j.materi}</td>
+                                                        <td className="text-center font-black bg-emerald-50 text-emerald-700">{j.H || j.hadir || j.jml_hadir || 0}</td>
+                                                    </tr>
+                                                )) : (
+                                                    <tr><td colSpan={5} className="text-center py-8 text-slate-400 italic">Tidak ada lampiran jurnal</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Lampiran Nilai */}
+                                <div className="la-card">
+                                    <h3 className="la-card-title">
+                                        <i className="bi bi-check2-square text-amber-500"></i>
+                                        LAMPIRAN INPUT NILAI
+                                    </h3>
+                                    <div className="la-table-wrap">
+                                        <table className="la-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Kelas / Mapel</th>
+                                                    <th>Jenis Tagihan</th>
+                                                    <th>Materi / TP</th>
+                                                    <th className="text-center">Input At</th>
+                                                    <th className="text-center" style={{ width: '100px' }}>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedItem.lampiran_nilai?.length > 0 ? selectedItem.lampiran_nilai.map((n: any, i: number) => (
+                                                    <tr key={i}>
+                                                        <td>
+                                                            <div className="font-bold">{n.kelas}</div>
+                                                            <div className="text-[10px] uppercase text-slate-400 font-bold">{n.mapel}</div>
+                                                        </td>
+                                                        <td><span className="px-2 py-0.5 rounded bg-amber-50 text-amber-600 font-bold text-[9px] uppercase">{n.jenis}</span></td>
+                                                        <td className="max-w-[200px] truncate" title={n.tagihan || n.materi_tp}>{n.tagihan || n.materi_tp}</td>
+                                                        <td className="text-center text-[10px] font-mono whitespace-nowrap">
+                                                            {n.updated_at ? new Date(n.updated_at).toLocaleString() : '-'}
+                                                        </td>
+                                                        <td className="text-center">
+                                                            <button
+                                                                onClick={() => openNilaiDetail(n)}
+                                                                className="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors text-[10px] font-bold uppercase"
+                                                            >
+                                                                <i className="bi bi-eye-fill"></i>
+                                                                View
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                )) : (
+                                                    <tr><td colSpan={5} className="text-center py-8 text-slate-400 italic">Tidak ada lampiran nilai</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Reviewer Section */}
+                                <div className="la-card bg-slate-50 border-slate-200">
+                                    <h4 className="text-xs font-black uppercase text-slate-400 mb-4 tracking-widest">Verifikasi & Catatan</h4>
+                                    <textarea
+                                        className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-sm font-medium outline-none focus:border-blue-500 transition-all min-h-[120px]"
+                                        placeholder="Berikan catatan perbaikan atau apresiasi di sini..."
+                                        value={reviewerNote}
+                                        onChange={(e) => setReviewerNote(e.target.value)}
+                                    ></textarea>
+                                </div>
+                            </div>
+
+                            <footer className="la-actions">
+                                <button
+                                    className="la-reject-btn hover:bg-red-100 disabled:opacity-50"
+                                    onClick={handleReject}
+                                    disabled={saving || !['Submitted', 'Approved_Waka'].includes(selectedItem.status)}
+                                >
+                                    {saving ? (
+                                        <div className="la-spinner">
+                                            <span className="la-spinner-inner" style={{ background: '#dc2626' }}></span>
+                                        </div>
+                                    ) : 'KEMBALIKAN / REVISI'}
+                                </button>
+                                <button
+                                    className="la-approve-btn disabled:opacity-50"
+                                    onClick={handleApprove}
+                                    disabled={saving || !['Submitted', 'Approved_Waka'].includes(selectedItem.status)}
+                                >
+                                    {saving ? (
+                                        <div className="la-spinner">
+                                            <span className="la-spinner-inner" style={{ background: '#fff' }}></span>
+                                        </div>
+                                    ) : 'SETUJUI LAPORAN'}
+                                </button>
+                            </footer>
+                        </>
+                    ) : (
+                        <div className="la-empty">
+                            <i className="bi bi-file-earmark-check"></i>
+                            <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Belum Ada Terpilih</h3>
+                            <p className="text-sm font-medium text-slate-400">Silakan pilih salah satu laporan di daftar sebelah kiri untuk direview.</p>
+                        </div>
+                    )}
+                </main>
             </div>
 
-            {/* Approval Modal */}
-            {showModal && selectedItem && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+            {/* Modal Nilai Detail */}
+            {showNilaiModal && (
+                <div className="la-modal-overlay">
+                    <div className="la-modal-card">
+                        <header className="la-modal-header">
                             <div>
-                                <h3 className="text-xl font-bold text-gray-900">Review LCKH</h3>
-                                <div className="text-sm text-gray-500">{selectedItem.nama_guru_snap} - {periods.find(p => p.periode_kode === selectedPeriod)?.periode_nama}</div>
+                                <h3 className="font-black text-slate-800 uppercase">{nilaiDetailQuery?.jenis} - {nilaiDetailQuery?.kelas}</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{nilaiDetailQuery?.mapel} • {nilaiDetailQuery?.tagihan || nilaiDetailQuery?.materi_tp}</p>
                             </div>
-                            <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
-                                <i className="bi bi-x-lg text-xl"></i>
+                            <button className="la-modal-close" onClick={() => setShowNilaiModal(false)}>
+                                <i className="bi bi-x-lg"></i>
                             </button>
-                        </div>
-
-                        <div className="p-6 space-y-6">
-                            {/* Summary Cards */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="bg-blue-50 p-4 rounded-xl">
-                                    <div className="text-xs text-blue-600 font-bold uppercase">Total Jam</div>
-                                    <div className="text-2xl font-bold text-blue-900">{selectedItem.snap_total_jam_mengajar || 0}</div>
-                                </div>
-                                <div className="bg-emerald-50 p-4 rounded-xl">
-                                    <div className="text-xs text-emerald-600 font-bold uppercase">Jurnal</div>
-                                    <div className="text-2xl font-bold text-emerald-900">{selectedItem.snap_ringkasan_umum?.total_jurnal_isi || 0}</div>
-                                </div>
-                                <div className="bg-purple-50 p-4 rounded-xl">
-                                    <div className="text-xs text-purple-600 font-bold uppercase">Nilai</div>
-                                    <div className="text-2xl font-bold text-purple-900">{selectedItem.snap_ringkasan_umum?.total_nilai_input || 0}</div>
-                                </div>
-                            </div>
-
-                            {/* Uraian Kegiatan (Attached Journal) */}
-                            <div>
-                                <h4 className="font-bold text-gray-800 mb-2 border-b pb-2">Uraian Kegiatan Pembelajaran</h4>
-                                {selectedItem.lampiran_jurnal && selectedItem.lampiran_jurnal.length > 0 ? (
-                                    <div className="overflow-x-auto border rounded-xl">
-                                        <table className="w-full text-xs">
-                                            <thead className="bg-gray-50 text-gray-700">
-                                                <tr>
-                                                    <th className="px-3 py-2 border-r">No</th>
-                                                    <th className="px-3 py-2 border-r">Hari/Tgl</th>
-                                                    <th className="px-3 py-2 border-r">Jam Ke</th>
-                                                    <th className="px-3 py-2 border-r">Kelas</th>
-                                                    <th className="px-3 py-2 border-r">Mapel</th>
-                                                    <th className="px-3 py-2 border-r">Materi</th>
-                                                    <th className="px-3 py-2 text-center">H</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y">
-                                                {selectedItem.lampiran_jurnal.map((item: any, idx: number) => (
-                                                    <tr key={idx} className="hover:bg-gray-50">
-                                                        <td className="px-3 py-2 text-center border-r">{idx + 1}</td>
-                                                        <td className="px-3 py-2 border-r text-nowrap">{item.hari}, {item.tanggal}</td>
-                                                        <td className="px-3 py-2 text-center border-r">{item.jam_ke}</td>
-                                                        <td className="px-3 py-2 text-center border-r">{item.kelas}</td>
-                                                        <td className="px-3 py-2 border-r">{item.mapel}</td>
-                                                        <td className="px-3 py-2 border-r font-medium">{item.materi}</td>
-                                                        <td className="px-3 py-2 text-center font-bold bg-green-50 text-green-700">{item.hadir}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                        </header>
+                        <div className="la-modal-body">
+                            {loadingNilai ? (
+                                <div className="py-20 text-center">
+                                    <div className="la-spinner mx-auto mb-4">
+                                        <span className="la-spinner-inner"></span>
                                     </div>
-                                ) : (
-                                    <p className="text-gray-400 italic text-sm">Tidak ada lampiran jurnal.</p>
-                                )}
-                            </div>
-
-                            {/* Rekap Absensi Siswa */}
-                            <div>
-                                <h4 className="font-bold text-gray-800 mb-2 border-b pb-2">Rekap Absensi Siswa</h4>
-                                {selectedItem.lampiran_absensi && selectedItem.lampiran_absensi.length > 0 ? (
-                                    <div className="overflow-x-auto border rounded-xl">
-                                        <table className="w-full text-xs">
-                                            <thead className="bg-gray-50 text-gray-700">
-                                                <tr>
-                                                    <th className="px-3 py-2 border-r">Kelas</th>
-                                                    <th className="px-3 py-2 border-r">Mapel</th>
-                                                    <th className="px-3 py-2 border-r">S</th>
-                                                    <th className="px-3 py-2 border-r">I</th>
-                                                    <th className="px-3 py-2 border-r">A</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y">
-                                                {selectedItem.lampiran_absensi.map((item: any, idx: number) => (
-                                                    <tr key={idx}>
-                                                        <td className="px-3 py-2 border-r font-bold">{item.kelas}</td>
-                                                        <td className="px-3 py-2 border-r">{item.mapel}</td>
-                                                        <td className="px-3 py-2 border-r text-center">{item.S}</td>
-                                                        <td className="px-3 py-2 border-r text-center">{item.I}</td>
-                                                        <td className="px-3 py-2 border-r text-center">{item.A}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                ) : (
-                                    <p className="text-gray-400 italic text-sm">Tidak ada lampiran absensi.</p>
-                                )}
-                            </div>
-
-
-                            {/* Teacher's Note */}
-                            {selectedItem.catatan_guru && (
-                                <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100">
-                                    <h5 className="font-bold text-yellow-800 text-sm mb-1">Catatan Guru:</h5>
-                                    <p className="text-sm text-yellow-900 italic">"{selectedItem.catatan_guru}"</p>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Mengambil Data Siswa...</p>
                                 </div>
+                            ) : (
+                                <table className="la-table">
+                                    <thead className="sticky top-0 z-10">
+                                        <tr>
+                                            <th>NISN</th>
+                                            <th>Nama Siswa</th>
+                                            <th className="text-center">Nilai</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {nilaiStudents.map((s, idx) => (
+                                            <tr key={idx}>
+                                                <td className="font-mono text-[10px] text-slate-400">{s.nisn}</td>
+                                                <td className="font-bold text-slate-700">{s.nama}</td>
+                                                <td className="text-center">
+                                                    <span className={`inline-block w-10 py-1 rounded-lg font-black text-sm ${s.nilai < 75 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                        {s.nilai ?? '-'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             )}
-
-                            {/* Reviewer Note Input */}
-                            <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">Catatan Reviewer / Revisi</label>
-                                <textarea
-                                    className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-navy-500 outline-none"
-                                    rows={3}
-                                    placeholder="Tuliskan catatan jika ada revisi..."
-                                    value={reviewerNote}
-                                    onChange={(e) => setReviewerNote(e.target.value)}
-                                ></textarea>
-                            </div>
-                        </div>
-
-                        <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 rounded-b-2xl">
-                            <button
-                                onClick={handleReject}
-                                className="px-4 py-2 rounded-xl border border-red-200 text-red-700 font-semibold hover:bg-red-50 transition-all flex items-center gap-2"
-                            >
-                                <i className="bi bi-x-circle"></i> Minta Revisi
-                            </button>
-                            <button
-                                onClick={handleApprove}
-                                className="px-6 py-2 rounded-xl bg-navy-600 text-white font-semibold hover:bg-navy-700 shadow-lg shadow-navy-100 transition-all flex items-center gap-2"
-                            >
-                                <i className="bi bi-check-circle"></i> Setujui Laporan
-                            </button>
                         </div>
                     </div>
                 </div>
             )}
-            <style jsx global>{`
-                :global(.dark) body {
-                    background-color: #020617 !important;
-                }
-                :global(.dark) .bg-white {
-                    background-color: #0f172a !important;
-                }
-                :global(.dark) .bg-gray-50 {
-                    background-color: rgba(255, 255, 255, 0.03) !important;
-                }
-                :global(.dark) .border-gray-100,
-                :global(.dark) .border-gray-200 {
-                    border-color: rgba(255, 255, 255, 0.1) !important;
-                }
-                :global(.dark) .text-gray-900,
-                :global(.dark) .text-gray-800,
-                :global(.dark) .text-gray-700 {
-                    color: #f8fafc !important;
-                }
-                :global(.dark) .text-gray-600,
-                :global(.dark) .text-gray-500 {
-                    color: #94a3b8 !important;
-                }
-                :global(.dark) .hover\:bg-gray-50:hover {
-                    background-color: rgba(255, 255, 255, 0.05) !important;
-                }
-                :global(.dark) .divide-gray-100 > * + * {
-                    border-color: rgba(255, 255, 255, 0.1) !important;
-                }
-                :global(.dark) select,
-                :global(.dark) textarea {
-                    background-color: rgba(255, 255, 255, 0.04) !important;
-                    border-color: rgba(255, 255, 255, 0.1) !important;
-                    color: white !important;
-                }
-            `}</style>
-        </div>
+
+            {/* Modal Jurnal Detail */}
+            {showJurnalModal && activeJurnal && (
+                <div className="la-modal-overlay">
+                    <div className="la-modal-card max-w-[500px]">
+                        <header className="la-modal-header">
+                            <div>
+                                <h3 className="font-black text-slate-800 uppercase">Detail Jurnal Mengajar</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{activeJurnal.kelas} • {activeJurnal.mapel}</p>
+                            </div>
+                            <button className="la-modal-close" onClick={() => setShowJurnalModal(false)}>
+                                <i className="bi bi-x-lg"></i>
+                            </button>
+                        </header>
+                        <div className="la-modal-body p-6">
+                            <div className="grid gap-6">
+                                <div className="flex gap-4">
+                                    <div className="flex-1 bg-slate-50 p-4 rounded-2xl">
+                                        <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Hari & Tanggal</div>
+                                        <div className="font-bold text-slate-800">{activeJurnal.hari}, {new Date(activeJurnal.tanggal).toLocaleDateString('id-ID', { dateStyle: 'long' })}</div>
+                                    </div>
+                                    <div className="w-24 bg-blue-50 p-4 rounded-2xl text-center">
+                                        <div className="text-[10px] font-black text-blue-400 uppercase mb-1">Jam Ke</div>
+                                        <div className="font-black text-blue-700">{activeJurnal.jam_ke}</div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-50 p-4 rounded-2xl">
+                                    <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Materi Pokok / TP</div>
+                                    <div className="font-semibold text-slate-800 text-sm leading-relaxed">{activeJurnal.materi}</div>
+                                </div>
+
+                                <div className="flex gap-4">
+                                    <div className="flex-1 bg-emerald-50 p-4 rounded-2xl">
+                                        <div className="text-[10px] font-black text-emerald-400 uppercase mb-1">Jumlah Hadir</div>
+                                        <div className="font-black text-emerald-700 text-lg">{activeJurnal.H || activeJurnal.hadir || 0} Siswa</div>
+                                    </div>
+                                    <div className="flex-1 bg-red-50 p-4 rounded-2xl">
+                                        <div className="text-[10px] font-black text-red-400 uppercase mb-1">Ketidakhadiran</div>
+                                        <div className="font-black text-red-700 text-lg">{(activeJurnal.S || 0) + (activeJurnal.I || 0) + (activeJurnal.A || 0)} Siswa</div>
+                                    </div>
+                                </div>
+
+                                {activeJurnal.catatan && (
+                                    <div className="bg-amber-50 p-4 rounded-2xl">
+                                        <div className="text-[10px] font-black text-amber-400 uppercase mb-1">Catatan KBM</div>
+                                        <div className="italic text-amber-800 text-sm">{activeJurnal.catatan}</div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </ PermissionGuard>
     );
 }

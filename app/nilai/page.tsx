@@ -1352,7 +1352,15 @@ export default function NilaiPage() {
 
                                             setShowTagihanModal(false); setEditingTagihan(null); loadData();
                                         } catch (err: any) { Swal.fire('Error', err.message, 'error'); } finally { setLoading(false); }
-                                    }}>Simpan</button>
+                                    }}>
+                                        {loading ? (
+                                            <div className="nl__loading-bars">
+                                                <span className="bar"></span>
+                                                <span className="bar"></span>
+                                                <span className="bar"></span>
+                                            </div>
+                                        ) : 'Simpan'}
+                                    </button>
                                 </div>
                             </div>
                         </div>

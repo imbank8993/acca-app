@@ -1,0 +1,17 @@
+.notification-note {
+    font-size: 0.65rem;
+    color: var(--sidebar-text);
+    opacity: 0.8;
+    font-style: italic;
+    margin-top: 3px;
+    margin-bottom: 3px;
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    line-height: 1.3;
+}
+
+.notification-note i {
+    margin-top: 2px;
+    flex-shrink: 0;
+}

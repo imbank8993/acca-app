@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getActiveSettings } from '@/lib/settings-client';
 
 interface Siswa {
+    id: number;
     nisn: string;
-    nama: string;
+    nama_siswa: string;
     kelas: string;
 }
 
@@ -18,6 +20,9 @@ export default function StudentSelect({ onSelectionChange, selectedNisns }: Stud
     // Filter Class specific state
     const [selectedClass, setSelectedClass] = useState('');
     const [availableClasses, setAvailableClasses] = useState<string[]>([]);
+
+    // Active Period State
+    const [activePeriod, setActivePeriod] = useState<{ tahun_ajaran: string, semester: string } | null>(null);
 
     // Search state
     const [query, setQuery] = useState('');
@@ -40,21 +45,37 @@ export default function StudentSelect({ onSelectionChange, selectedNisns }: Stud
         };
     }, [wrapperRef]);
 
-    // Init: Fetch classes and initial student details
+    // Init: Fetch active period, classes and initial student details
     useEffect(() => {
-        fetchClasses();
+        init();
         if (selectedNisns.length > 0 && selectedStudents.length === 0) {
             fetchSelectedDetails();
         }
     }, []);
 
-    const fetchClasses = async () => {
+    const init = async () => {
+        const settings = await getActiveSettings();
+        if (settings) {
+            setActivePeriod(settings);
+            // We'll call fetchClasses inside searchSiswa or here after state set
+            // For safety, let's just make fetchClasses aware of settings
+            fetchClasses(settings.tahun_ajaran, settings.semester);
+        } else {
+            fetchClasses();
+        }
+    };
+
+    const fetchClasses = async (tahun?: string, semester?: string) => {
         try {
-            const { data } = await supabase
+            let query = supabase
                 .from('siswa_kelas')
                 .select('kelas')
                 .eq('aktif', true);
 
+            if (tahun) query = query.eq('tahun_ajaran', tahun);
+            if (semester) query = query.eq('semester', semester);
+
+            const { data } = await query;
             if (data) {
                 // Extract unique classes and sort
                 const classes = Array.from(new Set(data.map((d: any) => d.kelas))).sort() as string[];
@@ -69,27 +90,36 @@ export default function StudentSelect({ onSelectionChange, selectedNisns }: Stud
         if (selectedNisns.length === 0) return;
         const { data } = await supabase
             .from('siswa_kelas')
-            .select('nisn, nama, kelas')
+            .select('id, nisn, nama_siswa, kelas')
             .in('nisn', selectedNisns);
         if (data) setSelectedStudents(data);
     };
 
-    // Trigger search when Query OR Class changes
+    // Trigger search when Query OR Class OR activePeriod changes
     useEffect(() => {
         const timeout = setTimeout(() => {
             searchSiswa();
         }, 300);
         return () => clearTimeout(timeout);
-    }, [query, selectedClass]);
+    }, [query, selectedClass, activePeriod]);
 
     const searchSiswa = async () => {
         setLoading(true);
         try {
             let dbQuery = supabase
                 .from('siswa_kelas')
-                .select('nisn, nama, kelas')
-                .eq('aktif', true)
-                .order('nama', { ascending: true })
+                .select('id, nisn, nama_siswa, kelas')
+                .eq('aktif', true);
+
+            // Apply Active Period filter
+            if (activePeriod) {
+                dbQuery = dbQuery
+                    .eq('tahun_ajaran', activePeriod.tahun_ajaran)
+                    .eq('semester', activePeriod.semester);
+            }
+
+            dbQuery = dbQuery
+                .order('nama_siswa', { ascending: true })
                 .limit(100);
 
             // Apply Class Filter
@@ -99,7 +129,7 @@ export default function StudentSelect({ onSelectionChange, selectedNisns }: Stud
 
             // Apply Text Search
             if (query) {
-                dbQuery = dbQuery.or(`nama.ilike.%${query}%,nisn.ilike.%${query}%`);
+                dbQuery = dbQuery.or(`nama_siswa.ilike.%${query}%,nisn.ilike.%${query}%`);
             }
 
             const { data, error } = await dbQuery;
@@ -194,7 +224,7 @@ export default function StudentSelect({ onSelectionChange, selectedNisns }: Stud
                             const isSelected = selectedNisns.includes(siswa.nisn);
                             return (
                                 <div
-                                    key={siswa.nisn}
+                                    key={siswa.id}
                                     className={`student-option ${isSelected ? 'selected' : ''}`}
                                     onClick={() => handleSelect(siswa)}
                                 >
@@ -202,7 +232,7 @@ export default function StudentSelect({ onSelectionChange, selectedNisns }: Stud
                                         {isSelected && <i className="bi bi-check"></i>}
                                     </div>
                                     <div className="student-info">
-                                        <div className="student-name">{siswa.nama}</div>
+                                        <div className="student-name">{siswa.nama_siswa}</div>
                                         <div className="student-meta">{siswa.nisn} • {siswa.kelas}</div>
                                     </div>
                                 </div>
@@ -218,8 +248,8 @@ export default function StudentSelect({ onSelectionChange, selectedNisns }: Stud
                     <div className="selected-label">Terpilih: {selectedStudents.length} Siswa</div>
                     <div className="chips-grid">
                         {selectedStudents.map(s => (
-                            <div key={s.nisn} className="student-chip">
-                                <span>{s.nama}</span>
+                            <div key={s.id} className="student-chip">
+                                <span>{s.nama_siswa}</span>
                                 <button onClick={() => removeStudent(s.nisn)} className="remove-chip">×</button>
                             </div>
                         ))}

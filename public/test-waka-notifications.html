@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test LCKH Data - Waka Notifications</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #f8f9fa;
+        }
+
+        .section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: #0038A8;
+            margin-top: 0;
+        }
+
+        button {
+            background: #0038A8;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        button:hover {
+            background: #002b7f;
+        }
+
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .success {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .error {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        .info {
+            color: #3b82f6;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background: #0038A8;
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+
+        .status-submitted {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-approved {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-revisi {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔍 Test LCKH Notifications - Waka</h1>
+
+    <div class="section">
+        <h2>1. Check All LCKH Submissions</h2>
+        <button onclick="checkAllLCKH()">Fetch All LCKH</button>
+        <div id="all-lckh-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. Check Submitted LCKH (Pending Approval)</h2>
+        <button onclick="checkSubmittedLCKH()">Fetch Submitted LCKH</button>
+        <div id="submitted-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>3. Check Current User Info</h2>
+        <button onclick="checkCurrentUser()">Get My Info</button>
+        <div id="user-info"></div>
+    </div>
+
+    <div class="section">
+        <h2>4. Test Waka Approval Query (Exact Query from Header)</h2>
+        <p><strong>This simulates the exact query used in Header.tsx for Waka approval notifications</strong></p>
+        <button onclick="testWakaQuery()">Run Waka Query</button>
+        <div id="waka-query-result"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+
+        const supabaseUrl = 'YOUR_SUPABASE_URL' // Will be filled from env
+        const supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY' // Will be filled from env
+
+        // For testing, we'll use fetch to API routes instead
+
+        window.checkAllLCKH = async function () {
+            const resultEl = document.getElementById('all-lckh-result');
+            resultEl.innerHTML = '<p>Loading...</p>';
+
+            try {
+                const response = await fetch('/api/lckh/test-all');
+                const data = await response.json();
+
+                if (data.submissions && data.submissions.length > 0) {
+                    let html = `<p class="success">✅ Found ${data.submissions.length} LCKH submissions</p>`;
+                    html += '<div style="max-height: 400px; overflow-y: auto;">';
+                    html += '<table><thead><tr>';
+                    html += '<th>ID (short)</th><th>Nama Guru</th><th>NIP</th><th>Periode</th><th>Status</th><th>Submitted</th>';
+                    html += '</tr></thead><tbody>';
+
+                    data.submissions.forEach(sub => {
+                        const statusClass = sub.status.toLowerCase().replace('_', '-');
+                        html += '<tr>';
+                        html += `<td>${sub.id.substring(0, 8)}...</td>`;
+                        html += `<td>${sub.nama_guru_snap || 'N/A'}</td>`;
+                        html += `<td>${sub.nip || 'N/A'}</td>`;
+                        html += `<td>${sub.periode_kode || 'N/A'}</td>`;
+                        html += `<td><span class="status-${statusClass}">${sub.status}</span></td>`;
+                        html += `<td>${new Date(sub.submitted_at || sub.created_at).toLocaleDateString('id-ID')}</td>`;
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table></div>';
+
+                    resultEl.innerHTML = html;
+                } else {
+                    resultEl.innerHTML = '<p class="error">❌ No LCKH submissions found in database</p>';
+                }
+            } catch (error) {
+                resultEl.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                console.error(error);
+            }
+        }
+
+        window.checkSubmittedLCKH = async function () {
+            const resultEl = document.getElementById('submitted-result');
+            resultEl.innerHTML = '<p>Loading...</p>';
+
+            try {
+                const response = await fetch('/api/lckh/test-submitted');
+                const data = await response.json();
+
+                if (data.submissions && data.submissions.length > 0) {
+                    let html = `<p class="success">✅ Found ${data.submissions.length} LCKH with status "Submitted"</p>`;
+                    html += '<table><tr>';
+                    html += '<th>Nama Guru</th><th>NIP</th><th>Periode</th><th>Submitted At</th>';
+                    html += '</tr>';
+
+                    data.submissions.forEach(sub => {
+                        html += '<tr>';
+                        html += `<td>${sub.nama_guru_snap}</td>`;
+                        html += `<td>${sub.nip}</td>`;
+                        html += `<td>${sub.periode_kode}</td>`;
+                        html += `<td>${new Date(sub.submitted_at).toLocaleString('id-ID')}</td>`;
+                        html += '</tr>';
+                    });
+                    html += '</table>';
+
+                    resultEl.innerHTML = html;
+                } else {
+                    resultEl.innerHTML = '<p class="info">ℹ️ No LCKH with status "Submitted" found. This is why Waka notifications are empty.</p>';
+                }
+            } catch (error) {
+                resultEl.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+
+        window.checkCurrentUser = async function () {
+            const resultEl = document.getElementById('user-info');
+            resultEl.innerHTML = '<p>Loading...</p>';
+
+            try {
+                const response = await fetch('/api/user/current');
+                const data = await response.json();
+
+                if (data.user) {
+                    let html = '<div>';
+                    html += `<p><strong>User ID:</strong> ${data.user.id}</p>`;
+                    html += `<p><strong>Username:</strong> ${data.user.username}</p>`;
+                    html += `<p><strong>Nama:</strong> ${data.user.nama}</p>`;
+                    html += `<p><strong>NIP:</strong> ${data.user.nip || 'N/A'}</p>`;
+                    html += `<p><strong>Roles:</strong> ${data.user.role}</p>`;
+                    html += '</div>';
+                    resultEl.innerHTML = html;
+                } else {
+                    resultEl.innerHTML = '<p class="error">User not found or not logged in</p>';
+                }
+            } catch (error) {
+                resultEl.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+
+        window.testWakaQuery = async function () {
+            const resultEl = document.getElementById('waka-query-result');
+            resultEl.innerHTML = '<p>Running Waka approval query...</p>';
+
+            try {
+                const response = await fetch('/api/lckh/test-waka-query');
+                const data = await response.json();
+
+                let html = '<div>';
+                html += `<p><strong>Query Parameters:</strong></p>`;
+                html += '<pre>' + JSON.stringify(data.query, null, 2) + '</pre>';
+
+                if (data.results && data.results.length > 0) {
+                    html += `<p class="success">✅ Found ${data.results.length} LCKH for Waka approval</p>`;
+                    html += '<table><tr>';
+                    html += '<th>Nama Guru</th><th>NIP</th><th>Periode</th><th>Status</th><th>Submitted</th>';
+                    html += '</tr>';
+
+                    data.results.forEach(sub => {
+                        html += '<tr>';
+                        html += `<td>${sub.nama_guru_snap}</td>`;
+                        html += `<td>${sub.nip}</td>`;
+                        html += `<td>${sub.periode_kode}</td>`;
+                        html += `<td>${sub.status}</td>`;
+                        html += `<td>${new Date(sub.submitted_at).toLocaleString('id-ID')}</td>`;
+                        html += '</tr>';
+                    });
+                    html += '</table>';
+                } else {
+                    html += '<p class="info">ℹ️ No results. Possible reasons:</p>';
+                    html += '<ul>';
+                    html += '<li>No LCKH with status "Submitted" from other teachers</li>';
+                    html += '<li>All pending LCKH are from current user (excluded by .neq filter)</li>';
+                    html += '<li>All LCKH already approved (status changed)</li>';
+                    html += '</ul>';
+                }
+
+                html += '</div>';
+                resultEl.innerHTML = html;
+            } catch (error) {
+                resultEl.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+
+</html>

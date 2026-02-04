@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Teacher Notifications</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #f8f9fa;
+        }
+
+        .section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: #0038A8;
+            margin-top: 0;
+        }
+
+        button {
+            background: #0038A8;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+
+        button:hover {
+            background: #002b7f;
+        }
+
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+
+        .success {
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        .error {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        .info {
+            color: #3b82f6;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background: #0038A8;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔍 Debug Teacher Notifications</h1>
+
+    <div class="section">
+        <h2>1. Check Current User</h2>
+        <button onclick="checkUser()">Get Current User Info</button>
+        <div id="user-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. Check LCKH Submissions for Current User</h2>
+        <button onclick="checkTeacherLCKH()">Fetch My LCKH Submissions</button>
+        <div id="lckh-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>3. Check Notification Query</h2>
+        <button onclick="testNotificationQuery()">Test Notification Query</button>
+        <div id="query-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>4. Force Refresh Header Notifications</h2>
+        <p>Buka browser console (F12) dan lihat logs dengan prefix 🔍 dan 🔔</p>
+        <button onclick="window.location.reload()">Hard Refresh Page</button>
+    </div>
+
+    <script>
+        async function checkUser() {
+            const resultEl = document.getElementById('user-result');
+            resultEl.innerHTML = '<p>Loading...</p>';
+
+            try {
+                const { createClient } = await import('http://localhost:3000/node_modules/@supabase/supabase-js/dist/module/index.js');
+
+                // This won't work in static HTML, need to use fetch
+                const response = await fetch('http://localhost:3000/api/user/current');
+                const data = await response.json();
+
+                if (data.user) {
+                    let html = '<div style="margin-top: 1rem;">';
+                    html += '<p><strong>User ID:</strong> ' + data.user.id + '</p>';
+                    html += '<p><strong>Username:</strong> ' + data.user.username + '</p>';
+                    html += '<p><strong>Nama:</strong> ' + data.user.nama + '</p>';
+                    html += '<p><strong>Roles:</strong> ' + data.user.role + '</p>';
+                    html += '</div>';
+                    resultEl.innerHTML = html;
+                } else {
+                    resultEl.innerHTML = '<p class="error">User not found</p>';
+                }
+            } catch (error) {
+                resultEl.innerHTML = '<p class="error">Error: ' + error.message + '</p>';
+            }
+        }
+
+        async function checkTeacherLCKH() {
+            const resultEl = document.getElementById('lckh-result');
+            resultEl.innerHTML = '<p>Loading...</p>';
+
+            try {
+                // Get current user first
+                const userRes = await fetch('http://localhost:3000/api/user/current');
+                const userData = await userRes.json();
+
+                if (!userData.user) {
+                    resultEl.innerHTML = '<p class="error">User not logged in</p>';
+                    return;
+                }
+
+                // Fetch LCKH submissions
+                const params = new URLSearchParams({
+                    user_id: userData.user.id
+                });
+
+                const response = await fetch(`http://localhost:3000/api/lckh/teacher-submissions?${params}`);
+                const data = await response.json();
+
+                if (data.submissions && data.submissions.length > 0) {
+                    let html = '<p class="success">✅ Found ' + data.submissions.length + ' submissions</p>';
+                    html += '<table><tr>';
+                    html += '<th>ID</th><th>Periode</th><th>Status</th><th>Updated</th>';
+                    html += '</tr>';
+
+                    data.submissions.forEach(sub => {
+                        html += '<tr>';
+                        html += '<td>' + sub.id.substring(0, 8) + '...</td>';
+                        html += '<td>' + sub.periode_kode + '</td>';
+                        html += '<td><strong>' + sub.status + '</strong></td>';
+                        html += '<td>' + new Date(sub.updated_at || sub.submitted_at).toLocaleString() + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</table>';
+
+                    // Check which ones should show as notifications
+                    const notifStatuses = data.submissions.filter(s =>
+                        s.status === 'Revisi' || s.status === 'Approved_Waka' || s.status === 'Approved_Kamad'
+                    );
+                    html += '<p class="info">📊 ' + notifStatuses.length + ' should show as notifications</p>';
+
+                    resultEl.innerHTML = html;
+                } else {
+                    resultEl.innerHTML = '<p class="error">❌ No LCKH submissions found</p>';
+                }
+            } catch (error) {
+                resultEl.innerHTML = '<p class="error">Error: ' + error.message + '</p>';
+            }
+        }
+
+        async function testNotificationQuery() {
+            const resultEl = document.getElementById('query-result');
+            resultEl.innerHTML = '<p>Running notification query...</p>';
+
+            try {
+                const userRes = await fetch('http://localhost:3000/api/user/current');
+                const userData = await userRes.json();
+
+                if (!userData.user) {
+                    resultEl.innerHTML = '<p class="error">User not logged in</p>';
+                    return;
+                }
+
+                const userId = userData.user.id;
+
+                // Test the exact query used in Header.tsx
+                const params = new URLSearchParams({
+                    user_id: userId,
+                    statuses: 'Revisi,Approved_Waka,Approved_Kamad'
+                });
+
+                const response = await fetch(`http://localhost:3000/api/lckh/notifications?${params}`);
+                const data = await response.json();
+
+                let html = '<div style="margin-top: 1rem;">';
+                html += '<p><strong>Query Parameters:</strong></p>';
+                html += '<pre>' + JSON.stringify({ user_id: userId, statuses: ['Revisi', 'Approved_Waka', 'Approved_Kamad'] }, null, 2) + '</pre>';
+
+                if (data.notifications) {
+                    html += '<p class="success">✅ Found ' + data.notifications.length + ' notifications</p>';
+                    html += '<pre>' + JSON.stringify(data.notifications, null, 2) + '</pre>';
+                } else {
+                    html += '<p class="error">❌ No notifications found</p>';
+                }
+
+                html += '</div>';
+                resultEl.innerHTML = html;
+            } catch (error) {
+                resultEl.innerHTML = '<p class="error">Error: ' + error.message + '</p><pre>' + error.stack + '</pre>';
+            }
+        }
+    </script>
+</body>
+
+</html>

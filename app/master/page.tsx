@@ -9,8 +9,9 @@ import WaktuTab from './components/WaktuTab'
 import KodeGuruTab from './components/KodeGuruTab'
 import TugasTambahanTab from './components/TugasTambahanTab'
 import TahunAjaranTab from './components/TahunAjaranTab'
+import InformasiTab from './components/InformasiTab'
 
-type TabType = 'siswa' | 'guru' | 'kode_guru' | 'mapel' | 'kelas' | 'waktu' | 'tahun_ajaran' | 'tugas_tambahan'
+type TabType = 'siswa' | 'guru' | 'kode_guru' | 'mapel' | 'kelas' | 'waktu' | 'tahun_ajaran' | 'tugas_tambahan' | 'informasi'
 
 const tabs = [
   { key: 'tahun_ajaran', label: 'Tahun Ajaran', icon: 'bi-calendar-range' },
@@ -21,6 +22,7 @@ const tabs = [
   { key: 'kelas', label: 'Kelas', icon: 'bi-door-open' },
   { key: 'waktu', label: 'Waktu', icon: 'bi-clock' },
   { key: 'tugas_tambahan', label: 'Tugas Tambahan', icon: 'bi-briefcase' },
+  { key: 'informasi', label: 'Informasi', icon: 'bi-info-circle' },
 ]
 
 export default function MasterDataPage({ user }: { user?: any }) {
@@ -70,6 +72,7 @@ export default function MasterDataPage({ user }: { user?: any }) {
         {activeTab === 'waktu' && <WaktuTab user={user} />}
         {activeTab === 'tugas_tambahan' && <TugasTambahanTab user={user} />}
         {activeTab === 'tahun_ajaran' && <TahunAjaranTab user={user} />}
+        {activeTab === 'informasi' && <InformasiTab user={user} />}
       </div>
 
       <style jsx>{`

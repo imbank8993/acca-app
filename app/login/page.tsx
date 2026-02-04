@@ -65,7 +65,7 @@ export default function LoginPage() {
           options: {
             data: {
               username,
-              guruId: user.guruId,
+              guruId: user.nip,
               nama: user.nama
             }
           }
@@ -149,10 +149,13 @@ export default function LoginPage() {
     <div className="login-container">
       {/* Left Side - Branding */}
       <div id="login-left">
-        <img
-          src="https://drive.google.com/thumbnail?id=1dB7qVU5MT9HuPgSSLf6ZMIHcQDC6nJh3&sz=w1000"
-          alt="Logo MAN IC Gowa"
-        />
+        <div className="logo-wrapper">
+          <img
+            src="/logo-login.png"
+            alt="Logo MAN IC Gowa"
+          />
+        </div>
+        <div className="branding-divider"></div>
         <h1>MAN Insan Cendekia Gowa</h1>
         <p>Academic Center & Access</p>
       </div>
@@ -207,7 +210,11 @@ export default function LoginPage() {
             <button type="submit" id="btnLogin" disabled={loading}>
               {loading ? (
                 <>
-                  <div className="spinner me-2"></div>
+                  <div className="loading-bars-inline me-2">
+                    <div className="bar"></div>
+                    <div className="bar"></div>
+                    <div className="bar"></div>
+                  </div>
                   Memproses...
                 </>
               ) : (
@@ -298,27 +305,66 @@ export default function LoginPage() {
           pointer-events: none;
         }
 
+        .logo-wrapper {
+          position: relative;
+          display: inline-block;
+          margin-bottom: 25px; /* Increased distance as requested */
+          overflow: hidden;
+        }
+
         #login-left img {
-          width: 180px;
+          width: 220px;
           height: auto;
-          border-radius: 18px;
-          margin-bottom: 25px;
+          display: block;
+          filter: drop-shadow(0 10px 20px rgba(0,0,0,0.15));
         }
 
         #login-left h1 {
-          font-size: clamp(1.9rem, 5.5vw, 3rem);
+          font-size: clamp(1.6rem, 5vw, 2.8rem);
           font-weight: 700;
-          margin-bottom: 15px;
-          text-shadow: 1px 1px 6px rgba(0,0,0,.35);
+          margin-top: 5px; /* Tighter gap to divider */
+          margin-bottom: 10px;
+          text-shadow: 1px 1px 6px rgba(0,0,0,.3);
         }
 
         #login-left p {
-          font-size: clamp(.95rem, 3.5vw, 1.15rem);
+          font-size: clamp(.95rem, 3.5vw, 1.1rem);
           line-height: 1.5;
-          max-width: 360px;
+          max-width: 400px;
           margin: 0 auto;
           opacity: .9;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          font-weight: 500;
         }
+
+        .branding-divider {
+          width: 220px;
+          height: 2px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 999px;
+          margin: 0 auto 15px; /* Centered with ideal bottom gap */
+          position: relative;
+          overflow: hidden;
+        }
+
+        .branding-divider::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 80px;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, #fff, transparent);
+          box-shadow: 0 0 15px #fff;
+          animation: bounceX 5s infinite ease-in-out;
+        }
+
+        @keyframes bounceX {
+          0%, 100% { transform: translateX(-80px); }
+          50% { transform: translateX(220px); }
+        }
+
 
         #login-right {
           flex: 1;
@@ -470,17 +516,30 @@ export default function LoginPage() {
           transform: none;
         }
 
-        .spinner {
-          width: 16px;
-          height: 16px;
-          border: 2px solid rgba(255,255,255,.3);
-          border-radius: 50%;
-          border-top-color: #fff;
-          animation: spin 1s ease-in-out infinite;
+        .loading-bars-inline {
+          display: flex;
+          gap: 3px;
+          align-items: center;
         }
 
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        .loading-bars-inline .bar {
+          width: 3px;
+          height: 12px;
+          background: #fff;
+          border-radius: 99px;
+          animation: waveInline 1s infinite ease-in-out;
+        }
+
+        .loading-bars-inline .bar:nth-child(2) { animation-delay: 0.1s; opacity: 0.8; }
+        .loading-bars-inline .bar:nth-child(3) { animation-delay: 0.2s; opacity: 0.6; }
+
+        @keyframes waveInline {
+          0%, 40%, 100% { transform: scaleY(0.5); }
+          20% { transform: scaleY(1.2); }
+        }
+
+        .spinner {
+          display: none; /* Removed in favor of wave */
         }
 
 
@@ -488,22 +547,36 @@ export default function LoginPage() {
         @media (max-width: 992px) {
           .login-container {
             flex-direction: column;
-            min-height: auto;
-            height: auto;
-          }
-
-          #login-left,
-          #login-right {
-            width: 100%;
-            padding: 22px 16px;
+            min-height: 100dvh;
+            background: #f8fafc;
+            padding: 12px;
+            gap: 12px;
           }
 
           #login-left {
-            min-height: 40vh;
+            width: 100%;
+            min-height: auto;
+            padding: 40px 20px;
+            border-radius: 24px;
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
           }
 
           #login-left img {
             width: 140px;
+            margin-bottom: 20px;
+          }
+
+          #login-left h1 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+          }
+
+          #login-left p {
+            font-size: 0.8rem;
           }
 
           #login-left::after,
@@ -511,17 +584,24 @@ export default function LoginPage() {
             display: none;
           }
 
+          .branding-divider {
+            width: 140px;
+            margin-bottom: 15px;
+          }
+
           #login-right {
-            align-items: flex-start;
-            padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+            width: 100%;
+            padding: 0;
+            display: flex;
+            justify-content: center;
           }
 
           .login-card {
-            padding: 22px 18px;
-            border-radius: 18px;
-            margin-top: 6px;
-            margin-bottom: 18px;
-            backdrop-filter: none;
+            width: 100%;
+            padding: 35px 24px;
+            border-radius: 20px;
+            margin: 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
           }
 
           html, body {

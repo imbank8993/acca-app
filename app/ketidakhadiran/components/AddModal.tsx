@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import StudentSelect from './StudentSelect';
 import Swal from 'sweetalert2';
 
@@ -18,6 +18,8 @@ interface AddModalProps {
 export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTypes }: AddModalProps) {
     const [jenis, setJenis] = useState<'IZIN' | 'SAKIT'>('IZIN');
     const [status, setStatus] = useState('MADRASAH');
+    const [isInitialized, setIsInitialized] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // ... rest of state
     const [ketIzin, setKetIzin] = useState('');
@@ -25,9 +27,11 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
     const [tglMulai, setTglMulai] = useState('');
     const [tglSelesai, setTglSelesai] = useState('');
     const [selectedNisns, setSelectedNisns] = useState<string[]>([]);
+    const [uploading, setUploading] = useState(false);
+    const [uploadedFileUrl, setUploadedFileUrl] = useState('');
 
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && !isInitialized) {
             // Priority: allowedTypes prop > canDo check
             let allowedIzin = false;
             let allowedSakit = false;
@@ -36,7 +40,6 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
                 allowedIzin = allowedTypes.IZIN;
                 allowedSakit = allowedTypes.SAKIT;
             } else {
-                // Fallback if not passed (though we passed it in parent)
                 allowedIzin = canDo('ketidakhadiran.izin', 'manage');
                 allowedSakit = canDo('ketidakhadiran.sakit', 'manage');
             }
@@ -48,20 +51,57 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
                 setJenis('SAKIT');
                 setStatus('Ringan');
             }
+            setIsInitialized(true);
         }
-    }, [isOpen, allowedTypes]);
+
+        if (!isOpen) {
+            setIsInitialized(false);
+        }
+    }, [isOpen, allowedTypes, isInitialized]);
 
     const [submitting, setSubmitting] = useState(false);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+
+        const file = e.target.files[0];
+        setUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            // Folder structure: Ketidakhadiran/Izin or Ketidakhadiran/Sakit
+            formData.append('folder', `Ketidakhadiran/${jenis.charAt(0) + jenis.slice(1).toLowerCase()}`);
+
+            const res = await fetch('https://icgowa.sch.id/acca.icgowa.sch.id/acca_upload.php', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Upload gagal');
+
+            setUploadedFileUrl(data.publicUrl);
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'File berhasil diupload', timer: 1500, showConfirmButton: false });
+        } catch (error: any) {
+            console.error(error);
+            Swal.fire('Upload Gagal', error.message || 'Gagal menghubungi server', 'error');
+        } finally {
+            setUploading(false);
+        }
+    };
 
     // Reset form when opening must be handled by effect or parent, assume simple unmount for now
     if (!isOpen) return null;
 
     const handleSubmit = async () => {
         // Validation
-        if (!tglMulai || !tglSelesai) {
-            Swal.fire({ title: 'Validasi', text: 'Tanggal mulai dan selesai wajib diisi', icon: 'warning', confirmButtonColor: '#0b1b3a' });
+        if (!tglMulai) {
+            Swal.fire({ title: 'Validasi', text: 'Tanggal mulai wajib diisi', icon: 'warning', confirmButtonColor: '#0b1b3a' });
             return;
         }
+
+        // Jika tglSelesai kosong, gunakan tglMulai (absen 1 hari)
+        const finalTglSelesai = tglSelesai || tglMulai;
         if (selectedNisns.length === 0) {
             Swal.fire({ title: 'Validasi', text: 'Pilih minimal 1 siswa', icon: 'warning', confirmButtonColor: '#0b1b3a' });
             return;
@@ -89,9 +129,10 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
                 jenis,
                 status,
                 tgl_mulai: tglMulai,
-                tgl_selesai: tglSelesai,
+                tgl_selesai: finalTglSelesai,
                 keterangan,
-                nisList: selectedNisns
+                nisList: selectedNisns,
+                file_url: uploadedFileUrl || null
             };
 
             // Get Supabase session token for auth
@@ -272,6 +313,45 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
                             selectedNisns={selectedNisns}
                             onSelectionChange={setSelectedNisns}
                         />
+                    </div>
+
+                    {/* File Upload */}
+                    <div className="form-group">
+                        <label>Upload Dokumen Pendukung (Opsional)</label>
+                        <div className="upload-container">
+                            <input
+                                type="file"
+                                id="file-upload"
+                                className="hidden"
+                                ref={fileInputRef}
+                                onChange={handleFileUpload}
+                                accept="image/*,application/pdf"
+                                disabled={uploading}
+                            />
+                            <label htmlFor="file-upload" className={`upload-box ${uploading ? 'uploading' : ''}`}>
+                                {uploading ? (
+                                    <div className="spinner-sm"></div>
+                                ) : uploadedFileUrl ? (
+                                    <div className="uploaded-info">
+                                        <i className="bi bi-file-earmark-check-fill"></i>
+                                        <span>File siap disimpan</span>
+                                    </div>
+                                ) : (
+                                    <div className="upload-placeholder">
+                                        <i className="bi bi-cloud-arrow-up"></i>
+                                        <span>Klik untuk pilih PDF atau Gambar</span>
+                                    </div>
+                                )}
+                            </label>
+                            {uploadedFileUrl && (
+                                <button className="remove-file" onClick={() => {
+                                    setUploadedFileUrl('');
+                                    if (fileInputRef.current) fileInputRef.current.value = '';
+                                }}>
+                                    <i className="bi bi-trash"></i> Hapus
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                 </div>
@@ -505,18 +585,101 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
           cursor: not-allowed;
         }
 
-        .spinner {
-          display: inline-block;
-          width: 16px;
-          height: 16px;
-          border: 2px solid rgba(255,255,255,0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
+        .loading-bars-inline {
+          display: flex;
+          gap: 3px;
+          align-items: center;
+          justify-content: center;
         }
 
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        .loading-bars-inline .bar {
+          width: 3px;
+          height: 12px;
+          background: #fff;
+          border-radius: 99px;
+          animation: waveInline 1s infinite ease-in-out;
+        }
+
+        .loading-bars-inline .bar:nth-child(2) { animation-delay: 0.1s; opacity: 0.8; }
+        .loading-bars-inline .bar:nth-child(3) { animation-delay: 0.2s; opacity: 0.6; }
+
+        @keyframes waveInline {
+          0%, 40%, 100% { transform: scaleY(0.5); }
+          20% { transform: scaleY(1.2); }
+        }
+
+        .spinner { display: none; }
+
+        .hidden { display: none; }
+        
+        .upload-container {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .upload-box {
+          flex: 1;
+          height: 60px;
+          border: 2px dashed #cbd5e1;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s;
+          background: #f8fafc;
+        }
+
+        .upload-box:hover {
+          border-color: #3aa6ff;
+          background: #f0f9ff;
+        }
+
+        .upload-box.uploading {
+          cursor: wait;
+          opacity: 0.7;
+        }
+
+        .upload-placeholder {
+          display: flex;
+          items-center: center;
+          gap: 10px;
+          color: #64748b;
+          font-size: 0.875rem;
+        }
+
+        .upload-placeholder i {
+          font-size: 1.25rem;
+        }
+
+        .uploaded-info {
+          display: flex;
+          items-center: center;
+          gap: 10px;
+          color: #10b981;
+          font-weight: 600;
+          font-size: 0.875rem;
+        }
+
+        .remove-file {
+          padding: 8px 12px;
+          background: #fee2e2;
+          color: #ef4444;
+          border: none;
+          border-radius: 8px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .spinner-sm {
+          width: 20px;
+          height: 20px;
+          border: 2px solid #e2e8f0;
+          border-top-color: #3aa6ff;
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
         }
       `}</style>
         </div>

@@ -134,6 +134,23 @@
   margin-bottom: 1rem;
 }
 
+.kh-kpi-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 4px;
+}
+
+.kh-kpi-actions .btn-kh-excel,
+.kh-kpi-actions .btn-kh-navy {
+  width: 100%;
+  justify-content: center;
+  box-shadow: none;
+  /* Reduce shadow in grid */
+  padding: 0.55rem 1rem;
+}
+
 @media (max-width: 992px) {
   .kh-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -222,7 +239,8 @@
   font-weight: 600;
   border-radius: 999px;
   padding: 0.2rem 0.7rem;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
+  /* Consistent font size */
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -288,13 +306,15 @@
 
 .kh-table {
   width: 100%;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
+  /* Consistently 0.875rem */
   border-collapse: separate;
   border-spacing: 0;
 }
 
 .kh-table thead th {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
+  /* Slightly larger heading for balance */
   font-weight: 700;
   color: var(--n-muted);
   text-transform: uppercase;
@@ -792,19 +812,45 @@
   background: #00287a;
 }
 
-/* Spinner */
+/* Spinner Standar - Wave Style */
 .kh-spin {
-  width: 15px;
-  height: 15px;
-  border-radius: 999px;
-  border: 2px solid rgba(255, 255, 255, .35);
-  border-top-color: #fff;
-  animation: khspin .75s linear infinite;
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  height: 14px;
 }
 
-@keyframes khspin {
-  to {
-    transform: rotate(360deg);
+.kh-spin::before,
+.kh-spin::after,
+.kh-spin-inner {
+  content: "";
+  width: 2px;
+  height: 10px;
+  background: currentColor;
+  border-radius: 2px;
+  animation: khWave 1s infinite ease-in-out;
+}
+
+.kh-spin::before {
+  animation-delay: -0.2s;
+}
+
+.kh-spin-inner {
+  animation-delay: -0.1s;
+}
+
+@keyframes khWave {
+
+  0%,
+  40%,
+  100% {
+    transform: scaleY(0.6);
+    opacity: 0.6;
+  }
+
+  20% {
+    transform: scaleY(1.3);
+    opacity: 1;
   }
 }
 
@@ -968,4 +1014,110 @@
   transform: none !important;
   box-shadow: none !important;
   cursor: not-allowed;
+}
+
+/* ===== Upload Component ===== */
+.kh-upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.kh-upload__box {
+  flex: 1;
+  height: 56px;
+  border: 2px dashed var(--n-border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--n-soft);
+}
+
+.kh-upload__box:hover {
+  border-color: var(--n-primary);
+  background: var(--n-card);
+}
+
+.kh-upload__box.is-uploading {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.kh-upload__placeholder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--n-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.kh-upload__placeholder i {
+  font-size: 1.15rem;
+}
+
+.kh-upload__info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #10b981;
+  font-weight: 600;
+  font-size: 0.85rem;
+  max-width: 100%;
+}
+
+.kh-upload__remove {
+  padding: 10px 12px;
+  background: #fee2e2;
+  color: #ef4444;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.kh-upload__remove:hover {
+  background: #fecaca;
+}
+
+.kh-spin-sm {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.kh-spin-sm::before,
+.kh-spin-sm::after,
+.kh-spin-sm-inner {
+  content: "";
+  width: 2px;
+  height: 8px;
+  background: var(--n-primary);
+  border-radius: 2px;
+  animation: khWave 1s infinite ease-in-out;
+}
+
+.kh-spin-sm::before {
+  animation-delay: -0.2s;
+}
+
+.kh-spin-sm-inner {
+  animation-delay: -0.1s;
+}
+
+@keyframes khWave {
+
+  0%,
+  40%,
+  100% {
+    transform: scaleY(0.4);
+  }
+
+  20% {
+    transform: scaleY(1);
+  }
 }
