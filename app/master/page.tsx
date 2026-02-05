@@ -10,8 +10,11 @@ import KodeGuruTab from './components/KodeGuruTab'
 import TugasTambahanTab from './components/TugasTambahanTab'
 import TahunAjaranTab from './components/TahunAjaranTab'
 import InformasiTab from './components/InformasiTab'
+import DokumenSiswaTab from './components/DokumenSiswaTab'
 
-type TabType = 'siswa' | 'guru' | 'kode_guru' | 'mapel' | 'kelas' | 'waktu' | 'tahun_ajaran' | 'tugas_tambahan' | 'informasi'
+
+type TabType = 'siswa' | 'guru' | 'kode_guru' | 'mapel' | 'kelas' | 'waktu' | 'tahun_ajaran' | 'tugas_tambahan' | 'informasi' | 'dokumen'
+
 
 const tabs = [
   { key: 'tahun_ajaran', label: 'Tahun Ajaran', icon: 'bi-calendar-range' },
@@ -23,7 +26,9 @@ const tabs = [
   { key: 'waktu', label: 'Waktu', icon: 'bi-clock' },
   { key: 'tugas_tambahan', label: 'Tugas Tambahan', icon: 'bi-briefcase' },
   { key: 'informasi', label: 'Informasi', icon: 'bi-info-circle' },
+  { key: 'dokumen', label: 'Dokumen Siswa', icon: 'bi-file-earmark-arrow-up' },
 ]
+
 
 export default function MasterDataPage({ user }: { user?: any }) {
   const { hasPermission } = require('@/lib/permissions-client')
@@ -73,6 +78,7 @@ export default function MasterDataPage({ user }: { user?: any }) {
         {activeTab === 'tugas_tambahan' && <TugasTambahanTab user={user} />}
         {activeTab === 'tahun_ajaran' && <TahunAjaranTab user={user} />}
         {activeTab === 'informasi' && <InformasiTab user={user} />}
+        {activeTab === 'dokumen' && <DokumenSiswaTab user={user} />}
       </div>
 
       <style jsx>{`
