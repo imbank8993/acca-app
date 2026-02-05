@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
+import { corsResponse, handleOptions } from '@/lib/cors'
 
 export async function GET(request: NextRequest) {
     try {
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
         }
 
-        return NextResponse.json({
+        return corsResponse(NextResponse.json({
             ok: true,
             data,
             meta: {
@@ -46,10 +47,10 @@ export async function GET(request: NextRequest) {
                 limit,
                 totalPages: count ? Math.ceil(count / limit) : 0
             }
-        })
+        }))
     } catch (error: any) {
         console.error('Error in GET /api/master/master_mapel:', error)
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+        return corsResponse(NextResponse.json({ ok: false, error: error.message }, { status: 500 }))
     }
 }
 
@@ -245,8 +246,12 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
         }
 
-        return NextResponse.json({ ok: true });
+        return corsResponse(NextResponse.json({ ok: true }));
     } catch (error: any) {
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+        return corsResponse(NextResponse.json({ ok: false, error: error.message }, { status: 500 }));
     }
+}
+
+export async function OPTIONS() {
+    return handleOptions();
 }

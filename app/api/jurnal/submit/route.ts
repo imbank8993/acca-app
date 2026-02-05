@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { corsResponse, handleOptions } from '@/lib/cors';
 
 // POST - Submit/Update journal from student form
 export async function POST(request: NextRequest) {
@@ -27,10 +28,10 @@ export async function POST(request: NextRequest) {
 
         // Validate required fields
         if (!nip || !tanggal || (!jam_ke && (!selected_hours || selected_hours.length === 0)) || !kelas) {
-            return NextResponse.json(
-                { error: 'Required fields: nip, tanggal, jam_ke, kelas' },
+            return corsResponse(NextResponse.json(
+                { ok: false, error: 'Required fields: nip, tanggal, jam_ke, kelas' },
                 { status: 400 }
-            );
+            ));
         }
 
         // 1. Resolve which hours to process
@@ -127,17 +128,22 @@ export async function POST(request: NextRequest) {
             results.push(res);
         }
 
-        return NextResponse.json({
+        return corsResponse(NextResponse.json({
+            ok: true,
             success: true,
             message: `Processed ${results.length} journal entries`,
             data: results
-        });
+        }));
     } catch (error: any) {
         console.error('Error submitting jurnal:', error);
-        return NextResponse.json(
-            { error: 'Failed to submit journal', details: error.message },
+        return corsResponse(NextResponse.json(
+            { ok: false, error: 'Failed to submit journal', details: error.message },
             { status: 500 }
-        );
+        ));
     }
+}
+
+export async function OPTIONS() {
+    return handleOptions();
 }
 

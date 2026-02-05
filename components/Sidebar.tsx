@@ -21,6 +21,7 @@ const getMenuIcon = (path: string) => {
   if (p.includes('absensi')) return 'fa-clipboard-user'
   if (p.includes('nilai')) return 'fa-graduation-cap'
   if (p.includes('lckh')) return 'fa-file-signature'
+  if (p.includes('laporan')) return 'fa-file-lines'
   if (p.includes('konfigurasi') || p.includes('master') || p.includes('pengaturan')) return 'fa-gear'
   if (p.includes('jadwal')) return 'fa-calendar-days'
   if (p.includes('user')) return 'fa-user-group'
