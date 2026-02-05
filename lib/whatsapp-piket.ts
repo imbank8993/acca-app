@@ -1,6 +1,6 @@
 
 const FONNTE_TOKEN = 'wKoRYfEomVBMXKGCuoV1';
-const WA_TARGET = '120363422816819001@g.us';
+const WA_TARGET = '120363238526365085@g.us';
 
 export async function sendWhatsAppPiket(data: any) {
     try {
