@@ -1,7 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { corsResponse, handleOptions } from '@/lib/cors';
-import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(request: NextRequest) {
     try {
@@ -21,36 +20,37 @@ export async function POST(request: NextRequest) {
         }
 
         const safeKelas = (kelas || 'UTBK').replace(/[^\w\- ]/g, "_");
-        const timestamp = new Date().toISOString().replace(/[-:.]/g, "");
-        const ext = fileName.split('.').pop();
-        const finalName = `Dokumentasi_${safeKelas}_${timestamp}.${ext}`;
 
-        // Define path in Supabase Storage
-        const storagePath = `piket/${finalName}`;
+        // Prepare FormData for the PHP hosting handler
+        const formData = new FormData();
+        const blob = new Blob([buffer], { type: fileType });
+        formData.append('file', blob, fileName);
+        formData.append('category', 'piket');
+        formData.append('kelas', safeKelas);
 
-        // Upload to Supabase Storage (Bucket: 'documents')
-        const { data, error: uploadError } = await supabaseAdmin.storage
-            .from('documents')
-            .upload(storagePath, buffer, {
-                contentType: fileType,
-                upsert: true
-            });
+        const PHP_HANDLER_URL = process.env.NEXT_PUBLIC_PHP_HANDLER_URL || 'https://icgowa.sch.id/akademik.icgowa.sch.id/upload_handler.php';
 
-        if (uploadError) {
-            console.error("Supabase Upload Error:", uploadError);
-            throw new Error(`Gagal mengunggah ke storage: ${uploadError.message}`);
+        const uploadRes = await fetch(PHP_HANDLER_URL, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!uploadRes.ok) {
+            const errorText = await uploadRes.text();
+            throw new Error(`Gagal mengunggah ke file hosting: ${errorText}`);
         }
 
-        // Get Public URL
-        const { data: { publicUrl } } = supabaseAdmin.storage
-            .from('documents')
-            .getPublicUrl(storagePath);
+        const uploadResult = await uploadRes.json();
 
-        return corsResponse(NextResponse.json({
-            ok: true,
-            status: 'success',
-            url: publicUrl
-        }));
+        if (uploadResult.status === 'success') {
+            return corsResponse(NextResponse.json({
+                ok: true,
+                status: 'success',
+                url: uploadResult.file_url
+            }));
+        } else {
+            throw new Error(uploadResult.message || 'Gagal mengunggah ke file hosting.');
+        }
 
     } catch (error: any) {
         console.error("Upload Error", error);
