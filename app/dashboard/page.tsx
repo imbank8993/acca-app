@@ -20,6 +20,9 @@ import TugasTambahanPage from '../tugas-tambahan/page'
 import LckhPage from '../lckh/page'
 import LckhApprovalPage from '../lckh-approval/page'
 import ProfilePage from './components/ProfilePage'
+import PiketPage from '../piket/page'
+import InformasiPage from '../informasi/page'
+import DokumenSiswaPage from '../dokumen-siswa/page'
 
 export default function DashboardPage() {
   return (
@@ -320,6 +323,9 @@ const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<
   'Ketidakhadiran': () => <KetidakhadiranPage />,
   'jurnal': (user) => <JurnalPage user={user} />,
   'JurnalGuru': (user) => <JurnalPage user={user} />, // Alias untuk Layanan Guru
+  'Piket': (user) => <PiketPage user={user} />,
+  'Informasi': (user) => <InformasiPage user={user} />,
+  'DokumenSiswa': (user) => <DokumenSiswaPage user={user} />,
   'TugasTambahan': () => <TugasTambahanPage />,
   'AbsensiSiswa': () => <PagePlaceholder title="Absensi Guru" icon="bi-person-check" description="Modul Absensi untuk Guru" />,
 

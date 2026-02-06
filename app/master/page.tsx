@@ -9,11 +9,10 @@ import WaktuTab from './components/WaktuTab'
 import KodeGuruTab from './components/KodeGuruTab'
 import TugasTambahanTab from './components/TugasTambahanTab'
 import TahunAjaranTab from './components/TahunAjaranTab'
-import InformasiTab from './components/InformasiTab'
-import DokumenSiswaTab from './components/DokumenSiswaTab'
+// Informasi and Dokumen Siswa are now standalone pages
 
 
-type TabType = 'siswa' | 'guru' | 'kode_guru' | 'mapel' | 'kelas' | 'waktu' | 'tahun_ajaran' | 'tugas_tambahan' | 'informasi' | 'dokumen'
+type TabType = 'siswa' | 'guru' | 'kode_guru' | 'mapel' | 'kelas' | 'waktu' | 'tahun_ajaran' | 'tugas_tambahan'
 
 
 const tabs = [
@@ -25,8 +24,6 @@ const tabs = [
   { key: 'kelas', label: 'Kelas', icon: 'bi-door-open' },
   { key: 'waktu', label: 'Waktu', icon: 'bi-clock' },
   { key: 'tugas_tambahan', label: 'Tugas Tambahan', icon: 'bi-briefcase' },
-  { key: 'informasi', label: 'Informasi', icon: 'bi-info-circle' },
-  { key: 'dokumen', label: 'Dokumen Siswa', icon: 'bi-file-earmark-arrow-up' },
 ]
 
 
@@ -77,8 +74,6 @@ export default function MasterDataPage({ user }: { user?: any }) {
         {activeTab === 'waktu' && <WaktuTab user={user} />}
         {activeTab === 'tugas_tambahan' && <TugasTambahanTab user={user} />}
         {activeTab === 'tahun_ajaran' && <TahunAjaranTab user={user} />}
-        {activeTab === 'informasi' && <InformasiTab user={user} />}
-        {activeTab === 'dokumen' && <DokumenSiswaTab user={user} />}
       </div>
 
       <style jsx>{`

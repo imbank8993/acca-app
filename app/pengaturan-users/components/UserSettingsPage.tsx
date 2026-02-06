@@ -1,20 +1,16 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import PageAccessTab from './PageAccessTab'
 import UserDataTab from './UserDataTab'
 import BulkReplaceTab from './BulkReplaceTab'
-import RolePermissionsTab from './RolePermissionsTab'
 
-type TabType = 'page_access' | 'role_permissions' | 'user_data' | 'bulk_replace'
+type TabType = 'user_data' | 'bulk_replace'
 
 export default function UserSettingsPage({ initialTab }: { initialTab?: string }) {
-  const [activeTab, setActiveTab] = useState<TabType>((initialTab as TabType) || 'page_access')
+  const [activeTab, setActiveTab] = useState<TabType>((initialTab as TabType) || 'user_data')
 
   const tabs = useMemo(
     () => [
-      { key: 'page_access', label: 'Akses & Role', icon: 'bi-shield-check' },
-      { key: 'role_permissions', label: 'Izin Role (V2)', icon: 'bi-key' },
       { key: 'user_data', label: 'Data & Status', icon: 'bi-person-gear' },
       { key: 'bulk_replace', label: 'Ganti Data Massal', icon: 'bi-arrow-repeat' }
     ],
@@ -27,7 +23,7 @@ export default function UserSettingsPage({ initialTab }: { initialTab?: string }
       <div className="us-header">
         <div className="us-titleArea">
           <h1>Pengaturan Users</h1>
-          <p>Kelola akses, role, dan data pengguna sistem dalam satu pusat kontrol.</p>
+          <p>Kelola data dan status pengguna sistem dalam satu pusat kontrol.</p>
         </div>
       </div>
 
@@ -49,8 +45,6 @@ export default function UserSettingsPage({ initialTab }: { initialTab?: string }
       </div>
 
       <div className="us-content" role="tabpanel">
-        {activeTab === 'page_access' && <PageAccessTab />}
-        {activeTab === 'role_permissions' && <RolePermissionsTab />}
         {activeTab === 'user_data' && <UserDataTab />}
         {activeTab === 'bulk_replace' && <BulkReplaceTab />}
       </div>

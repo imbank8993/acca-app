@@ -26,6 +26,7 @@ export default function InformasiTab({ user }: { user?: any }) {
     const [newCategory, setNewCategory] = useState('');
     const [isAddingCategory, setIsAddingCategory] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     // Permissions
     const permissions = user?.permissions || [];
@@ -67,22 +68,24 @@ export default function InformasiTab({ user }: { user?: any }) {
         if (files.length === 0) return;
 
         setSaving(true);
+        setUploadProgress(0);
         let successCount = 0;
         let failCount = 0;
 
         try {
             const MAX_SIZE = 20 * 1024 * 1024; // 20MB
+            const totalFiles = files.length;
 
-            for (const file of files) {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+
                 // Validasi ukuran file
                 if (file.size > MAX_SIZE) {
                     failCount++;
-                    Swal.fire('File Terlalu Besar', `File: ${file.name} melebihi batas maksimal 20 MB.`, 'error');
                     continue;
                 }
 
-                // Determine title: if only one file, use the title input. 
-                // If multiple, use the filename as title for each.
+                // Determine title
                 let currentTitle = '';
                 if (files.length === 1 && title) {
                     currentTitle = title;
@@ -93,20 +96,39 @@ export default function InformasiTab({ user }: { user?: any }) {
                         .replace(/\b\w/g, l => l.toUpperCase());
                 }
 
-                // 1. Upload File (Using PHP hosting script)
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('folder', `Informasi Akademik/${category}`);
+                // 1. Upload File with XHR for progress
+                const uploadJson = await new Promise<any>((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('folder', `Informasi Akademik/${category}`);
 
-                const uploadRes = await fetch('https://icgowa.sch.id/acca.icgowa.sch.id/acca_upload.php', {
-                    method: 'POST',
-                    body: formData
+                    xhr.upload.addEventListener('progress', (event) => {
+                        if (event.lengthComputable) {
+                            const fileProgress = (event.loaded / event.total) * 100;
+                            // Overall progress = (completed_files + current_file_progress) / total_files
+                            const overallProgress = Math.round(((i + (event.loaded / event.total)) / totalFiles) * 100);
+                            setUploadProgress(overallProgress);
+                        }
+                    });
+
+                    xhr.onreadystatechange = () => {
+                        if (xhr.readyState === 4) {
+                            if (xhr.status === 200) {
+                                try { resolve(JSON.parse(xhr.responseText)); }
+                                catch (e) { reject(new Error('Invalid response')); }
+                            } else {
+                                reject(new Error('Upload failed'));
+                            }
+                        }
+                    };
+
+                    xhr.open('POST', 'https://icgowa.sch.id/acca.icgowa.sch.id/acca_upload.php');
+                    xhr.send(formData);
                 });
-                const uploadJson = await uploadRes.json();
 
                 if (!uploadJson.ok) {
                     failCount++;
-                    Swal.fire('Gagal Upload ke Hosting', `File: ${file.name}\nError: ${uploadJson.error || 'Server tidak merespon'}`, 'error');
                     continue;
                 }
 
@@ -124,16 +146,10 @@ export default function InformasiTab({ user }: { user?: any }) {
                         user_id: user?.auth_id || user?.id
                     })
                 });
-                const dbJson = await dbRes.json();
-
-                if (dbRes.ok && dbJson.ok) {
-                    successCount++;
-                } else {
-                    failCount++;
-                    Swal.fire('Gagal Simpan ke Database', `File: ${file.name}\nError: ${dbJson.error || 'Internal Server Error'}`, 'error');
-                }
+                if (dbRes.ok) successCount++; else failCount++;
             }
 
+            setUploadProgress(100);
             if (successCount > 0) {
                 Swal.fire({
                     icon: 'success',
@@ -148,7 +164,8 @@ export default function InformasiTab({ user }: { user?: any }) {
                 Swal.fire('Gagal', 'Semua file gagal diunggah', 'error');
             }
         } catch (err: any) {
-            Swal.fire('Gagal', err.message, 'error');
+            console.error(err);
+            Swal.fire('Error', 'Terjadi kesalahan saat mengunggah', 'error');
         } finally {
             setSaving(false);
         }
@@ -354,11 +371,19 @@ export default function InformasiTab({ user }: { user?: any }) {
                                         multiple
                                         onChange={e => {
                                             const selectedFiles = Array.from(e.target.files || []);
-                                            setFiles(selectedFiles);
+                                            const MAX_SIZE = 20 * 1024 * 1024;
+                                            const validFiles = selectedFiles.filter(f => f.size <= MAX_SIZE);
+                                            const tooLarge = selectedFiles.some(f => f.size > MAX_SIZE);
 
-                                            // Autofill hanya jika 1 file
-                                            if (selectedFiles.length === 1) {
-                                                const fileName = selectedFiles[0].name.split('.').slice(0, -1).join('.');
+                                            if (tooLarge) {
+                                                Swal.fire('File Terlalu Besar', 'Beberapa file melebihi batas 20 MB dan telah dihapus dari daftar.', 'warning');
+                                            }
+
+                                            setFiles(validFiles);
+
+                                            // Autofill hanya jika 1 file valid
+                                            if (validFiles.length === 1) {
+                                                const fileName = validFiles[0].name.split('.').slice(0, -1).join('.');
                                                 const autoTitle = fileName
                                                     .replace(/[_-]/g, ' ')
                                                     .replace(/\b\w/g, l => l.toUpperCase());
@@ -370,14 +395,29 @@ export default function InformasiTab({ user }: { user?: any }) {
                                         required
                                         className="file-input"
                                     />
+                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>
+                                        * Maksimal ukuran per file: 20 MB
+                                    </span>
                                 </div>
                             </div>
                             <div className="inf__modalFoot">
                                 <button type="button" className="inf__btnCancel" onClick={resetForm}>Batal</button>
                                 <button type="submit" className="inf__btnSave" disabled={saving || files.length === 0 || (files.length === 1 && !title)}>
-                                    {saving ? 'Mengunggah...' : `Upload ${files.length > 1 ? `${files.length} File` : '& Simpan'}`}
+                                    {saving ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                                            <div className="spinner"></div>
+                                            <span>{uploadProgress}%</span>
+                                        </div>
+                                    ) : `Upload ${files.length > 1 ? `${files.length} File` : '& Simpan'}`}
                                 </button>
                             </div>
+                            {saving && (
+                                <div style={{ padding: '0 20px 20px' }}>
+                                    <div style={{ height: '4px', width: '100%', background: '#e2e8f0', borderRadius: '2px', overflow: 'hidden' }}>
+                                        <div style={{ height: '100%', width: `${uploadProgress}%`, background: '#0038A8', transition: 'width 0.3s ease' }}></div>
+                                    </div>
+                                </div>
+                            )}
                         </form>
                     </div>
                 </div>

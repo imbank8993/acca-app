@@ -4,6 +4,32 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { corsResponse, handleOptions } from '@/lib/cors';
 import { sendWhatsAppPiket } from '@/lib/whatsapp-piket';
 
+export async function GET(request: NextRequest) {
+    try {
+        const { searchParams } = new URL(request.url);
+        const limit = parseInt(searchParams.get('limit') || '50');
+
+        const { data, error } = await supabaseAdmin
+            .from('laporan_piket')
+            .select(`
+                *,
+                details:laporan_piket_detail(*)
+            `)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        if (error) throw error;
+
+        return corsResponse(NextResponse.json({
+            ok: true,
+            data
+        }));
+    } catch (error: any) {
+        console.error("Fetch Error", error);
+        return corsResponse(NextResponse.json({ ok: false, error: error.message }, { status: 500 }));
+    }
+}
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
