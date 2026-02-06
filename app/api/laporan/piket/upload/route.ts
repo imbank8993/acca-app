@@ -1,8 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { corsResponse, handleOptions } from '@/lib/cors';
-import fs from 'fs';
-import path from 'path';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(request: NextRequest) {
     try {
@@ -13,7 +12,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ ok: false, error: 'Data file tidak lengkap' }, { status: 400 });
         }
 
-        // Decode Base64
+        // Decode Base64 to Buffer
         const buffer = Buffer.from(fileData, 'base64');
 
         // Check size (10MB)
@@ -26,28 +25,26 @@ export async function POST(request: NextRequest) {
         const ext = fileName.split('.').pop();
         const finalName = `Dokumentasi_${safeKelas}_${timestamp}.${ext}`;
 
-        // Define Local Path (public/uploads/laporan)
-        // Ensure this directory exists
-        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'laporan');
+        // Define path in Supabase Storage
+        const storagePath = `piket/${finalName}`;
 
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
+        // Upload to Supabase Storage (Bucket: 'documents')
+        const { data, error: uploadError } = await supabaseAdmin.storage
+            .from('documents')
+            .upload(storagePath, buffer, {
+                contentType: fileType,
+                upsert: true
+            });
+
+        if (uploadError) {
+            console.error("Supabase Upload Error:", uploadError);
+            throw new Error(`Gagal mengunggah ke storage: ${uploadError.message}`);
         }
 
-        const filePath = path.join(uploadDir, finalName);
-
-        // Write File
-        fs.writeFileSync(filePath, buffer);
-
-        // Construct Public URL
-        // Assumes API and Frontend are same domain or configured to serve static mostly
-        // Since acca-app is the backend, if we use it to serve images, the URL should be based on its domain.
-        // In local: http://localhost:3001/uploads/laporan/xxx
-
-        const relativeUrl = `/uploads/laporan/${finalName}`;
-        // If we want full URL:
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-        const publicUrl = `${baseUrl}${relativeUrl}`;
+        // Get Public URL
+        const { data: { publicUrl } } = supabaseAdmin.storage
+            .from('documents')
+            .getPublicUrl(storagePath);
 
         return corsResponse(NextResponse.json({
             ok: true,
