@@ -229,14 +229,14 @@ export default function PiketPage({ user }: { user?: User }) {
                                             <tbody>
                                                 {selectedReport.details.map((detail) => (
                                                     <tr key={detail.id}>
-                                                        <td className="font-bold">{detail.nama_kelas}</td>
-                                                        <td>{detail.nama_guru || '-'}</td>
-                                                        <td>
+                                                        <td className="font-bold" data-label="Kelas">{detail.nama_kelas}</td>
+                                                        <td data-label="Guru Pengajar">{detail.nama_guru || '-'}</td>
+                                                        <td data-label="Status">
                                                             <span className={`status-badge ${detail.status_kehadiran?.toLowerCase()}`}>
                                                                 {detail.status_kehadiran}
                                                             </span>
                                                         </td>
-                                                        <td>
+                                                        <td data-label="Dokumentasi">
                                                             {detail.dokumentasi_url ? (
                                                                 <a href={detail.dokumentasi_url} target="_blank" rel="noreferrer" className="img-link">
                                                                     <i className="bi bi-image"></i> Lihat Foto
@@ -746,10 +746,167 @@ export default function PiketPage({ user }: { user?: User }) {
                         animation: pop-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
                     }
 
-                    @media (max-width: 640px) {
-                        .report-grid { grid-template-columns: 1fr; }
-                        .summary-section { grid-template-columns: 1fr; }
-                        .summary-item.full { grid-column: span 1; }
+                    /* Mobile Responsive */
+                    @media (max-width: 768px) {
+                        .piket-header {
+                            padding: 32px 24px;
+                        }
+                        
+                        .header-info h1 {
+                            font-size: 1.8rem;
+                        }
+                        
+                        .header-info p {
+                            font-size: 0.9rem;
+                        }
+                        
+                        .piket-toolbar {
+                            padding: 16px;
+                        }
+                        
+                        .filter-group {
+                            flex-direction: column;
+                            gap: 12px;
+                        }
+                        
+                        .filter-item {
+                            min-width: 100%;
+                        }
+                        
+                        .filter-item.search {
+                            min-width: 100%;
+                        }
+                        
+                        .reset-btn {
+                            width: 100%;
+                        }
+                        
+                        .report-grid { 
+                            grid-template-columns: 1fr; 
+                        }
+                        
+                        /* Modal Mobile */
+                        .modal-overlay {
+                            padding: 0;
+                            align-items: flex-end;
+                        }
+                        
+                        .modal-content {
+                            max-width: 100%;
+                            max-height: 95vh;
+                            border-radius: 24px 24px 0 0;
+                        }
+                        
+                        .modal-header {
+                            padding: 20px;
+                        }
+                        
+                        .modal-header h2 {
+                            font-size: 1.2rem;
+                        }
+                        
+                        .modal-header p {
+                            font-size: 0.8rem;
+                        }
+                        
+                        .close-btn {
+                            width: 36px;
+                            height: 36px;
+                        }
+                        
+                        .modal-body {
+                            padding: 20px;
+                            gap: 24px;
+                        }
+                        
+                        .summary-section { 
+                            grid-template-columns: 1fr;
+                            padding: 16px;
+                            gap: 16px;
+                        }
+                        
+                        .summary-item.full { 
+                            grid-column: span 1; 
+                        }
+                        
+                        .summary-item label {
+                            font-size: 0.7rem;
+                        }
+                        
+                        .summary-item p {
+                            font-size: 0.95rem;
+                        }
+                        
+                        .details-section h3 {
+                            font-size: 1.05rem;
+                            margin-bottom: 12px;
+                        }
+                        
+                        /* Convert table to cards on mobile */
+                        .table-responsive {
+                            overflow: visible;
+                        }
+                        
+                        .details-table {
+                            display: block;
+                        }
+                        
+                        .details-table thead {
+                            display: none;
+                        }
+                        
+                        .details-table tbody {
+                            display: block;
+                        }
+                        
+                        .details-table tr {
+                            display: block;
+                            background: white;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 16px;
+                            padding: 16px;
+                            margin-bottom: 12px;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+                        }
+                        
+                        .details-table td {
+                            display: block;
+                            padding: 8px 0;
+                            border: none;
+                            text-align: left;
+                        }
+                        
+                        .details-table td::before {
+                            content: attr(data-label);
+                            display: block;
+                            font-size: 0.7rem;
+                            font-weight: 700;
+                            color: #94a3b8;
+                            text-transform: uppercase;
+                            letter-spacing: 0.05em;
+                            margin-bottom: 4px;
+                        }
+                        
+                        .details-table td.font-bold {
+                            font-size: 1rem;
+                            color: #0f172a;
+                            padding-bottom: 12px;
+                            border-bottom: 1px solid #f1f5f9;
+                        }
+                        
+                        .details-table td:last-child {
+                            padding-bottom: 0;
+                        }
+                        
+                        .status-badge {
+                            display: inline-block;
+                            margin-top: 4px;
+                        }
+                        
+                        .img-link {
+                            margin-top: 4px;
+                            font-size: 0.85rem;
+                        }
                     }
                 `}</style>
             </div>
