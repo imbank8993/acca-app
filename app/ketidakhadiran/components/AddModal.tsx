@@ -28,7 +28,9 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
     const [tglSelesai, setTglSelesai] = useState('');
     const [selectedNisns, setSelectedNisns] = useState<string[]>([]);
     const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadedFileUrl, setUploadedFileUrl] = useState('');
+    const [uploadedFileName, setUploadedFileName] = useState('');
 
     useEffect(() => {
         if (isOpen && !isInitialized) {
@@ -66,27 +68,55 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
 
         const file = e.target.files[0];
         setUploading(true);
+        setUploadProgress(0);
+        setUploadedFileName(file.name);
+
         try {
             const formData = new FormData();
             formData.append('file', file);
-            // Folder structure: Ketidakhadiran/Izin or Ketidakhadiran/Sakit
             formData.append('folder', `Ketidakhadiran/${jenis.charAt(0) + jenis.slice(1).toLowerCase()}`);
 
-            const res = await fetch('https://icgowa.sch.id/acca.icgowa.sch.id/acca_upload.php', {
-                method: 'POST',
-                body: formData
+            await new Promise<void>((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.addEventListener('progress', (event) => {
+                    if (event.lengthComputable) {
+                        const percent = Math.round((event.loaded / event.total) * 100);
+                        setUploadProgress(percent);
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        try {
+                            const data = JSON.parse(xhr.responseText);
+                            if (data.ok) {
+                                setUploadedFileUrl(data.publicUrl);
+                                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Upload berhasil!', timer: 1500, showConfirmButton: false });
+                                resolve();
+                            } else {
+                                reject(new Error(data.error || 'Upload gagal'));
+                            }
+                        } catch (err) {
+                            reject(new Error('Invalid response'));
+                        }
+                    } else {
+                        reject(new Error('Upload failed'));
+                    }
+                });
+
+                xhr.addEventListener('error', () => reject(new Error('Network error')));
+                xhr.open('POST', 'https://icgowa.sch.id/acca.icgowa.sch.id/acca_upload.php');
+                xhr.send(formData);
             });
-
-            const data = await res.json();
-            if (!res.ok || !data.ok) throw new Error(data.error || 'Upload gagal');
-
-            setUploadedFileUrl(data.publicUrl);
-            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'File berhasil diupload', timer: 1500, showConfirmButton: false });
         } catch (error: any) {
             console.error(error);
             Swal.fire('Upload Gagal', error.message || 'Gagal menghubungi server', 'error');
+            setUploadedFileUrl('');
+            setUploadedFileName('');
         } finally {
             setUploading(false);
+            setUploadProgress(0);
         }
     };
 
@@ -391,7 +421,7 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
         .modal-container {
           background: white;
           width: 95%;
-          max-width: 650px;
+          max-width: 550px;
           border-radius: 16px;
           box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
           display: flex;
@@ -406,7 +436,7 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
         }
 
         .modal-header {
-          padding: 20px 24px;
+          padding: 16px 20px;
           border-bottom: 1px solid #f1f5f9;
           display: flex;
           justify-content: space-between;
@@ -418,14 +448,14 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
 
         .modal-header h3 {
           margin: 0;
-          font-size: 1.25rem;
+          font-size: 1.125rem;
           color: #0f172a;
           font-weight: 700;
         }
 
         .modal-header p {
-          margin: 4px 0 0;
-          font-size: 0.875rem;
+          margin: 2px 0 0;
+          font-size: 0.813rem;
           color: #64748b;
         }
 
@@ -449,7 +479,7 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
         }
 
         .modal-body {
-          padding: 24px;
+          padding: 18px 20px;
           overflow-y: auto;
           color: #334155;
         }
@@ -457,8 +487,8 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
         .grid-2 {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 24px;
-          margin-bottom: 24px;
+          gap: 16px;
+          margin-bottom: 18px;
         }
 
         @media (max-width: 640px) {
@@ -468,8 +498,9 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
           }
         }
 
+
         .form-group {
-          margin-bottom: 24px;
+          margin-bottom: 16px;
         }
 
         .form-group label {
@@ -477,7 +508,7 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
           font-size: 0.875rem;
           font-weight: 600;
           color: #334155; /* High contrast label */
-          margin-bottom: 10px;
+          margin-bottom: 8px;
         }
 
         .select-wrapper {
@@ -612,18 +643,19 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
 
         .hidden { display: none; }
         
+        
         .upload-container {
-          display: flex;
-          align-items: center;
-          gap: 12px;
+          width: 100%;
         }
 
         .upload-box {
-          flex: 1;
-          height: 60px;
+          width: 100%;
+          min-height: 90px;
+          padding: 16px;
           border: 2px dashed #cbd5e1;
           border-radius: 12px;
           display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
           cursor: pointer;
@@ -632,45 +664,155 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
         }
 
         .upload-box:hover {
-          border-color: #3aa6ff;
-          background: #f0f9ff;
+          border-color: #3b82f6;
+          background: #eff6ff;
         }
 
         .upload-box.uploading {
           cursor: wait;
-          opacity: 0.7;
+          border-color: #3b82f6;
+          background: #eff6ff;
+        }
+
+        .upload-box.success {
+          border-color: #10b981;
+          background: #f0fdf4;
+          border-style: solid;
         }
 
         .upload-placeholder {
           display: flex;
-          items-center: center;
-          gap: 10px;
-          color: #64748b;
-          font-size: 0.875rem;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+          text-align: center;
         }
 
         .upload-placeholder i {
-          font-size: 1.25rem;
+          font-size: 2rem;
+          color: #3b82f6;
         }
 
-        .uploaded-info {
+        .upload-text-wrapper {
           display: flex;
-          items-center: center;
-          gap: 10px;
-          color: #10b981;
-          font-weight: 600;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .upload-main-text {
           font-size: 0.875rem;
+          font-weight: 600;
+          color: #1e40af;
+        }
+
+        .upload-sub-text {
+          font-size: 0.75rem;
+          color: #64748b;
+        }
+
+        /* Progress State */
+        .upload-progress {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .progress-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #3b82f6;
+        }
+
+        .progress-header i {
+          font-size: 1.125rem;
+        }
+
+        .progress-filename {
+          font-size: 0.813rem;
+          font-weight: 600;
+          color: #1e40af;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          flex: 1;
+        }
+
+        .progress-bar-wrapper {
+          width: 100%;
+          height: 6px;
+          background: #dbeafe;
+          border-radius: 99px;
+          overflow: hidden;
+        }
+
+        .progress-bar-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #3b82f6, #2563eb);
+          transition: width 0.3s ease;
+          border-radius: 99px;
+        }
+
+        .progress-percent {
+          text-align: center;
+          font-size: 1.25rem;
+          font-weight: 700;
+          color: #1e40af;
+        }
+
+        /* Success State */
+        .uploaded-success {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .uploaded-success i {
+          font-size: 1.75rem;
+          color: #10b981;
+          flex-shrink: 0;
+        }
+
+        .uploaded-text {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .success-label {
+          font-size: 0.875rem;
+          font-weight: 600;
+          color: #059669;
+        }
+
+        .success-filename {
+          font-size: 0.75rem;
+          color: #64748b;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .remove-file {
-          padding: 8px 12px;
+          padding: 6px 10px;
           background: #fee2e2;
           color: #ef4444;
           border: none;
-          border-radius: 8px;
+          border-radius: 6px;
           font-size: 0.75rem;
           font-weight: 600;
           cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .remove-file:hover {
+          background: #fecaca;
         }
 
         .spinner-sm {
@@ -680,6 +822,10 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
           border-top-color: #3aa6ff;
           border-radius: 50%;
           animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
         </div>
