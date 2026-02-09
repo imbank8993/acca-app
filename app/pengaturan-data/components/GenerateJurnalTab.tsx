@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Select from 'react-select';
 
 export default function GenerateJurnalTab({ user }: { user?: any }) {
     const [settings, setSettings] = useState({
@@ -91,24 +92,6 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
         }
     };
 
-    const toggleJam = (mode: 'generate' | 'delete', jam: number) => {
-        if (mode === 'generate') {
-            setManualDates(prev => {
-                const jams = prev.jamKe.includes(jam)
-                    ? prev.jamKe.filter(j => j !== jam)
-                    : [...prev.jamKe, jam].sort((a, b) => a - b);
-                return { ...prev, jamKe: jams };
-            });
-        } else {
-            setDeleteDates(prev => {
-                const jams = prev.jamKe.includes(jam)
-                    ? prev.jamKe.filter(j => j !== jam)
-                    : [...prev.jamKe, jam].sort((a, b) => a - b);
-                return { ...prev, jamKe: jams };
-            });
-        }
-    };
-
     const handleGenerateManual = async () => {
         if (!manualDates.startDate) {
             showMessage('error', 'Tanggal mulai wajib diisi');
@@ -177,25 +160,41 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
         }
     };
 
-    const JamSelector = ({ selected, onToggle }: { selected: number[], onToggle: (jam: number) => void }) => (
-        <div className="flex flex-wrap gap-2 mt-2">
-            {jamOptions.length > 0 ? (
-                jamOptions.map(jam => (
-                    <button
-                        key={jam}
-                        onClick={() => onToggle(jam)}
-                        type="button"
-                        className={`btn-jam ${selected.includes(jam) ? 'selected' : ''}`}
-                        title={`Jam ke-${jam}`}
-                    >
-                        {jam}
-                    </button>
-                ))
-            ) : (
-                <span className="text-muted text-sm">Memuat opsi jam...</span>
-            )}
-        </div>
-    );
+    // Convert jam options to react-select format
+    const jamSelectOptions = jamOptions.map(jam => ({
+        value: jam,
+        label: `Jam Ke-${jam}`
+    }));
+
+    const customSelectStyles = {
+        control: (base: any, state: any) => ({
+            ...base,
+            borderRadius: '10px',
+            border: state.isFocused ? '1px solid #3b82f6' : '1px solid #cbd5e1',
+            boxShadow: state.isFocused ? '0 0 0 3px rgba(59, 130, 246, 0.1)' : 'none',
+            background: state.isFocused ? 'white' : '#f8fafc',
+            padding: '2px',
+            '&:hover': { borderColor: '#3b82f6' },
+        }),
+        multiValue: (base: any) => ({
+            ...base,
+            backgroundColor: '#eff6ff',
+            borderRadius: '6px',
+        }),
+        multiValueLabel: (base: any) => ({
+            ...base,
+            color: '#1e40af',
+            fontWeight: '600',
+        }),
+        multiValueRemove: (base: any) => ({
+            ...base,
+            color: '#1e40af',
+            ':hover': {
+                backgroundColor: '#dbeafe',
+                color: '#1e3a8a',
+            },
+        }),
+    };
 
     return (
         <div className="gj">
@@ -233,23 +232,21 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                             <label htmlFor="skip-holidays">Lewati Hari Libur</label>
                         </div>
 
-                        <div className="form-row">
-                            <div className="form-group">
-                                <label>Mulai Berlaku</label>
-                                <input
-                                    type="date"
-                                    value={settings.generate_start_date}
-                                    onChange={(e) => setSettings({ ...settings, generate_start_date: e.target.value })}
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Sampai Tanggal</label>
-                                <input
-                                    type="date"
-                                    value={settings.generate_end_date}
-                                    onChange={(e) => setSettings({ ...settings, generate_end_date: e.target.value })}
-                                />
-                            </div>
+                        <div className="form-group">
+                            <label>Mulai Berlaku</label>
+                            <input
+                                type="date"
+                                value={settings.generate_start_date}
+                                onChange={(e) => setSettings({ ...settings, generate_start_date: e.target.value })}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Sampai Tanggal</label>
+                            <input
+                                type="date"
+                                value={settings.generate_end_date}
+                                onChange={(e) => setSettings({ ...settings, generate_end_date: e.target.value })}
+                            />
                         </div>
 
                         <button onClick={handleSaveSettings} disabled={loading} className="btn-primary">
@@ -265,31 +262,34 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                         <h3>Generate Manual</h3>
                     </div>
                     <div className="card-body">
-                        <div className="form-row">
-                            <div className="form-group">
-                                <label>Mulai <span className="req">*</span></label>
-                                <input
-                                    type="date"
-                                    value={manualDates.startDate}
-                                    onChange={(e) => setManualDates({ ...manualDates, startDate: e.target.value })}
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Selesai</label>
-                                <input
-                                    type="date"
-                                    value={manualDates.endDate}
-                                    onChange={(e) => setManualDates({ ...manualDates, endDate: e.target.value })}
-                                    placeholder="Opsional (Default: 1 hari)"
-                                />
-                            </div>
+                        <div className="form-group">
+                            <label>Mulai <span className="req">*</span></label>
+                            <input
+                                type="date"
+                                value={manualDates.startDate}
+                                onChange={(e) => setManualDates({ ...manualDates, startDate: e.target.value })}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Selesai</label>
+                            <input
+                                type="date"
+                                value={manualDates.endDate}
+                                onChange={(e) => setManualDates({ ...manualDates, endDate: e.target.value })}
+                                placeholder="Opsional (Default: 1 hari)"
+                            />
                         </div>
 
                         <div className="form-group">
                             <label>Pilih Jam (Opsional)</label>
-                            <JamSelector
-                                selected={manualDates.jamKe}
-                                onToggle={(jam) => toggleJam('generate', jam)}
+                            <Select
+                                isMulti
+                                options={jamSelectOptions}
+                                value={jamSelectOptions.filter(opt => manualDates.jamKe.includes(opt.value))}
+                                onChange={(selected) => setManualDates({ ...manualDates, jamKe: selected.map(s => s.value) })}
+                                placeholder="Pilih jam pelajaran..."
+                                styles={customSelectStyles}
+                                className="select-jam"
                             />
                             <p className="hint">Pilih spesifik atau kosongkan untuk semua jam.</p>
                         </div>
@@ -312,31 +312,35 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                             Perhatian: Data yang dihapus tidak dapat dikembalikan.
                         </div>
 
-                        <div className="form-row">
-                            <div className="form-group">
-                                <label>Mulai <span className="req">*</span></label>
-                                <input
-                                    type="date"
-                                    value={deleteDates.startDate}
-                                    onChange={(e) => setDeleteDates({ ...deleteDates, startDate: e.target.value })}
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Selesai</label>
-                                <input
-                                    type="date"
-                                    value={deleteDates.endDate}
-                                    onChange={(e) => setDeleteDates({ ...deleteDates, endDate: e.target.value })}
-                                />
-                            </div>
+                        <div className="form-group">
+                            <label>Mulai <span className="req">*</span></label>
+                            <input
+                                type="date"
+                                value={deleteDates.startDate}
+                                onChange={(e) => setDeleteDates({ ...deleteDates, startDate: e.target.value })}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Selesai</label>
+                            <input
+                                type="date"
+                                value={deleteDates.endDate}
+                                onChange={(e) => setDeleteDates({ ...deleteDates, endDate: e.target.value })}
+                            />
                         </div>
 
                         <div className="form-group">
-                            <label>Hapus Jam Tertentu</label>
-                            <JamSelector
-                                selected={deleteDates.jamKe}
-                                onToggle={(jam) => toggleJam('delete', jam)}
+                            <label>Hapus Jam Tertentu (Opsional)</label>
+                            <Select
+                                isMulti
+                                options={jamSelectOptions}
+                                value={jamSelectOptions.filter(opt => deleteDates.jamKe.includes(opt.value))}
+                                onChange={(selected) => setDeleteDates({ ...deleteDates, jamKe: selected.map(s => s.value) })}
+                                placeholder="Pilih jam pelajaran..."
+                                styles={customSelectStyles}
+                                className="select-jam"
                             />
+                            <p className="hint">Kosongkan untuk menghapus semua jam.</p>
                         </div>
 
                         <button onClick={handleDeleteByDate} disabled={loading} className="btn-danger">
@@ -382,7 +386,6 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
 
                 .card-body { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
 
-                .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
                 .form-group { display: flex; flex-direction: column; gap: 6px; }
                 .form-group label { font-size: 0.85rem; font-weight: 600; color: #475569; }
                 .req { color: #ef4444; }
@@ -405,20 +408,6 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                 .checkbox-group { display: flex; align-items: center; gap: 10px; cursor: pointer; }
                 .checkbox-group input { width: 18px; height: 18px; cursor: pointer; }
                 .checkbox-group label { font-size: 0.95rem; font-weight: 500; color: #334155; cursor: pointer; }
-
-                .btn-jam {
-                    padding: 6px 12px;
-                    border-radius: 99px;
-                    border: 1px solid #e2e8f0;
-                    background: #f8fafc;
-                    color: #64748b;
-                    font-weight: 600;
-                    font-size: 0.85rem;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                }
-                .btn-jam:hover { border-color: #cbd5e1; background: #f1f5f9; }
-                .btn-jam.selected { background: #3b82f6; color: white; border-color: #2563eb; box-shadow: 0 2px 5px rgba(37, 99, 235, 0.3); }
 
                 .btn-primary, .btn-success, .btn-danger {
                     padding: 12px;
