@@ -201,6 +201,13 @@ export default function JurnalTable({
                   transition: background 0.3s ease, border-color 0.3s ease;
                 }
 
+                /* Hide table on mobile, show on desktop */
+                @media (max-width: 768px) {
+                    .jt__tableWrap {
+                        display: none;
+                    }
+                }
+
                 :global(.dark) .jt__tableWrap {
                     background: #0f172a;
                     border-color: rgba(255, 255, 255, 0.12);

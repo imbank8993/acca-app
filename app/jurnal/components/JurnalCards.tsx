@@ -150,6 +150,13 @@ export default function JurnalCards({
             )}
             <style jsx>{`
                 .jt__cards { display: flex; flex-direction: column; gap: 16px; }
+                
+                /* Hide cards on desktop, show on mobile */
+                @media (min-width: 769px) {
+                    .jt__cards {
+                        display: none;
+                    }
+                }
                 .jt__card {
                     background: var(--n-card);
                     padding: 24px;
