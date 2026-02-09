@@ -11,6 +11,7 @@ interface Document {
     file_url: string;
     file_name: string;
     file_size: number;
+    show_on_landing: boolean;
     created_at: string;
 }
 
@@ -206,6 +207,36 @@ export default function InformasiTab({ user }: { user?: any }) {
         }
     };
 
+    const handleToggleShowOnLanding = async (doc: Document) => {
+        try {
+            const newValue = !doc.show_on_landing;
+            const res = await fetch('/api/informasi-akademik', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: doc.id,
+                    show_on_landing: newValue
+                })
+            });
+
+            const json = await res.json();
+            if (json.ok) {
+                fetchData();
+                Swal.fire({
+                    icon: 'success',
+                    title: newValue ? 'Ditampilkan di Landing Page' : 'Disembunyikan dari Landing Page',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.fire('Error', 'Gagal mengubah status', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            Swal.fire('Error', 'Terjadi kesalahan', 'error');
+        }
+    };
+
     const resetForm = () => {
         setTitle('');
         // Cari kategori pertama yang ada, atau default ke 'Informasi Utama'
@@ -247,16 +278,17 @@ export default function InformasiTab({ user }: { user?: any }) {
                             <th>Kategori</th>
                             <th>Info File</th>
                             <th>Tgl Unggah</th>
+                            {canManage && <th>Status Tampil</th>}
                             {canManage && <th style={{ width: '100px' }}>Aksi</th>}
                         </tr>
                     </thead>
                     <tbody>
                         {!canView ? (
-                            <tr><td colSpan={5} className="inf__empty">Akses ditolak.</td></tr>
+                            <tr><td colSpan={canManage ? 6 : 4} className="inf__empty">Akses ditolak.</td></tr>
                         ) : loading ? (
-                            <tr><td colSpan={5} className="inf__empty">Memuat...</td></tr>
+                            <tr><td colSpan={canManage ? 6 : 4} className="inf__empty">Memuat...</td></tr>
                         ) : list.length === 0 ? (
-                            <tr><td colSpan={5} className="inf__empty">Belum ada dokumen.</td></tr>
+                            <tr><td colSpan={canManage ? 6 : 4} className="inf__empty">Belum ada dokumen.</td></tr>
                         ) : (
                             list.map((doc) => (
                                 <tr key={doc.id}>
@@ -271,6 +303,18 @@ export default function InformasiTab({ user }: { user?: any }) {
                                         <div>{formatSize(doc.file_size)}</div>
                                     </td>
                                     <td data-label="Tgl Unggah" className="inf__date">{new Date(doc.created_at).toLocaleDateString('id-ID')}</td>
+                                    {canManage && (
+                                        <td data-label="Status Tampil">
+                                            <label className="toggle-switch">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={doc.show_on_landing}
+                                                    onChange={() => handleToggleShowOnLanding(doc)}
+                                                />
+                                                <span className="toggle-slider"></span>
+                                            </label>
+                                        </td>
+                                    )}
                                     {canManage && (
                                         <td data-label="Aksi">
                                             <button className="inf__delBtn" onClick={() => handleDelete(doc)}>
@@ -454,6 +498,22 @@ export default function InformasiTab({ user }: { user?: any }) {
                     color: #ef4444; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
                 }
                 .inf__delBtn:hover { background: #fee2e2; transform: scale(1.05); }
+
+                /* Toggle Switch Styles */
+                .toggle-switch { position: relative; display: inline-block; width: 48px; height: 24px; }
+                .toggle-switch input { opacity: 0; width: 0; height: 0; }
+                .toggle-slider {
+                    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+                    background-color: #cbd5e1; border-radius: 24px; transition: 0.3s;
+                }
+                .toggle-slider:before {
+                    position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+                    background-color: white; border-radius: 50%; transition: 0.3s;
+                }
+                .toggle-switch input:checked + .toggle-slider { background-color: #10b981; }
+                .toggle-switch input:checked + .toggle-slider:before { transform: translateX(24px); }
+                .toggle-switch input:focus + .toggle-slider { box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2); }
+
 
                 @media (max-width: 768px) {
                     .inf__table thead { display: none; }

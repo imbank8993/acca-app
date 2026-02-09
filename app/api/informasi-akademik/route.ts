@@ -6,7 +6,7 @@ import type { ApiResponse } from '@/lib/types';
 // CORS Headers Helper
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const category = searchParams.get('category');
+        const showOnLanding = searchParams.get('show_on_landing');
 
         let query = supabase
             .from('informasi_akademik')
@@ -27,6 +28,11 @@ export async function GET(request: NextRequest) {
 
         if (category) {
             query = query.eq('category', category);
+        }
+
+        // Filter by show_on_landing if specified
+        if (showOnLanding !== null) {
+            query = query.eq('show_on_landing', showOnLanding === 'true');
         }
 
         const { data, error } = await query;
@@ -45,7 +51,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { title, category, file_url, file_name, file_type, file_size, user_id } = body;
+        const { title, category, file_url, file_name, file_type, file_size, user_id, show_on_landing = true } = body;
 
         if (!title || !category || !file_url) {
             return NextResponse.json<ApiResponse>({ ok: false, error: 'Data tidak lengkap' }, { status: 400 });
@@ -64,6 +70,7 @@ export async function POST(request: NextRequest) {
                 file_name,
                 file_type,
                 file_size,
+                show_on_landing,
                 created_by: validUserId
             }])
             .select()
@@ -112,6 +119,37 @@ export async function DELETE(request: NextRequest) {
         if (deleteError) throw deleteError;
 
         return NextResponse.json<ApiResponse>({ ok: true }, { headers: corsHeaders });
+    } catch (error: any) {
+        return NextResponse.json<ApiResponse>({ ok: false, error: error.message }, { status: 500, headers: corsHeaders });
+    }
+}
+
+export async function PATCH(request: NextRequest) {
+    try {
+        const body = await request.json();
+        const { id, show_on_landing } = body;
+
+        if (!id) {
+            return NextResponse.json<ApiResponse>({ ok: false, error: 'ID is required' }, { status: 400 });
+        }
+
+        if (typeof show_on_landing !== 'boolean') {
+            return NextResponse.json<ApiResponse>({ ok: false, error: 'show_on_landing must be a boolean' }, { status: 400 });
+        }
+
+        const { data, error } = await supabaseAdmin
+            .from('informasi_akademik')
+            .update({ show_on_landing })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        return NextResponse.json<ApiResponse>({
+            ok: true,
+            data
+        }, { headers: corsHeaders });
     } catch (error: any) {
         return NextResponse.json<ApiResponse>({ ok: false, error: error.message }, { status: 500, headers: corsHeaders });
     }
