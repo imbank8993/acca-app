@@ -19,7 +19,9 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
   const [scope, setScope] = useState<"ONE" | "ALL">("ONE");
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFileUrl, setUploadedFileUrl] = useState("");
+  const [uploadedFileName, setUploadedFileName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -60,6 +62,9 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
 
     const file = e.target.files[0];
     setUploading(true);
+    setUploadProgress(0);
+    setUploadedFileName(file.name);
+
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -72,28 +77,54 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
         formData.append("old_file", uploadedFileUrl);
       }
 
-      const res = await fetch("https://icgowa.sch.id/acca.icgowa.sch.id/acca_upload.php", {
-        method: "POST",
-        body: formData,
-      });
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
 
-      const resData = await res.json();
-      if (!res.ok || !resData.ok) throw new Error(resData.error || "Upload gagal");
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percent);
+          }
+        });
 
-      setUploadedFileUrl(resData.publicUrl);
-      Swal.fire({
-        toast: true,
-        position: "top-end",
-        icon: "success",
-        title: "File berhasil diupload",
-        timer: 1500,
-        showConfirmButton: false,
+        xhr.addEventListener("load", () => {
+          if (xhr.status === 200) {
+            try {
+              const resData = JSON.parse(xhr.responseText);
+              if (resData.ok) {
+                setUploadedFileUrl(resData.publicUrl);
+                Swal.fire({
+                  toast: true,
+                  position: "top-end",
+                  icon: "success",
+                  title: "File berhasil diupload",
+                  timer: 1500,
+                  showConfirmButton: false,
+                });
+                resolve();
+              } else {
+                reject(new Error(resData.error || "Upload gagal"));
+              }
+            } catch (err) {
+              reject(new Error("Invalid response"));
+            }
+          } else {
+            reject(new Error("Upload failed"));
+          }
+        });
+
+        xhr.addEventListener("error", () => reject(new Error("Network error")));
+        xhr.open("POST", "https://icgowa.sch.id/acca.icgowa.sch.id/acca_upload.php");
+        xhr.send(formData);
       });
     } catch (error: any) {
       console.error(error);
       Swal.fire("Upload Gagal", error.message || "Gagal menghubungi server", "error");
+      setUploadedFileUrl("");
+      setUploadedFileName("");
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -202,7 +233,7 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
       <div
         className="
           kh-modal
-          w-full max-w-[680px]
+          w-full max-w-[550px]
           rounded-[22px]
           bg-white
           shadow-2xl ring-1 ring-slate-900/5
@@ -352,34 +383,49 @@ export default function EditModal({ isOpen, onClose, onSuccess, data, canDo }: E
                 />
                 <label
                   htmlFor="edit-file-upload"
-                  className={`kh-upload__box ${uploading ? "is-uploading" : ""}`}
+                  className={`kh-upload__box ${uploading ? "is-uploading" : ""} ${uploadedFileUrl ? "is-success" : ""}`}
                 >
                   {uploading ? (
-                    <div className="kh-spin-sm"><span className="kh-spin-sm-inner" /></div>
+                    <div className="kh-upload__progress">
+                      <div className="kh-progress-header">
+                        <i className="bi bi-cloud-arrow-up" />
+                        <span className="kh-progress-name">{uploadedFileName}</span>
+                      </div>
+                      <div className="kh-progress-bar-bg">
+                        <div className="kh-progress-bar-fill" style={{ width: `${uploadProgress}%` }} />
+                      </div>
+                      <div className="kh-progress-percent">{uploadProgress}%</div>
+                    </div>
                   ) : uploadedFileUrl ? (
-                    <div className="kh-upload__info">
-                      <i className="bi bi-file-earmark-check-fill" />
-                      <span className="truncate">File terlampir</span>
+                    <div className="kh-upload__success">
+                      <i className="bi bi-check-circle-fill" />
+                      <div className="kh-upload__success-info">
+                        <span className="kh-upload__success-label">Upload berhasil</span>
+                        <span className="kh-upload__success-name">{uploadedFileName || "File terlampir"}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="kh-upload__remove-btn"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setUploadedFileUrl("");
+                          setUploadedFileName("");
+                          if (fileInputRef.current) fileInputRef.current.value = "";
+                        }}
+                      >
+                        <i className="bi bi-x-lg" />
+                      </button>
                     </div>
                   ) : (
                     <div className="kh-upload__placeholder">
                       <i className="bi bi-cloud-arrow-up" />
-                      <span>Ganti dokumen (PDF/Gambar)</span>
+                      <div className="kh-upload__text-wrapper">
+                        <div className="kh-upload__text-main">Klik untuk upload file</div>
+                        <div className="kh-upload__text-sub">PDF atau Gambar (Max 10MB)</div>
+                      </div>
                     </div>
                   )}
                 </label>
-                {uploadedFileUrl && (
-                  <button
-                    type="button"
-                    className="kh-upload__remove"
-                    onClick={() => {
-                      setUploadedFileUrl("");
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }}
-                  >
-                    <i className="bi bi-trash" />
-                  </button>
-                )}
               </div>
             </div>
           </div>

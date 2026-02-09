@@ -1017,107 +1017,188 @@
 }
 
 /* ===== Upload Component ===== */
+/* ===== Upload Component Improvement ===== */
 .kh-upload {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  width: 100%;
 }
 
 .kh-upload__box {
-  flex: 1;
-  height: 56px;
+  width: 100%;
+  min-height: 84px;
+  padding: 14px;
   border: 2px dashed var(--n-border);
-  border-radius: 12px;
+  border-radius: 14px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   background: var(--n-soft);
 }
 
 .kh-upload__box:hover {
   border-color: var(--n-primary);
-  background: var(--n-card);
+  background: rgba(59, 130, 246, 0.05);
 }
 
 .kh-upload__box.is-uploading {
   cursor: wait;
-  opacity: 0.7;
+  border-color: var(--n-primary);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.kh-upload__box.is-success {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.05);
+  border-style: solid;
 }
 
 .kh-upload__placeholder {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  color: var(--n-muted);
-  font-size: 0.82rem;
-  font-weight: 500;
+  gap: 6px;
+  text-align: center;
 }
 
 .kh-upload__placeholder i {
-  font-size: 1.15rem;
+  font-size: 1.85rem;
+  color: var(--n-primary);
 }
 
-.kh-upload__info {
+.kh-upload__text-main {
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: #0b1b3a;
+}
+
+.kh-upload__text-sub {
+  font-size: 0.75rem;
+  color: var(--n-muted);
+}
+
+/* Progress State */
+.kh-upload__progress {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kh-progress-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  color: #10b981;
-  font-weight: 600;
-  font-size: 0.85rem;
-  max-width: 100%;
+  gap: 8px;
+  color: var(--n-primary);
 }
 
-.kh-upload__remove {
-  padding: 10px 12px;
+.kh-progress-header i {
+  font-size: 1.1rem;
+}
+
+.kh-progress-name {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: #0b1b3a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.kh-progress-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(59, 130, 246, 0.15);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.kh-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  transition: width 0.3s ease;
+  border-radius: 99px;
+}
+
+.kh-progress-percent {
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: 750;
+  color: var(--n-primary);
+}
+
+/* Success State */
+.kh-upload__success {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.kh-upload__success i {
+  font-size: 1.65rem;
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.kh-upload__success-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.kh-upload__success-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #059669;
+}
+
+.kh-upload__success-name {
+  font-size: 0.72rem;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kh-upload__remove-btn {
+  padding: 6px 9px;
   background: #fee2e2;
   color: #ef4444;
   border: none;
-  border-radius: 10px;
-  font-size: 0.85rem;
+  border-radius: 7px;
+  font-size: 0.75rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-}
-
-.kh-upload__remove:hover {
-  background: #fecaca;
-}
-
-.kh-spin-sm {
-  display: inline-flex;
-  gap: 2px;
+  display: flex;
   align-items: center;
 }
 
-.kh-spin-sm::before,
-.kh-spin-sm::after,
-.kh-spin-sm-inner {
-  content: "";
-  width: 2px;
-  height: 8px;
-  background: var(--n-primary);
-  border-radius: 2px;
-  animation: khWave 1s infinite ease-in-out;
+.kh-upload__remove-btn:hover {
+  background: #fecaca;
+  transform: scale(1.05);
 }
 
-.kh-spin-sm::before {
-  animation-delay: -0.2s;
+/* Modal Compact adjustment */
+.kh-modal {
+  max-width: 550px !important;
+  /* Force compact size */
 }
 
-.kh-spin-sm-inner {
-  animation-delay: -0.1s;
-}
-
-@keyframes khWave {
-
-  0%,
-  40%,
-  100% {
-    transform: scaleY(0.4);
+@media (min-width: 640px) {
+  .kh-modal__header {
+    padding: 1rem 1.45rem;
   }
 
-  20% {
-    transform: scaleY(1);
+  .kh-modal__body {
+    padding: 1.15rem 1.45rem;
+  }
+
+  .kh-modal__footer {
+    padding: 0.95rem 1.45rem;
   }
 }

@@ -5,405 +5,426 @@ import StudentSelect from './StudentSelect';
 import Swal from 'sweetalert2';
 
 interface AddModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    onSuccess: () => void;
-    canDo: (res: string, act: string) => boolean;
-    allowedTypes?: {
-        IZIN: boolean;
-        SAKIT: boolean;
-    };
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  canDo: (res: string, act: string) => boolean;
+  allowedTypes?: {
+    IZIN: boolean;
+    SAKIT: boolean;
+  };
 }
 
 export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTypes }: AddModalProps) {
-    const [jenis, setJenis] = useState<'IZIN' | 'SAKIT'>('IZIN');
-    const [status, setStatus] = useState('MADRASAH');
-    const [isInitialized, setIsInitialized] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+  const [jenis, setJenis] = useState<'IZIN' | 'SAKIT'>('IZIN');
+  const [status, setStatus] = useState('MADRASAH');
+  const [isInitialized, setIsInitialized] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // ... rest of state
-    const [ketIzin, setKetIzin] = useState('');
-    const [ketSakit, setKetSakit] = useState('');
-    const [tglMulai, setTglMulai] = useState('');
-    const [tglSelesai, setTglSelesai] = useState('');
-    const [selectedNisns, setSelectedNisns] = useState<string[]>([]);
-    const [uploading, setUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [uploadedFileUrl, setUploadedFileUrl] = useState('');
-    const [uploadedFileName, setUploadedFileName] = useState('');
+  // ... rest of state
+  const [ketIzin, setKetIzin] = useState('');
+  const [ketSakit, setKetSakit] = useState('');
+  const [tglMulai, setTglMulai] = useState('');
+  const [tglSelesai, setTglSelesai] = useState('');
+  const [selectedNisns, setSelectedNisns] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState('');
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
-    useEffect(() => {
-        if (isOpen && !isInitialized) {
-            // Priority: allowedTypes prop > canDo check
-            let allowedIzin = false;
-            let allowedSakit = false;
+  useEffect(() => {
+    if (isOpen && !isInitialized) {
+      // Priority: allowedTypes prop > canDo check
+      let allowedIzin = false;
+      let allowedSakit = false;
 
-            if (allowedTypes) {
-                allowedIzin = allowedTypes.IZIN;
-                allowedSakit = allowedTypes.SAKIT;
-            } else {
-                allowedIzin = canDo('ketidakhadiran.izin', 'manage');
-                allowedSakit = canDo('ketidakhadiran.sakit', 'manage');
+      if (allowedTypes) {
+        allowedIzin = allowedTypes.IZIN;
+        allowedSakit = allowedTypes.SAKIT;
+      } else {
+        allowedIzin = canDo('ketidakhadiran.izin', 'manage');
+        allowedSakit = canDo('ketidakhadiran.sakit', 'manage');
+      }
+
+      if (allowedIzin) {
+        setJenis('IZIN');
+        setStatus('MADRASAH');
+      } else if (allowedSakit) {
+        setJenis('SAKIT');
+        setStatus('Ringan');
+      }
+      setIsInitialized(true);
+    }
+
+    if (!isOpen) {
+      setIsInitialized(false);
+    }
+  }, [isOpen, allowedTypes, isInitialized]);
+
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
+    const file = e.target.files[0];
+    setUploading(true);
+    setUploadProgress(0);
+    setUploadedFileName(file.name);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', `Ketidakhadiran/${jenis.charAt(0) + jenis.slice(1).toLowerCase()}`);
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percent);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            try {
+              const data = JSON.parse(xhr.responseText);
+              if (data.ok) {
+                setUploadedFileUrl(data.publicUrl);
+                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Upload berhasil!', timer: 1500, showConfirmButton: false });
+                resolve();
+              } else {
+                reject(new Error(data.error || 'Upload gagal'));
+              }
+            } catch (err) {
+              reject(new Error('Invalid response'));
             }
+          } else {
+            reject(new Error('Upload failed'));
+          }
+        });
 
-            if (allowedIzin) {
-                setJenis('IZIN');
-                setStatus('MADRASAH');
-            } else if (allowedSakit) {
-                setJenis('SAKIT');
-                setStatus('Ringan');
-            }
-            setIsInitialized(true);
+        xhr.addEventListener('error', () => reject(new Error('Network error')));
+        xhr.open('POST', 'https://icgowa.sch.id/acca.icgowa.sch.id/acca_upload.php');
+        xhr.send(formData);
+      });
+    } catch (error: any) {
+      console.error(error);
+      Swal.fire('Upload Gagal', error.message || 'Gagal menghubungi server', 'error');
+      setUploadedFileUrl('');
+      setUploadedFileName('');
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  // Reset form when opening must be handled by effect or parent, assume simple unmount for now
+  if (!isOpen) return null;
+
+  const handleSubmit = async () => {
+    // Validation
+    if (!tglMulai) {
+      Swal.fire({ title: 'Validasi', text: 'Tanggal mulai wajib diisi', icon: 'warning', confirmButtonColor: '#0b1b3a' });
+      return;
+    }
+
+    // Jika tglSelesai kosong, gunakan tglMulai (absen 1 hari)
+    const finalTglSelesai = tglSelesai || tglMulai;
+    if (selectedNisns.length === 0) {
+      Swal.fire({ title: 'Validasi', text: 'Pilih minimal 1 siswa', icon: 'warning', confirmButtonColor: '#0b1b3a' });
+      return;
+    }
+
+    let keterangan = '';
+    if (jenis === 'IZIN') {
+      if (!ketIzin) {
+        Swal.fire({ title: 'Validasi', text: 'Keterangan izin wajib diisi', icon: 'warning' });
+        return;
+      }
+      keterangan = ketIzin;
+    } else {
+      if (!ketSakit) {
+        Swal.fire({ title: 'Validasi', text: 'Keterangan sakit wajib diisi', icon: 'warning', confirmButtonColor: '#0b1b3a' });
+        return;
+      }
+      keterangan = ketSakit;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const payload = {
+        jenis,
+        status,
+        tgl_mulai: tglMulai,
+        tgl_selesai: finalTglSelesai,
+        keterangan,
+        nisList: selectedNisns,
+        file_url: uploadedFileUrl || null
+      };
+
+      // Get Supabase session token for auth
+      const { supabase } = await import('@/lib/supabase');
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
+      const res = await fetch('/api/ketidakhadiran/bulk', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      setSubmitting(false);
+
+      if (data.ok) {
+        let message = `Berhasil menambahkan ${data.added} data`;
+        if (data.warnings && data.warnings.length > 0) {
+          message += `<br><br><small>⚠️ ${data.warnings.length} warning overlap</small>`;
         }
 
-        if (!isOpen) {
-            setIsInitialized(false);
-        }
-    }, [isOpen, allowedTypes, isInitialized]);
+        await Swal.fire({
+          title: 'Berhasil',
+          html: message,
+          icon: 'success',
+          timer: 2000,
+          showConfirmButton: false
+        });
 
-    const [submitting, setSubmitting] = useState(false);
+        onSuccess();
+        onClose();
+      } else {
+        Swal.fire({
+          title: 'Gagal',
+          text: data.error || 'Terjadi kesalahan saat menyimpan',
+          icon: 'error',
+          confirmButtonColor: '#0b1b3a'
+        });
+      }
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files || e.target.files.length === 0) return;
+    } catch (error: any) {
+      console.error(error);
+      Swal.fire({
+        title: 'Error',
+        text: error.message || 'Terjadi kesalahan sistem (Network)',
+        icon: 'error',
+        confirmButtonColor: '#0b1b3a'
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-        const file = e.target.files[0];
-        setUploading(true);
-        setUploadProgress(0);
-        setUploadedFileName(file.name);
+  return (
+    <div className="modal-backdrop">
+      <div className="modal-container">
 
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('folder', `Ketidakhadiran/${jenis.charAt(0) + jenis.slice(1).toLowerCase()}`);
+        {/* Header */}
+        <div className="modal-header">
+          <div>
+            <h3>Tambah Data Absen</h3>
+            <p>Input data izin atau sakit siswa</p>
+          </div>
+          <button onClick={onClose} className="close-btn">
+            <i className="bi bi-x-lg"></i>
+          </button>
+        </div>
 
-            await new Promise<void>((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-
-                xhr.upload.addEventListener('progress', (event) => {
-                    if (event.lengthComputable) {
-                        const percent = Math.round((event.loaded / event.total) * 100);
-                        setUploadProgress(percent);
-                    }
-                });
-
-                xhr.addEventListener('load', () => {
-                    if (xhr.status === 200) {
-                        try {
-                            const data = JSON.parse(xhr.responseText);
-                            if (data.ok) {
-                                setUploadedFileUrl(data.publicUrl);
-                                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Upload berhasil!', timer: 1500, showConfirmButton: false });
-                                resolve();
-                            } else {
-                                reject(new Error(data.error || 'Upload gagal'));
-                            }
-                        } catch (err) {
-                            reject(new Error('Invalid response'));
-                        }
-                    } else {
-                        reject(new Error('Upload failed'));
-                    }
-                });
-
-                xhr.addEventListener('error', () => reject(new Error('Network error')));
-                xhr.open('POST', 'https://icgowa.sch.id/acca.icgowa.sch.id/acca_upload.php');
-                xhr.send(formData);
-            });
-        } catch (error: any) {
-            console.error(error);
-            Swal.fire('Upload Gagal', error.message || 'Gagal menghubungi server', 'error');
-            setUploadedFileUrl('');
-            setUploadedFileName('');
-        } finally {
-            setUploading(false);
-            setUploadProgress(0);
-        }
-    };
-
-    // Reset form when opening must be handled by effect or parent, assume simple unmount for now
-    if (!isOpen) return null;
-
-    const handleSubmit = async () => {
-        // Validation
-        if (!tglMulai) {
-            Swal.fire({ title: 'Validasi', text: 'Tanggal mulai wajib diisi', icon: 'warning', confirmButtonColor: '#0b1b3a' });
-            return;
-        }
-
-        // Jika tglSelesai kosong, gunakan tglMulai (absen 1 hari)
-        const finalTglSelesai = tglSelesai || tglMulai;
-        if (selectedNisns.length === 0) {
-            Swal.fire({ title: 'Validasi', text: 'Pilih minimal 1 siswa', icon: 'warning', confirmButtonColor: '#0b1b3a' });
-            return;
-        }
-
-        let keterangan = '';
-        if (jenis === 'IZIN') {
-            if (!ketIzin) {
-                Swal.fire({ title: 'Validasi', text: 'Keterangan izin wajib diisi', icon: 'warning' });
-                return;
-            }
-            keterangan = ketIzin;
-        } else {
-            if (!ketSakit) {
-                Swal.fire({ title: 'Validasi', text: 'Keterangan sakit wajib diisi', icon: 'warning', confirmButtonColor: '#0b1b3a' });
-                return;
-            }
-            keterangan = ketSakit;
-        }
-
-        setSubmitting(true);
-
-        try {
-            const payload = {
-                jenis,
-                status,
-                tgl_mulai: tglMulai,
-                tgl_selesai: finalTglSelesai,
-                keterangan,
-                nisList: selectedNisns,
-                file_url: uploadedFileUrl || null
-            };
-
-            // Get Supabase session token for auth
-            const { supabase } = await import('@/lib/supabase');
-            const { data: { session } } = await supabase.auth.getSession();
-
-            const headers: HeadersInit = { 'Content-Type': 'application/json' };
-            if (session?.access_token) {
-                headers['Authorization'] = `Bearer ${session.access_token}`;
-            }
-
-            const res = await fetch('/api/ketidakhadiran/bulk', {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(payload)
-            });
-
-            const data = await res.json();
-
-            setSubmitting(false);
-
-            if (data.ok) {
-                let message = `Berhasil menambahkan ${data.added} data`;
-                if (data.warnings && data.warnings.length > 0) {
-                    message += `<br><br><small>⚠️ ${data.warnings.length} warning overlap</small>`;
-                }
-
-                await Swal.fire({
-                    title: 'Berhasil',
-                    html: message,
-                    icon: 'success',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-
-                onSuccess();
-                onClose();
-            } else {
-                Swal.fire({
-                    title: 'Gagal',
-                    text: data.error || 'Terjadi kesalahan saat menyimpan',
-                    icon: 'error',
-                    confirmButtonColor: '#0b1b3a'
-                });
-            }
-
-        } catch (error: any) {
-            console.error(error);
-            Swal.fire({
-                title: 'Error',
-                text: error.message || 'Terjadi kesalahan sistem (Network)',
-                icon: 'error',
-                confirmButtonColor: '#0b1b3a'
-            });
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="modal-backdrop">
-            <div className="modal-container">
-
-                {/* Header */}
-                <div className="modal-header">
-                    <div>
-                        <h3>Tambah Data Absen</h3>
-                        <p>Input data izin atau sakit siswa</p>
-                    </div>
-                    <button onClick={onClose} className="close-btn">
-                        <i className="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
-                {/* Body */}
-                <div className="modal-body">
-                    {/* Row 1: Jenis & Status */}
-                    <div className="grid-2">
-                        <div className="form-group">
-                            <label>Jenis Absen</label>
-                            <div className="select-wrapper">
-                                <select
-                                    value={jenis}
-                                    onChange={(e) => {
-                                        const newJenis = e.target.value as 'IZIN' | 'SAKIT';
-                                        setJenis(newJenis);
-                                        if (newJenis === 'IZIN') setStatus('MADRASAH');
-                                        else setStatus('Ringan');
-                                    }}
-                                    className="form-input"
-                                >
-                                    {(allowedTypes?.IZIN || canDo('ketidakhadiran.izin', 'manage')) && <option value="IZIN">IZIN</option>}
-                                    {(allowedTypes?.SAKIT || canDo('ketidakhadiran.sakit', 'manage')) && <option value="SAKIT">SAKIT</option>}
-                                </select>
-                                <i className="bi bi-chevron-down select-icon"></i>
-                            </div>
-                        </div>
-
-                        <div className="form-group">
-                            <label>Status</label>
-                            <div className="select-wrapper">
-                                <select
-                                    value={status}
-                                    onChange={(e) => setStatus(e.target.value)}
-                                    className="form-input"
-                                >
-                                    {jenis === 'IZIN' ? (
-                                        <>
-                                            <option value="MADRASAH">MADRASAH</option>
-                                            <option value="PERSONAL">PERSONAL</option>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <option value="Ringan">Ringan</option>
-                                            <option value="Sedang">Sedang</option>
-                                            <option value="Berat">Berat</option>
-                                            <option value="Kontrol">Kontrol</option>
-                                        </>
-                                    )}
-                                </select>
-                                <i className="bi bi-chevron-down select-icon"></i>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Row 2: Date Range */}
-                    <div className="grid-2">
-                        <div className="form-group">
-                            <label>Tanggal Mulai</label>
-                            <input
-                                type="date"
-                                className="form-input"
-                                value={tglMulai}
-                                onChange={(e) => setTglMulai(e.target.value)}
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Tanggal Selesai</label>
-                            <input
-                                type="date"
-                                className="form-input"
-                                value={tglSelesai}
-                                onChange={(e) => setTglSelesai(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Conditional Keterangan */}
-                    {jenis === 'IZIN' ? (
-                        <div className="form-group mb-5">
-                            <label>Keterangan Izin</label>
-                            <p className="text-xs text-slate-500 mb-2">Gunakan tanda <b>|</b> untuk memisahkan informasi (Misal: Lomba | Penyelenggara | Lokasi)</p>
-                            <textarea
-                                className="form-input textarea"
-                                rows={3}
-                                placeholder="Contoh: Olimpiade Matematika | Dinas Pendidikan | Makassar"
-                                value={ketIzin}
-                                onChange={(e) => setKetIzin(e.target.value)}
-                            />
-                        </div>
-                    ) : (
-                        <div className="form-group mb-5">
-                            <label>Keterangan / Diagnosa</label>
-                            <textarea
-                                className="form-input textarea"
-                                rows={3}
-                                placeholder="Jelaskan kondisi kesehatan siswa..."
-                                value={ketSakit}
-                                onChange={(e) => setKetSakit(e.target.value)}
-                            />
-                        </div>
-                    )}
-
-                    {/* Student Selector */}
-                    <div className="form-group">
-                        <label>Pilih Siswa</label>
-                        <StudentSelect
-                            selectedNisns={selectedNisns}
-                            onSelectionChange={setSelectedNisns}
-                        />
-                    </div>
-
-                    {/* File Upload */}
-                    <div className="form-group">
-                        <label>Upload Dokumen Pendukung (Opsional)</label>
-                        <div className="upload-container">
-                            <input
-                                type="file"
-                                id="file-upload"
-                                className="hidden"
-                                ref={fileInputRef}
-                                onChange={handleFileUpload}
-                                accept="image/*,application/pdf"
-                                disabled={uploading}
-                            />
-                            <label htmlFor="file-upload" className={`upload-box ${uploading ? 'uploading' : ''}`}>
-                                {uploading ? (
-                                    <div className="spinner-sm"></div>
-                                ) : uploadedFileUrl ? (
-                                    <div className="uploaded-info">
-                                        <i className="bi bi-file-earmark-check-fill"></i>
-                                        <span>File siap disimpan</span>
-                                    </div>
-                                ) : (
-                                    <div className="upload-placeholder">
-                                        <i className="bi bi-cloud-arrow-up"></i>
-                                        <span>Klik untuk pilih PDF atau Gambar</span>
-                                    </div>
-                                )}
-                            </label>
-                            {uploadedFileUrl && (
-                                <button className="remove-file" onClick={() => {
-                                    setUploadedFileUrl('');
-                                    if (fileInputRef.current) fileInputRef.current.value = '';
-                                }}>
-                                    <i className="bi bi-trash"></i> Hapus
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                </div>
-
-                {/* Footer */}
-                <div className="modal-footer">
-                    <button onClick={onClose} className="btn-cancel" disabled={submitting}>
-                        Batal
-                    </button>
-                    <button onClick={handleSubmit} className="btn-save" disabled={submitting}>
-                        {submitting ? (
-                            <span className="flex items-center gap-2">
-                                <span className="spinner"></span> Menyimpan...
-                            </span>
-                        ) : (
-                            'Simpan Data'
-                        )}
-                    </button>
-                </div>
+        {/* Body */}
+        <div className="modal-body">
+          {/* Row 1: Jenis & Status */}
+          <div className="grid-2">
+            <div className="form-group">
+              <label>Jenis Absen</label>
+              <div className="select-wrapper">
+                <select
+                  value={jenis}
+                  onChange={(e) => {
+                    const newJenis = e.target.value as 'IZIN' | 'SAKIT';
+                    setJenis(newJenis);
+                    if (newJenis === 'IZIN') setStatus('MADRASAH');
+                    else setStatus('Ringan');
+                  }}
+                  className="form-input"
+                >
+                  {(allowedTypes?.IZIN || canDo('ketidakhadiran.izin', 'manage')) && <option value="IZIN">IZIN</option>}
+                  {(allowedTypes?.SAKIT || canDo('ketidakhadiran.sakit', 'manage')) && <option value="SAKIT">SAKIT</option>}
+                </select>
+                <i className="bi bi-chevron-down select-icon"></i>
+              </div>
             </div>
 
-            <style jsx>{`
+            <div className="form-group">
+              <label>Status</label>
+              <div className="select-wrapper">
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="form-input"
+                >
+                  {jenis === 'IZIN' ? (
+                    <>
+                      <option value="MADRASAH">MADRASAH</option>
+                      <option value="PERSONAL">PERSONAL</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="Ringan">Ringan</option>
+                      <option value="Sedang">Sedang</option>
+                      <option value="Berat">Berat</option>
+                      <option value="Kontrol">Kontrol</option>
+                    </>
+                  )}
+                </select>
+                <i className="bi bi-chevron-down select-icon"></i>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Date Range */}
+          <div className="grid-2">
+            <div className="form-group">
+              <label>Tanggal Mulai</label>
+              <input
+                type="date"
+                className="form-input"
+                value={tglMulai}
+                onChange={(e) => setTglMulai(e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label>Tanggal Selesai</label>
+              <input
+                type="date"
+                className="form-input"
+                value={tglSelesai}
+                onChange={(e) => setTglSelesai(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Conditional Keterangan */}
+          {jenis === 'IZIN' ? (
+            <div className="form-group mb-5">
+              <label>Keterangan Izin</label>
+              <p className="text-xs text-slate-500 mb-2">Gunakan tanda <b>|</b> untuk memisahkan informasi (Misal: Lomba | Penyelenggara | Lokasi)</p>
+              <textarea
+                className="form-input textarea"
+                rows={3}
+                placeholder="Contoh: Olimpiade Matematika | Dinas Pendidikan | Makassar"
+                value={ketIzin}
+                onChange={(e) => setKetIzin(e.target.value)}
+              />
+            </div>
+          ) : (
+            <div className="form-group mb-5">
+              <label>Keterangan / Diagnosa</label>
+              <textarea
+                className="form-input textarea"
+                rows={3}
+                placeholder="Jelaskan kondisi kesehatan siswa..."
+                value={ketSakit}
+                onChange={(e) => setKetSakit(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Student Selector */}
+          <div className="form-group">
+            <label>Pilih Siswa</label>
+            <StudentSelect
+              selectedNisns={selectedNisns}
+              onSelectionChange={setSelectedNisns}
+            />
+          </div>
+
+          {/* File Upload */}
+          <div className="form-group">
+            <label>Upload Dokumen Pendukung (Opsional)</label>
+            <input
+              type="file"
+              id="file-upload"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept="image/*,application/pdf"
+              disabled={uploading}
+            />
+
+            <label
+              htmlFor="file-upload"
+              className={`upload-box ${uploading ? 'uploading' : ''} ${uploadedFileUrl ? 'success' : ''}`}
+            >
+              {uploading ? (
+                <div className="upload-progress">
+                  <div className="progress-header">
+                    <i className="bi bi-cloud-arrow-up"></i>
+                    <span className="progress-filename">{uploadedFileName}</span>
+                  </div>
+                  <div className="progress-bar-wrapper">
+                    <div className="progress-bar-fill" style={{ width: `${uploadProgress}%` }}></div>
+                  </div>
+                  <div className="progress-percent">{uploadProgress}%</div>
+                </div>
+              ) : uploadedFileUrl ? (
+                <div className="uploaded-success">
+                  <i className="bi bi-check-circle-fill"></i>
+                  <div className="uploaded-text">
+                    <span className="success-label">Upload berhasil</span>
+                    <span className="success-filename">{uploadedFileName}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="remove-file"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setUploadedFileUrl('');
+                      setUploadedFileName('');
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                  >
+                    <i className="bi bi-x-lg"></i>
+                  </button>
+                </div>
+              ) : (
+                <div className="upload-placeholder">
+                  <i className="bi bi-cloud-arrow-up"></i>
+                  <div className="upload-text-wrapper">
+                    <span className="upload-main-text">Klik untuk upload file</span>
+                    <span className="upload-sub-text">PDF atau Gambar (Max 10MB)</span>
+                  </div>
+                </div>
+              )}
+            </label>
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="modal-footer">
+          <button onClick={onClose} className="btn-cancel" disabled={submitting}>
+            Batal
+          </button>
+          <button onClick={handleSubmit} className="btn-save" disabled={submitting}>
+            {submitting ? (
+              <span className="flex items-center gap-2">
+                <span className="spinner"></span> Menyimpan...
+              </span>
+            ) : (
+              'Simpan Data'
+            )}
+          </button>
+        </div>
+      </div>
+
+      <style jsx>{`
         .modal-backdrop {
           position: fixed;
           top: 0;
@@ -828,6 +849,6 @@ export default function AddModal({ isOpen, onClose, onSuccess, canDo, allowedTyp
           to { transform: rotate(360deg); }
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }
