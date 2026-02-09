@@ -398,6 +398,135 @@ export default function DokumenSiswaTab({ user }: { user?: any }) {
                 @keyframes spin { to { transform: rotate(360deg); } }
                 .loading-cell { text-align: center; padding: 60px; color: #94a3b8; font-style: italic; }
                 .empty-text { font-size: 0.85rem; color: #94a3b8; font-style: italic; }
+
+                /* Mobile Responsive - Card Layout */
+                @media (max-width: 768px) {
+                    .ds-section { padding: 16px; border-radius: 16px; }
+                    
+                    .section-title h3, .toolbar-left h3 { font-size: 1rem; }
+                    
+                    .ds-input-group { flex-direction: column; }
+                    .ds-input-group button { width: 100%; padding: 12px; }
+                    
+                    .ds-toolbar { flex-direction: column; gap: 12px; align-items: stretch; }
+                    .btn-zip { width: 100%; justify-content: center; font-size: 0.85rem; }
+                    
+                    .ds-filters { flex-direction: column; gap: 12px; }
+                    .filter-item { width: 100%; }
+                    .btn-refresh { width: 100%; justify-content: center; }
+                    
+                    /* Hide table, show card layout */
+                    .ds-table-wrap { border: none; margin: 0; overflow: visible; background: transparent; }
+                    .ds-table { display: block; min-width: 0; }
+                    .ds-table thead { display: none; }
+                    .ds-table tbody { display: block; }
+                    .ds-table tr { 
+                        display: block; 
+                        background: white;
+                        border: 1px solid var(--n-border);
+                        border-radius: 16px;
+                        padding: 16px;
+                        margin-bottom: 16px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+                        transition: all 0.2s;
+                    }
+                    .ds-table tr:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); transform: translateY(-2px); }
+                    
+                    .ds-table td { 
+                        display: block; 
+                        width: 100% !important;
+                        padding: 0;
+                        border: none;
+                        margin-bottom: 12px;
+                    }
+                    .ds-table td:last-child { margin-bottom: 0; }
+                    
+                    /* Card header with date and folder */
+                    .cell-date, .cell-folder {
+                        display: inline-block;
+                        width: auto !important;
+                        margin-bottom: 8px !important;
+                    }
+                    
+                    .cell-date {
+                        font-size: 0.7rem;
+                        color: #94a3b8;
+                        background: #f8fafc;
+                        padding: 4px 10px;
+                        border-radius: 6px;
+                        display: inline-block;
+                        margin-right: 8px;
+                    }
+                    
+                    .cell-folder {
+                        display: inline-block;
+                    }
+                    
+                    .folder-tag {
+                        font-size: 0.7rem;
+                        padding: 4px 10px;
+                    }
+                    
+                    /* Uploader info */
+                    .cell-uploader {
+                        margin-bottom: 12px !important;
+                        padding-bottom: 12px;
+                        border-bottom: 1px solid #f1f5f9;
+                    }
+                    
+                    .uploader-cell {
+                        gap: 4px;
+                    }
+                    
+                    .u-name {
+                        font-size: 0.95rem;
+                    }
+                    
+                    .u-role {
+                        font-size: 0.65rem;
+                    }
+                    
+                    /* File info */
+                    .cell-file {
+                        max-width: 100% !important;
+                        margin-bottom: 16px !important;
+                    }
+                    
+                    .file-info {
+                        background: #f8fafc;
+                        padding: 12px;
+                        border-radius: 10px;
+                        border: 1px dashed var(--n-border);
+                    }
+                    
+                    .file-info span {
+                        font-size: 0.8rem;
+                        word-break: break-all;
+                        white-space: normal;
+                    }
+                    
+                    /* Actions */
+                    .cell-action {
+                        width: 100% !important;
+                    }
+                    
+                    .action-row {
+                        justify-content: space-between;
+                        gap: 10px;
+                    }
+                    
+                    .btn-view, .btn-dl, .btn-del {
+                        flex: 1;
+                        height: 40px;
+                        border-radius: 10px;
+                        font-size: 1.1rem;
+                    }
+                    
+                    .loading-cell {
+                        display: block !important;
+                        padding: 40px 20px;
+                    }
+                }
             `}</style>
         </div>
     )
