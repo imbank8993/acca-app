@@ -40,11 +40,34 @@ export default function RolePermissionsTab() {
     const [selectedResource, setSelectedResource] = useState<any>(null)
     const [selectedActions, setSelectedActions] = useState<any[]>([])
 
+    const [isEditing, setIsEditing] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
     useEffect(() => {
         fetchData()
     }, [])
+
+    // Helper: Format Resource Label for Dropdown
+    const getFriendlyResourceLabel = (resource: string, category?: string, masterList: any[] = []) => {
+        if (resource === '*') return '⭐ SEMUA HALAMAN (Full System)'
+
+        // Try to find the 'view' action label for this resource
+        const listToSearch = masterList.length > 0 ? masterList : masterPermissions
+        const viewAction = listToSearch.find(m => m.resource === resource && m.action === 'view')
+
+        // Use provided category or the one from the master list metadata
+        const finalCategory = (category || viewAction?.category || 'LAINNYA').toUpperCase()
+
+        if (viewAction) return `${finalCategory} — ${viewAction.label}`
+
+        // Fallback: Format the resource string
+        const formattedRes = resource
+            .split(/[:._]/)
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ')
+
+        return `${finalCategory} — ${formattedRes}`
+    }
 
     const fetchData = async () => {
         setLoading(true)
@@ -52,23 +75,29 @@ export default function RolePermissionsTab() {
             const res = await fetch('/api/admin/role-permissions')
             const data = await res.json()
             if (data.ok) {
+                const masterList = data.masterPermissions || []
                 setRoles(data.roles || [])
                 setPermissions(data.permissions || [])
-                setMasterPermissions(data.masterPermissions || [])
+                setMasterPermissions(masterList)
 
-                // Build Resource Options from Master Data Only (Strict Mode)
-                if (data.masterPermissions) {
-                    const uniqueRes = Array.from(new Set(data.masterPermissions.map((p: any) => p.resource)))
-                    const opts = uniqueRes.map(rStr => {
-                        const m = data.masterPermissions.find((p: any) => p.resource === rStr)
+                if (masterList.length > 0) {
+                    const uniqueRes = Array.from(new Set(masterList.map((p: any) => p.resource)))
+                    const opts = uniqueRes.map(anyRes => {
+                        const rStr = String(anyRes)
+                        const m = masterList.find((p: any) => p.resource === rStr)
+                        const category = String(m?.category || 'LAINNYA')
                         return {
                             value: rStr,
-                            label: m ? `${m.category} — ${m.resource}` : rStr,
-                            category: m?.category
+                            label: getFriendlyResourceLabel(rStr, category, masterList),
+                            category: category
                         }
                     }).sort((a: any, b: any) => a.category.localeCompare(b.category))
 
-                    setResourceOptions(opts)
+                    // Add "ALL" option at the top
+                    setResourceOptions([
+                        { value: '*', label: '⭐ SEMUA HALAMAN (Full System)', category: 'GLOBAL' },
+                        ...opts
+                    ])
                 }
             }
         } catch (error) {
@@ -82,13 +111,30 @@ export default function RolePermissionsTab() {
     useEffect(() => {
         setSelectedActions([])
         if (selectedResource && masterPermissions.length > 0) {
+            if (selectedResource.value === '*') {
+                setActionOptions([
+                    { value: '*', label: '⭐⭐ SEMUA FUNGSI (Akses Penuh)', description: 'Memberikan akses penuh ke seluruh fungsi di sistem' },
+                    { value: 'view', label: 'Hanya Lihat (Baca Saja)', description: 'Hanya boleh melihat tanpa mengubah data' }
+                ])
+                return
+            }
+
             const relevant = masterPermissions.filter(p => p.resource === selectedResource.value)
             const opts = relevant.map(p => ({
                 value: p.action,
-                label: `${p.label} (${p.action})`,
+                label: p.action === 'view' ? `⭐ ${p.label} (Akses Utama)` : `${p.label} (${p.action})`,
                 description: p.description
-            }))
-            setActionOptions(opts)
+            })).sort((a, b) => {
+                if (a.value === 'view') return -1;
+                if (b.value === 'view') return 1;
+                return a.label.localeCompare(b.label);
+            })
+
+            // Add "ALL" for this specific resource
+            setActionOptions([
+                { value: '*', label: '⭐ SEMUA FUNGSI untuk Halaman Ini', description: 'Bisa melakukan apa saja di halaman ini' },
+                ...opts
+            ])
         } else {
             setActionOptions([])
         }
@@ -144,14 +190,67 @@ export default function RolePermissionsTab() {
                 })
             )
 
-            await Promise.all(promises)
+            const results = await Promise.all(promises)
+            const allOk = results.every(r => r.ok)
 
-            setMessage({ type: 'success', text: `${selectedActions.length} Izin berhasil disimpan!` })
+            if (!allOk) {
+                const errData = await results.find(r => !r.ok)?.json().catch(() => ({}))
+                throw new Error(errData?.error || 'Gagal menyimpan salah satu atau lebih izin.')
+            }
+
+            setMessage({ type: 'success', text: isEditing ? 'Izin berhasil diperbarui!' : `${selectedActions.length} Izin berhasil disimpan!` })
             fetchData()
-            // Reset selection to allow rapid entry
+
+            // Reset state
+            if (isEditing) {
+                setIsEditing(false)
+            }
             setSelectedActions([])
         } catch (error) {
             setMessage({ type: 'error', text: 'Gagal menyimpan izin' })
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleEditPermission = (roleName: string, resourceValue: string, perms: Permission[]) => {
+        setIsEditing(true)
+        setSelectedRole(roleName)
+
+        // Set resource
+        const resOpt = resourceOptions.find(o => o.value === resourceValue)
+        setSelectedResource(resOpt || { value: resourceValue, label: resourceValue })
+
+        // Actions take a moment to update via useEffect, but we can pre-set them if we want
+        // or just let the masterPermissions filter handle it.
+        // To be safe, let's map them from the current permissions
+        const mappedActions = perms.map(p => {
+            const meta = masterPermissions.find(m => m.resource === p.resource && m.action === p.action)
+            return {
+                value: p.action,
+                label: meta ? `${meta.label} (${p.action})` : p.action
+            }
+        })
+        setSelectedActions(mappedActions)
+
+        // Scroll to form
+        const formEl = document.getElementById('permission-form')
+        if (formEl) {
+            formEl.scrollIntoView({ behavior: 'smooth' })
+        }
+    }
+
+    const handleDeletePermissionGroup = async (perms: Permission[]) => {
+        if (!confirm(`Hapus semua ${perms.length} izin untuk role ${perms[0].role_name} di halaman ${perms[0].resource}?`)) return
+
+        setSaving(true)
+        try {
+            const promises = perms.map(p => fetch(`/api/admin/role-permissions?id=${p.id}`, { method: 'DELETE' }))
+            await Promise.all(promises)
+            fetchData()
+            setMessage({ type: 'success', text: 'Izin berhasil dihapus.' })
+        } catch (error) {
+            console.error(error)
         } finally {
             setSaving(false)
         }
@@ -303,8 +402,8 @@ export default function RolePermissionsTab() {
                 <div className="rp__headLeft">
                     <div className="rp__headIcon"><i className="bi bi-shield-check"></i></div>
                     <div className="rp__headInfo">
-                        <h2>Izin Role & RBAC (Refined)</h2>
-                        <p>Atur izin akses fungsional secara spesifik dan mudah.</p>
+                        <h2>Izin Role & Hak Akses</h2>
+                        <p>Atur izin akses fungsional secara spesifik dan terpusat.</p>
                     </div>
                 </div>
                 <div className="rp__headActions">
@@ -359,8 +458,18 @@ export default function RolePermissionsTab() {
                 </div>
 
                 {/* 2. Add Permission */}
-                <div className="section">
-                    <h3>2. Tambah Izin Akses</h3>
+                <div className="section" id="permission-form">
+                    <div className="sectionHead">
+                        <h3>2. {isEditing ? 'Edit Izin Akses' : 'Tambah Izin Akses'}</h3>
+                        {isEditing && (
+                            <button className="btnReset" onClick={() => {
+                                setIsEditing(false)
+                                setSelectedRole('')
+                                setSelectedResource(null)
+                                setSelectedActions([])
+                            }}>Batal Edit</button>
+                        )}
+                    </div>
                     <form onSubmit={handleSavePermissions} className="form">
                         <div className="formGroup">
                             <label>Pilih Role</label>
@@ -368,6 +477,7 @@ export default function RolePermissionsTab() {
                                 value={selectedRole}
                                 onChange={e => setSelectedRole(e.target.value)}
                                 className="stdSelect"
+                                disabled={isEditing}
                             >
                                 <option value="">-- Pilih Role --</option>
                                 {roles.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
@@ -375,79 +485,103 @@ export default function RolePermissionsTab() {
                         </div>
 
                         <div className="formGroup">
-                            <label>Pilih Data / Fitur</label>
+                            <label>Pilih Halaman / Tab</label>
                             <Select
                                 options={resourceOptions}
                                 value={selectedResource}
                                 onChange={setSelectedResource}
-                                placeholder="Cari Data (Misal: Jurnal)..."
+                                placeholder="Cari Halaman (Misal: Jurnal)..."
                                 styles={selectStyles}
                                 isClearable
+                                isDisabled={isEditing}
                             />
                         </div>
 
                         <div className="formGroup">
-                            <label>Pilih Aksi / Fungsi (Bisa Banyak)</label>
+                            <label>Pilih Fungsi / Aksi (Bisa Banyak)</label>
                             <Select
                                 options={actionOptions}
                                 value={selectedActions}
-                                onChange={setSelectedActions}
+                                onChange={(val) => setSelectedActions(val as any[])}
                                 isMulti
                                 closeMenuOnSelect={false}
-                                placeholder={selectedResource ? "Pilih fungsi yang diizinkan..." : "Pilih Data dulu..."}
+                                placeholder={selectedResource ? "Pilih fungsi yang diizinkan..." : "Pilih Halaman dulu..."}
                                 styles={selectStyles}
                                 isDisabled={!selectedResource}
                             />
                         </div>
 
                         <button type="submit" disabled={saving || !selectedRole || !selectedResource || selectedActions.length === 0} className="btnPrimary">
-                            {saving ? 'Menyimpan...' : 'Simpan Izin'}
+                            {saving ? 'Menyimpan...' : (isEditing ? 'Perbarui Izin' : 'Simpan Izin')}
                         </button>
                     </form>
                 </div>
             </div>
 
-            {/* 3. Table */}
+            {/* 3. Table Grouped */}
             <div className="section fullWidth">
-                <h3>3. Tabel Izin Aktif</h3>
-                <div className="tableWrap">
-                    <table className="table">
-                        <thead>
-                            <tr>
-                                <th>Role</th>
-                                <th>Fitur</th>
-                                <th>Fungsi Diizinkan</th>
-                                <th>Kategori</th>
-                                <th style={{ width: '60px' }}>Hapus</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {loading && <tr><td colSpan={5} className="tCenter">Memuat data...</td></tr>}
-                            {!loading && permissions.length === 0 && <tr><td colSpan={5} className="tCenter">Belum ada izin tersimpan.</td></tr>}
+                <h3>3. Daftar Izin (Dikelompokkan Berdasarkan Role)</h3>
+                <div className="groupedContent">
+                    {loading && <div className="loadingState">Memuat data...</div>}
+                    {!loading && permissions.length === 0 && <div className="emptyState">Belum ada izin tersimpan.</div>}
 
-                            {!loading && permissions.map(p => {
-                                const meta = masterPermissions.find(m => m.resource === p.resource && m.action === p.action)
-                                return (
-                                    <tr key={p.id}>
-                                        <td className="bold">{formatRoleDisplay(p.role_name)}</td>
-                                        <td>{p.resource}</td>
-                                        <td>
-                                            <div className="permBadge">
-                                                {meta ? meta.label : p.action}
-                                            </div>
-                                            {meta?.description && <div className="permDesc">{meta.description}</div>}
-                                        </td>
-                                        <td><span className="catBag">{meta?.category || 'Custom'}</span></td>
-                                        <td>
-                                            <button onClick={() => handleDeletePermission(p.id)} className="btnIcon danger">
-                                                <i className="bi bi-trash"></i>
+                    {!loading && Object.entries(permissions.reduce((acc: any, p) => {
+                        if (!acc[p.role_name]) acc[p.role_name] = {}
+                        if (!acc[p.role_name][p.resource]) acc[p.role_name][p.resource] = []
+                        acc[p.role_name][p.resource].push(p)
+                        return acc
+                    }, {})).map(([roleName, resourcesGroup]: [string, any]) => (
+                        <div key={roleName} className="roleBlock">
+                            <div className="roleHeader">
+                                <span className="resLabel">ROLE:</span>
+                                <h4>{formatRoleDisplay(roleName)}</h4>
+                                <span className="resCatBadge">
+                                    {roles.find(r => r.name === roleName)?.description || 'Sistem Role'}
+                                </span>
+                            </div>
+                            <div className="resourcesGrid">
+                                {Object.entries(resourcesGroup).map(([resource, perms]: [string, any]) => (
+                                    <div key={resource} className="resourceRow">
+                                        <div className="resourceInfo">
+                                            {(() => {
+                                                const masterMeta = masterPermissions.find(m => m.resource === resource)
+                                                const currentCat = masterMeta?.category || 'LAINNYA'
+                                                return (
+                                                    <>
+                                                        <span className="resourceNameBadge">
+                                                            {resource === '*' ? '🚀 SEMUA HALAMAN' : (getFriendlyResourceLabel(resource, currentCat).split(' — ')[1] || resource)}
+                                                        </span>
+                                                        <span className="resSubCat">{resource === '*' ? 'AKSES GLOBAL' : currentCat.toUpperCase()}</span>
+                                                    </>
+                                                )
+                                            })()}
+                                        </div>
+                                        <div className="permsList">
+                                            {perms.map((p: any) => {
+                                                const meta = masterPermissions.find(m => m.resource === p.resource && m.action === p.action)
+                                                return (
+                                                    <div key={p.id} className="permItem">
+                                                        <span className="permLabel">
+                                                            {p.action === '*' ? '⭐⭐ SEMUA FUNGSI' : (meta ? meta.label : p.action)}
+                                                        </span>
+                                                        <button className="btnSubDel" title="Hapus aksi ini" onClick={() => handleDeletePermission(p.id)}>&times;</button>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                        <div className="rowActions">
+                                            <button className="btnMini edit" onClick={() => handleEditPermission(roleName, resource, perms)}>
+                                                <i className="bi bi-pencil-square"></i> Edit
                                             </button>
-                                        </td>
-                                    </tr>
-                                )
-                            })}
-                        </tbody>
-                    </table>
+                                            <button className="btnMini danger" onClick={() => handleDeletePermissionGroup(perms)}>
+                                                <i className="bi bi-trash-fill"></i> Hapus Semua
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -519,6 +653,40 @@ export default function RolePermissionsTab() {
                 @media (max-width: 900px) {
                     .grid { grid-template-columns: 1fr; }
                 }
+
+                .sectionHead { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f8fafc; padding-bottom: 12px; margin-bottom: 4px; }
+                .sectionHead h3 { border: none; padding: 0; }
+                .btnReset { background: #fef2f2; border: 1px solid #fee2e2; color: #ef4444; padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+                .btnReset:hover { background: #fee2e2; }
+
+                .roleBlock { margin-bottom: 32px; border: 1px solid #f1f5f9; border-radius: 20px; overflow: hidden; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.02); }
+                .roleHeader { display: flex; align-items: center; gap: 12px; padding: 16px 24px; background: #f8fafc; border-bottom: 1px solid #f1f5f9; }
+                .resLabel { font-size: 0.65rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; }
+                .roleHeader h4 { margin: 0; font-size: 1.1rem; color: #0038A8; font-weight: 800; flex: 1; }
+                .resCatBadge { padding: 4px 10px; background: #eff6ff; color: #1e40af; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+
+                .resourcesGrid { display: flex; flex-direction: column; }
+                .resourceRow { display: grid; grid-template-columns: 220px 1fr 200px; align-items: center; padding: 16px 24px; border-bottom: 1px solid #f8fafc; gap: 20px; }
+                .resourceRow:last-child { border-bottom: none; }
+                .resourceRow:hover { background: #fafcfe; }
+
+                .resourceInfo { display: flex; flex-direction: column; gap: 4px; }
+                .resourceNameBadge { padding: 6px 12px; background: #334155; color: white; border-radius: 10px; font-size: 0.85rem; font-weight: 700; display: inline-block; width: fit-content; }
+                .resSubCat { font-size: 0.7rem; color: #94a3b8; font-weight: 800; text-transform: uppercase; margin-left: 4px; }
+                
+                .permsList { display: flex; flex-wrap: wrap; gap: 8px; }
+                .permItem { background: #ecfdf5; color: #059669; border: 1px solid #d1fae5; padding: 4px 8px 4px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+                .btnSubDel { background: none; border: none; color: #10b981; font-size: 1.2rem; line-height: 1; cursor: pointer; padding: 0; display: flex; }
+                .btnSubDel:hover { color: #ef4444; }
+
+                .rowActions { display: flex; gap: 8px; justify-content: flex-end; }
+                .btnMini { padding: 8px 12px; border-radius: 10px; font-size: 0.8rem; font-weight: 700; border: 1px solid #e2e8f0; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+                .btnMini.edit { background: white; color: #0038A8; border-color: #dbeafe; }
+                .btnMini.edit:hover { background: #eff6ff; border-color: #3b82f6; }
+                .btnMini.danger { background: white; color: #ef4444; border-color: #fee2e2; }
+                .btnMini.danger:hover { background: #fef2f2; border-color: #ef4444; }
+
+                .loadingState, .emptyState { padding: 40px; text-align: center; color: #94a3b8; font-weight: 600; }
             `}</style>
         </div>
     )

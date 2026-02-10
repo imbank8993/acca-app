@@ -5,6 +5,7 @@ import { exportToExcel } from '@/lib/excel-utils'
 import Pagination from '@/components/ui/Pagination'
 import Swal from 'sweetalert2'
 import ImportModal from '@/components/ui/ImportModal'
+import { hasPermission } from '@/lib/permissions-client'
 
 interface RiwayatPendidikan {
   level: string;
@@ -75,12 +76,8 @@ export default function GuruTab({ user }: { user?: any }) {
   const isAdmin = user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false
 
   // Helper to check permission
-  const canEditField = (resource: string, action: string) => {
-    if (isAdmin) return true; // Global admin bypass
-    return permissions.some(p =>
-      (p.resource === '*' || p.resource === resource) &&
-      (p.action === '*' || p.action === action)
-    )
+  const canDo = (action: string) => {
+    return hasPermission(permissions, 'master.guru', action, isAdmin);
   }
 
   useEffect(() => {
@@ -254,9 +251,9 @@ export default function GuruTab({ user }: { user?: any }) {
   }
 
   const handleExport = () => {
-    const dataToExport = guruList.map((g, index) => {
+    const dataToExport = allData.map((g, index) => {
       const base: any = {
-        'No': (currentPage - 1) * pageSize + index + 1,
+        'No': index + 1,
         'NIP': g.nip || '',
         'Nama Lengkap': g.nama_lengkap || '',
         'Tempat Lahir': g.tempat_lahir || '',
@@ -388,7 +385,7 @@ export default function GuruTab({ user }: { user?: any }) {
             <i className="bi bi-download" /> <span>Export</span>
           </button>
 
-          {canEditField('guru', 'create') && (
+          {canDo('create') && (
             <button className="sk__btn sk__btnPrimary" onClick={handleAddNew}>
               <i className="bi bi-plus-lg" /> <span>Tambah</span>
             </button>
@@ -450,12 +447,12 @@ export default function GuruTab({ user }: { user?: any }) {
                       <button className="sk__iconBtn" onClick={() => handleView(guru)} title="Lihat">
                         <i className="bi bi-eye" />
                       </button>
-                      {canEditField('guru', 'update') && (
+                      {canDo('update') && (
                         <button className="sk__iconBtn" onClick={() => handleEdit(guru)} title="Edit">
                           <i className="bi bi-pencil" />
                         </button>
                       )}
-                      {canEditField('guru', 'delete') && (
+                      {canDo('delete') && (
                         <button
                           className="sk__iconBtn danger"
                           onClick={() => handleDelete(guru.nip)}
@@ -543,12 +540,12 @@ export default function GuruTab({ user }: { user?: any }) {
                     <button className="sk__iconBtn" onClick={() => handleView(guru)} title="Lihat">
                       <i className="bi bi-eye" />
                     </button>
-                    {canEditField('guru', 'update') && (
+                    {canDo('update') && (
                       <button className="sk__iconBtn" onClick={() => handleEdit(guru)} title="Edit">
                         <i className="bi bi-pencil" />
                       </button>
                     )}
-                    {canEditField('guru', 'delete') && (
+                    {canDo('delete') && (
                       <button
                         className="sk__iconBtn danger"
                         onClick={() => handleDelete(guru.nip)}

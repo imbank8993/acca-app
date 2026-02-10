@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/admin/role-permissions - Get all permissions
 export async function GET(request: NextRequest) {
     try {
@@ -119,8 +121,7 @@ export async function POST(request: NextRequest) {
                 role_name,
                 resource,
                 action,
-                is_allowed,
-                updated_at: new Date().toISOString()
+                is_allowed
             }, { onConflict: 'role_name,resource,action' })
             .select()
             .single();

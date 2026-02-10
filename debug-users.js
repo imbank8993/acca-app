@@ -1,21 +1,25 @@
-
 const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
 
-const supabase = createClient(
-    'https://suwdqtaxnooowxaxvilr.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN1d2RxdGF4bm9vb3d4YXh2aWxyIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODg5NDI1NiwiZXhwIjoyMDg0NDcwMjU2fQ.JRRxTcWdXo3LOI20zIRqbsIyABg4mP1yc7X00rEaMK0'
-);
+async function debug() {
+    const env = {};
+    const envFile = fs.readFileSync('.env.local', 'utf8');
+    envFile.split('\n').forEach(line => {
+        const [key, ...value] = line.split('=');
+        if (key && value) env[key.trim()] = value.join('=').trim();
+    });
 
-async function check() {
-    console.log('Checking users...');
-    const { data, error } = await supabase.from('users').select('*').limit(5);
+    const supabaseAdmin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+
+    const { data: users, error } = await supabaseAdmin
+        .from('users')
+        .select('username, role')
+        .limit(10);
 
     if (error) {
-        console.error('Error:', error);
-        return;
+        console.log('ERROR:', error);
+    } else {
+        console.log('USERS:', JSON.stringify(users, null, 2));
     }
-
-    console.log('Users Sample:', JSON.stringify(data, null, 2));
 }
-
-check();
+debug();

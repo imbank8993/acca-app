@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { getUserByAuthId } from '@/lib/auth';
 import Swal from 'sweetalert2';
 import PermissionGuard from '@/components/PermissionGuard';
+import { hasPermission } from '@/lib/permissions-client';
 import './lckh-approval.css';
 
 export default function LckhApprovalPage() {
@@ -30,6 +31,11 @@ export default function LckhApprovalPage() {
 
     const [showJurnalModal, setShowJurnalModal] = useState(false);
     const [activeJurnal, setActiveJurnal] = useState<any>(null);
+
+    const isAdmin = user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false;
+    const canDo = (action: string) => {
+        return hasPermission(user?.permissions || [], 'lckh_approval', action, isAdmin);
+    };
 
     useEffect(() => {
         const init = async () => {
@@ -564,7 +570,7 @@ export default function LckhApprovalPage() {
                                 <button
                                     className="la-reject-btn hover:bg-red-100 disabled:opacity-50"
                                     onClick={handleReject}
-                                    disabled={saving || !['Submitted', 'Approved_Waka'].includes(selectedItem.status)}
+                                    disabled={saving || !['Submitted', 'Approved_Waka'].includes(selectedItem.status) || !canDo('approve')}
                                 >
                                     {saving ? (
                                         <div className="la-spinner">
@@ -575,7 +581,7 @@ export default function LckhApprovalPage() {
                                 <button
                                     className="la-approve-btn disabled:opacity-50"
                                     onClick={handleApprove}
-                                    disabled={saving || !['Submitted', 'Approved_Waka'].includes(selectedItem.status)}
+                                    disabled={saving || !['Submitted', 'Approved_Waka'].includes(selectedItem.status) || !canDo('approve')}
                                 >
                                     {saving ? (
                                         <div className="la-spinner">

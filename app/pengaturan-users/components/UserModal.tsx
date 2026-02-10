@@ -25,59 +25,29 @@ export default function UserModal({
     const [formData, setFormData] = useState({
         username: '',
         nip: '',
+        nama_lengkap: '',
         nama: '',
         divisi: '',
-        role: 'GURU',
-        pages: 'Dashboard',
         password: ''
     })
-
-    useEffect(() => {
-        const fetchSystemPages = async () => {
-            try {
-                const res = await fetch('/api/admin/system/pages');
-                const json = await res.json();
-                if (json.ok) {
-                    setAvailablePages(json.data);
-                } else {
-                    // Fallback
-                    setAvailablePages([
-                        { value: 'Dashboard', label: 'Dashboard' },
-                        { value: 'Absensi', label: 'Absensi' },
-                        { value: 'Jurnal', label: 'Jurnal' },
-                        { value: 'Nilai', label: 'Nilai' },
-                        { value: 'Ketidakhadiran', label: 'Ketidakhadiran' }
-                    ]);
-                }
-            } catch (err) {
-                console.error('Failed to fetch pages:', err);
-            }
-        };
-
-        if (isOpen) {
-            fetchSystemPages();
-        }
-    }, [isOpen]);
 
     useEffect(() => {
         if (editingUser) {
             setFormData({
                 username: editingUser.username,
                 nip: editingUser.nip,
+                nama_lengkap: editingUser.nama_lengkap || editingUser.nama,
                 nama: editingUser.nama,
                 divisi: editingUser.divisi,
-                role: editingUser.role || 'GURU',
-                pages: editingUser.pages || 'Dashboard',
-                password: '' // Kosongkan saat edit, agar tidak mengirim '****'
+                password: '' // Kosongkan saat edit
             })
         } else {
             setFormData({
                 username: '',
                 nip: '',
+                nama_lengkap: '',
                 nama: '',
                 divisi: '',
-                role: 'GURU',
-                pages: 'Dashboard',
                 password: ''
             })
         }
@@ -100,20 +70,28 @@ export default function UserModal({
 
                 <div className="modalBody">
                     <div className="modalGrid">
-                        <div className="field">
-                            <label>Nama Lengkap</label>
+                        <div className="field full">
+                            <label>Nama Lengkap (Sesuai Ijazah/Sertifikat)</label>
                             <input
-                                value={formData.nama}
-                                onChange={e => setFormData({ ...formData, nama: e.target.value })}
-                                placeholder="Nama Lengkap dengan Gelar"
+                                value={formData.nama_lengkap}
+                                onChange={e => setFormData({ ...formData, nama_lengkap: e.target.value })}
+                                placeholder="Contoh: Dr. Ahmad S.Pd, M.Si"
                             />
                         </div>
                         <div className="field">
-                            <label>NIP</label>
+                            <label>Nama Panggilan / Nama Ringkas</label>
+                            <input
+                                value={formData.nama}
+                                onChange={e => setFormData({ ...formData, nama: e.target.value })}
+                                placeholder="Contoh: Ahmad"
+                            />
+                        </div>
+                        <div className="field">
+                            <label>Nomor Induk Pegawai (NIP)</label>
                             <input
                                 value={formData.nip}
                                 onChange={e => setFormData({ ...formData, nip: e.target.value })}
-                                placeholder="Nomor Induk Pegawai"
+                                placeholder="Masukkan NIP"
                             />
                         </div>
                         <div className="field">
@@ -125,49 +103,11 @@ export default function UserModal({
                             />
                         </div>
                         <div className="field">
-                            <label>Divisi</label>
+                            <label>Divisi / Unit Kerja</label>
                             <input
                                 value={formData.divisi}
                                 onChange={e => setFormData({ ...formData, divisi: e.target.value })}
-                                placeholder="Divisi / Unit Kerja"
-                            />
-                        </div>
-                        <div className="field full">
-                            <label>Role (Multi Select)</label>
-                            <Select
-                                isMulti
-                                options={availableRoles}
-                                menuPlacement="top"
-                                value={availableRoles.filter(opt => {
-                                    const currentRoles = (formData.role || '').split(',').map(r => r.trim().toUpperCase());
-                                    return currentRoles.includes(opt.value.toUpperCase());
-                                })}
-                                onChange={(selected) => {
-                                    const roles = selected.map(s => s.value).join(',');
-                                    setFormData({ ...formData, role: roles });
-                                }}
-                                className="react-select-container"
-                                classNamePrefix="react-select"
-                                placeholder="Pilih satu atau lebih role..."
-                            />
-                        </div>
-                        <div className="field full">
-                            <label>Akses Halaman</label>
-                            <Select
-                                isMulti
-                                options={availablePages}
-                                menuPlacement="top"
-                                value={availablePages.filter((opt: any) => {
-                                    const currentPages = (formData.pages || '').split(',').map(p => p.trim());
-                                    return currentPages.includes(opt.value);
-                                })}
-                                onChange={(selected) => {
-                                    const pages = selected.map(s => s.value).join(', ');
-                                    setFormData({ ...formData, pages: pages });
-                                }}
-                                className="react-select-container"
-                                classNamePrefix="react-select"
-                                placeholder="Pilih halaman yang bisa diakses..."
+                                placeholder="Contoh: Guru / Tata Usaha"
                             />
                         </div>
                         <div className="field full">
@@ -179,6 +119,10 @@ export default function UserModal({
                                 placeholder={editingUser ? '••••••••' : 'Masukkan password login...'}
                                 autoComplete="new-password"
                             />
+                        </div>
+                        <div className="infoNote full">
+                            <i className="bi bi-info-circle-fill"></i>
+                            <span>Pengaturan <strong>Role</strong> dan <strong>Akses Halaman</strong> sekarang dikelola melalui tab terpisah di halaman utama Pengaturan Users.</span>
                         </div>
                     </div>
                 </div>
@@ -348,6 +292,23 @@ export default function UserModal({
           .modalGrid { grid-template-columns: 1fr; }
           .field.full { grid-column: span 1; }
           .userModalContent { border-radius: 20px 20px 0 0; margin-top: auto; max-height: 95vh; }
+        }
+
+        .infoNote {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 16px;
+          background: #eff6ff;
+          border: 1px solid #dbeafe;
+          border-radius: 12px;
+          color: #1e40af;
+          font-size: 0.85rem;
+          font-weight: 500;
+        }
+        .infoNote i {
+          font-size: 1.25rem;
+          color: #3b82f6;
         }
       `}</style>
         </div>

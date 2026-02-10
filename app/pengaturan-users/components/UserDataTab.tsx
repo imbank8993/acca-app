@@ -101,6 +101,7 @@ export default function UserDataTab() {
       filtered = filtered.filter(
         (u) =>
           u.nama.toLowerCase().includes(query) ||
+          (u.nama_lengkap && u.nama_lengkap.toLowerCase().includes(query)) ||
           u.username.toLowerCase().includes(query) ||
           u.nip.toLowerCase().includes(query)
       )
@@ -139,6 +140,7 @@ export default function UserDataTab() {
       'id': u.id,
       'username': u.username,
       'nip': u.nip,
+      'nama_lengkap': u.nama_lengkap || u.nama,
       'nama': u.nama,
       'divisi': u.divisi,
       'role': u.role,
@@ -180,6 +182,7 @@ export default function UserDataTab() {
           return {
             username: String(row['username'] || row['Username'] || ''),
             nip: String(row['nip'] || row['NIP'] || ''),
+            nama_lengkap: String(row['nama_lengkap'] || row['Nama Lengkap'] || row['nama'] || ''),
             nama: String(row['nama'] || row['Nama'] || ''),
             divisi: String(row['divisi'] || row['Divisi'] || ''),
             role: String(row['role'] || row['Role'] || 'GURU'),
@@ -325,7 +328,8 @@ export default function UserDataTab() {
         <table className="userTable">
           <thead>
             <tr>
-              <th>Nama / NIP</th>
+              <th>Identitas</th>
+              <th>Nama Ringkas</th>
               <th>Username</th>
               <th>Divisi</th>
               <th>Status</th>
@@ -334,15 +338,16 @@ export default function UserDataTab() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="loadingCell">Loading data...</td></tr>
+              <tr><td colSpan={7} className="loadingCell">Loading data...</td></tr>
             ) : filteredUsers.map((user) => (
               <tr key={user.id}>
                 <td>
                   <div className="profileCell">
-                    <span className="pName">{user.nama}</span>
+                    <span className="pName">{user.nama_lengkap || user.nama}</span>
                     <span className="pNip">{user.nip}</span>
                   </div>
                 </td>
+                <td><span className="bold">{user.nama}</span></td>
                 <td><span className="uName">@{user.username}</span></td>
                 <td>{user.divisi || '-'}</td>
                 <td>

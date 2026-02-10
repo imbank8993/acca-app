@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { username, nip, nama, divisi, role, pages, password } = body;
+        const { username, nip, nama, nama_lengkap, divisi, role, pages, password } = body;
 
         if (!username || !nip || !nama) {
             return NextResponse.json({ ok: false, error: 'Username, NIP, and Nama are required' }, { status: 400 });
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
                 email: `${username}@acca.local`,
                 password: password,
                 email_confirm: true,
-                user_metadata: { username, nama, roles: role ? role.split(',') : ['GURU'] }
+                user_metadata: { username, nama, roles: role ? role.split(',') : ['GURU'], nama_lengkap: nama_lengkap || nama }
             });
 
             if (authError) {
@@ -179,6 +179,7 @@ export async function POST(request: NextRequest) {
             username,
             nip,
             nama,
+            nama_lengkap: nama_lengkap || nama,
             divisi: divisi || '',
             role: role || 'GURU',
             pages: pages || 'Dashboard',

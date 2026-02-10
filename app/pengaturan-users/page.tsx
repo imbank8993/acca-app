@@ -23,12 +23,12 @@ export default function PengaturanUsersPage() {
                     return
                 }
 
-                // Get user data from session/cookie
-                // For now, we'll assume the user data is available
-                // In production, you might want to fetch this from an API
-                const sessionData = localStorage.getItem('user')
-                if (sessionData) {
-                    const userData: User = JSON.parse(sessionData)
+                // Get full user data from API (includes permissions and evaluated Admin pages)
+                const meRes = await fetch('/api/auth/me')
+                const meData = await meRes.json()
+
+                if (meData.ok && meData.user) {
+                    const userData: User = meData.user
 
                     // Check if user has ADMIN role (God Mode)
                     if (!userData.roles.some(r => r.toUpperCase() === 'ADMIN')) {
@@ -71,5 +71,5 @@ export default function PengaturanUsersPage() {
         return null
     }
 
-    return <UserSettingsPage />
+    return <UserSettingsPage user={user} />
 }

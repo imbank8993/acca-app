@@ -38,7 +38,15 @@ Anda bisa membatasi berdasarkan tipe (Izin atau Sakit).
 | Edit Status Hadir Saja | `jurnal` | `edit_kehadiran` |
 | Edit Semua Field | `jurnal` | `edit_full` |
 
-## 4. Master Data (`master_data`)
+## 4. Laporan Guru Asuh (`laporan_guru_asuh`)
+| Fitur | Resource | Action |
+|-------|----------|---------|
+| Lihat Daftar Laporan | `laporan_guru_asuh` | `view` |
+| Tambah Laporan Baru | `laporan_guru_asuh` | `create` |
+| Ubah Isi Laporan | `laporan_guru_asuh` | `update` |
+| Hapus Laporan | `laporan_guru_asuh` | `delete` |
+
+## 5. Master Data (`master_data`)
 Akses tab di halaman Master Data dikontrol per halaman.
 | Fitur Tab | Resource | Action |
 |-------|----------|---------|
@@ -50,7 +58,7 @@ Akses tab di halaman Master Data dikontrol per halaman.
 | Tab Waktu | `master_data:waktu` | `read` |
 | *Izin Aksi Lain (Jika didukung):* | | `create`, `update`, `delete` |
 
-## 5. Pengaturan Data (`pengaturan_data`)
+## 6. Pengaturan Data (`pengaturan_data`)
 Akses tab di halaman Pengaturan Data dikontrol per halaman.
 | Fitur Tab | Resource | Action |
 |-------|----------|---------|
@@ -61,7 +69,7 @@ Akses tab di halaman Pengaturan Data dikontrol per halaman.
 | Tab Jadwal Guru | `pengaturan_data:jadwal_guru` | `read` |
 | Tab Data Libur | `pengaturan_data:libur` | `read` |
 
-## 6. Pengaturan Sistem & User (`pengaturan_users`)
+## 7. Pengaturan Sistem & User (`pengaturan_users`)
 *Hati-hati memberikan izin di modul ini.*
 | Fitur | Resource | Action |
 |-------|----------|---------|
@@ -72,7 +80,7 @@ Akses tab di halaman Pengaturan Data dikontrol per halaman.
 | Bulk Replace Data | `pengaturan_users` | `bulk_replace` |
 | Reset File/Database | `pengaturan_users` | `reset_all` |
 
-## 7. Modul Lainnya (Placeholder/Masa Depan)
+## 8. Modul Lainnya (Placeholder/Masa Depan)
 | Fitur | Resource | Action |
 |-------|----------|---------|
 | Rekap & Laporan | `rekap` | `read`, `export` |

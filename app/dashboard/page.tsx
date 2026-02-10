@@ -23,6 +23,7 @@ import ProfilePage from './components/ProfilePage'
 import PiketPage from '../piket/page'
 import InformasiPage from '../informasi/page'
 import DokumenSiswaPage from '../dokumen-siswa/page'
+import LaporanGuruAsuhPage from '../laporan-guru-asuh/page'
 
 export default function DashboardPage() {
   return (
@@ -316,54 +317,47 @@ function DashboardLogic() {
  * 2. Tambahkan key baru di object ini (key harus sama dengan yang ada di kolom pages Supabase setelah tanda '=')
  */
 const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<void>, targetTab?: string) => React.ReactNode> = {
-  'Dashboard': (user) => <DashboardContent user={user} />,
+  'dashboard': (user) => <DashboardContent user={user} />,
 
   // OPERASIONAL
+  'absensi': () => <AbsensiPage />,
+  'ketidakhadiran': () => <KetidakhadiranPage />,
+  'jurnal': (user) => <JurnalPage user={user} />,
+  'piket': (user) => <PiketPage user={user} />,
+  'informasi-akademik': (user) => <InformasiPage user={user} />,
+  'dokumen-siswa': (user) => <DokumenSiswaPage user={user} />,
+  'tugas-tambahan': () => <TugasTambahanPage />,
+  'laporan-guru-asuh': (user) => <LaporanGuruAsuhPage user={user} />,
+
+  // KONFIGURASI & PENGATURAN
+  'master': (user) => <MasterDataPage user={user} />,
+  'pengaturan-data': (user) => <DataSettingsPage user={user} />,
+  'pengaturan-tugas': (user) => <TaskSettingsPage user={user} />,
+  'pengaturan-users': () => <UserSettingsPage />,
+  'reset-data': () => <ResetDataPage />,
+  'profile': (user, onRefreshUser) => <ProfilePage user={user} onRefreshUser={onRefreshUser} />,
+
+  // MODUL KHUSUS
+  'lckh': () => <LckhPage />,
+  'lckh-approval': () => <LckhApprovalPage />,
+  'nilai': () => <NilaiPage />,
+
+  // ALIASES (FOR BACKWARD COMPATIBILITY OR VARIOUS LINKS)
+  'Dashboard': (user) => <DashboardContent user={user} />,
   'Absensi': () => <AbsensiPage />,
   'Ketidakhadiran': () => <KetidakhadiranPage />,
-  'jurnal': (user) => <JurnalPage user={user} />,
-  'JurnalGuru': (user) => <JurnalPage user={user} />, // Alias untuk Layanan Guru
   'Piket': (user) => <PiketPage user={user} />,
+  'JurnalGuru': (user) => <JurnalPage user={user} />,
   'Informasi': (user) => <InformasiPage user={user} />,
   'DokumenSiswa': (user) => <DokumenSiswaPage user={user} />,
   'TugasTambahan': () => <TugasTambahanPage />,
-  'AbsensiSiswa': () => <PagePlaceholder title="Absensi Guru" icon="bi-person-check" description="Modul Absensi untuk Guru" />,
-
-  // KONFIGURASI & PENGATURAN
   'Master Data': (user) => <MasterDataPage user={user} />,
   'Pengaturan Data': (user) => <DataSettingsPage user={user} />,
-  'Pengaturan Tugas': (user) => <TaskSettingsPage user={user} />,
-  'pengaturan-users': () => <UserSettingsPage />,
   'Reset Data': () => <ResetDataPage />,
-  'User': (user, onRefreshUser, targetTab) => <UserSettingsPage initialTab={targetTab} />,
-  'ProfileSaya': (user, onRefreshUser) => <ProfilePage user={user} onRefreshUser={onRefreshUser} />,
-
-  // MODUL KHUSUS
   'LCKH': () => <LckhPage />,
   'LCKHApproval': () => <LckhApprovalPage />,
-  'lckh-approval': () => <LckhApprovalPage />, // Alias untuk routing dari migration
   'Nilai': () => <NilaiPage />,
-
-  // MASTER DATA SUBMENU
-  'WaliKelas': () => <PagePlaceholder title="Wali Kelas" icon="bi-person-badge" description="Management Wali Kelas" />,
-  'GuruAsuh': () => <PagePlaceholder title="Guru Asuh" icon="bi-person-heart" description="Management Guru Asuh" />,
-  'Kelas': () => <PagePlaceholder title="Kelas" icon="bi-building" description="Management Kelas" />,
-
-  // REKAP & EXPORT
-  'RekapAbsensi': () => <PagePlaceholder title="Rekap Absensi" icon="bi-table" description="Rekapitulasi Absensi" />,
-  'RekapJurnal': () => <PagePlaceholder title="Rekap Jurnal" icon="bi-journal-check" description="Rekapitulasi Jurnal" />,
-  'RekapKehadiranJurnal': () => <PagePlaceholder title="Rekap Absen & Jurnal" icon="bi-layout-split" description="Gabungan Rekap Absensi dan Jurnal" />,
-  'ExportAbsensi': () => <PagePlaceholder title="Export Absensi" icon="bi-file-earmark-excel" description="Export Data Absensi" />,
-  'ExportJurnal': () => <PagePlaceholder title="Export Jurnal" icon="bi-file-earmark-spreadsheet" description="Export Data Jurnal" />,
-
-  // STATUS & LOGS
-  'LogLogin': () => <PagePlaceholder title="Log Login" icon="bi-clock-history" description="History Login User" />,
-  'StatusSiswa': () => <PagePlaceholder title="Status Siswa" icon="bi-people" description="Status Keaktifan Siswa" />,
-  'JadwalGuru': () => <PagePlaceholder title="Jadwal Guru" icon="bi-calendar-week" description="Jadwal Mengajar Guru" />,
-
-  // OTHER
-  'Rapor': () => <PagePlaceholder title="Rapor" icon="bi-file-earmark-text" description="Modul Rapor Siswa" />,
-  'Sosialisasi': () => <PagePlaceholder title="Sosialisasi" icon="bi-megaphone" description="Modul Sosialisasi" />,
+  'GuruAsuh': (user) => <LaporanGuruAsuhPage user={user} />,
 };
 
 function renderPageContent(page: string, user: User) {

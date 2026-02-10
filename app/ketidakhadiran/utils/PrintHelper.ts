@@ -3,6 +3,9 @@ import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
 import Swal from 'sweetalert2';
 
+// @ts-ignore
+import ImageModule from 'docxtemplater-image-module-free';
+
 export const generateFromTemplate = async (templatePath: string, data: any, outputFilename: string) => {
     try {
         console.log(`Fetching template from: ${templatePath}`);
@@ -18,22 +21,46 @@ export const generateFromTemplate = async (templatePath: string, data: any, outp
         // 2. Load into PizZip
         const zip = new PizZip(arrayBuffer);
 
-        // 3. Create Docxtemplater instance
+        // 3. Image Module Configuration
+        const opts: any = {
+            centered: false,
+            getImage: async (tagValue: string) => {
+                if (!tagValue || typeof tagValue !== 'string' || !tagValue.startsWith('http')) {
+                    console.warn('Invalid image URL:', tagValue);
+                    return null;
+                }
+                try {
+                    // Use a proxy to avoid CORS issues
+                    const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(tagValue)}`;
+                    const res = await fetch(proxyUrl);
+                    if (!res.ok) throw new Error('Proxy fetch failed');
+                    return await res.arrayBuffer();
+                } catch (e) {
+                    console.error('Failed to fetch image via proxy:', tagValue, e);
+                    return null;
+                }
+            },
+            getSize: () => [450, 300], // Default size for photos (landscape)
+        };
+        const imageModule = new ImageModule(opts);
+
+        // 4. Create Docxtemplater instance
         const doc = new Docxtemplater(zip, {
             paragraphLoop: true,
             linebreaks: true,
+            modules: [imageModule]
         });
 
-        // 4. Render data
-        doc.render(data);
+        // 5. Render data (async for images)
+        await doc.renderAsync(data);
 
-        // 5. Generate output blob
+        // 6. Generate output blob
         const out = doc.getZip().generate({
             type: 'blob',
             mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         });
 
-        // 6. Save file
+        // 7. Save file
         saveAs(out, outputFilename);
 
     } catch (error: any) {

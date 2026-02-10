@@ -127,13 +127,14 @@ export async function PUT(
         }
 
         const body = await request.json();
-        const { username, nip, nama, divisi, password } = body;
+        const { username, nip, nama, nama_lengkap, divisi, password } = body;
 
         // Build update object (only include provided fields)
         const updateData: any = {};
         if (username !== undefined) updateData.username = username;
         if (nip !== undefined) updateData.nip = nip;
         if (nama !== undefined) updateData.nama = nama;
+        if (nama_lengkap !== undefined) updateData.nama_lengkap = nama_lengkap;
         if (divisi !== undefined) updateData.divisi = divisi;
         if (password !== undefined && password !== '' && password !== '****') {
             updateData.password_hash = password;

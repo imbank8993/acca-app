@@ -115,11 +115,24 @@ export function parsePages(pagesStr: string): {
 }
 
 /**
+ * Full page configuration for Admin role
+ */
+export const FULL_ADMIN_PAGES = "Dashboard=dashboard,Jurnal Guru=jurnal,Absensi Siswa=absensi,LCKH Submission=lckh,LCKH Approval=lckh-approval,Nilai=nilai,Tugas Tambahan=tugas-tambahan,Laporan Guru Asuh=laporan-guru-asuh,Ketidakhadiran=ketidakhadiran,Informasi Akademik=informasi-akademik,Upload Dokumen=dokumen-siswa,Laporan Piket=piket,Master Data=master,Pengaturan Data=pengaturan-data,Pengaturan Tugas=pengaturan-tugas,Pengaturan Users=pengaturan-users,Reset Data=reset-data";
+
+/**
  * Build full user object from database row
  */
 export async function buildUserObject(dbUser: any): Promise<User> {
     const roles = parseRoles(dbUser.role || '');
-    const { pagesArray, pagesTree } = parsePages(dbUser.pages || '');
+    const isAdmin = roles.some(r => r === 'ADMIN');
+
+    // If Admin and pages is empty or minimal, give full pages
+    let effectivePages = dbUser.pages || '';
+    if (isAdmin && (!effectivePages || effectivePages.length < 20)) {
+        effectivePages = FULL_ADMIN_PAGES;
+    }
+
+    const { pagesArray, pagesTree } = parsePages(effectivePages);
 
     // Fetch permissions for the roles
     let permissions: any[] = [];
@@ -142,10 +155,11 @@ export async function buildUserObject(dbUser: any): Promise<User> {
         username: dbUser.username || '',
         nip: dbUser.nip || dbUser.guru_id || dbUser.guruId || dbUser.username || '',
         nama: dbUser.nama || 'User',
+        nama_lengkap: dbUser.nama_lengkap || dbUser.nama || '',
         role: dbUser.role || '',
         roles,
         divisi: dbUser.divisi || '',
-        pages: dbUser.pages || '',
+        pages: effectivePages,
         pagesArray,
         pagesTree,
         aktif: dbUser.aktif === true || dbUser.aktif === 'true' || dbUser.aktif === 'ya',

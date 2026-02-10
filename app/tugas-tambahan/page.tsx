@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getUserByAuthId } from '@/lib/auth';
 import Swal from 'sweetalert2';
 import Select from 'react-select';
 import PermissionGuard from '@/components/PermissionGuard';
@@ -57,11 +58,12 @@ export default function TugasTambahanPage() {
         const loadUser = async () => {
             const { data: { user: authUser } } = await supabase.auth.getUser();
             if (authUser) {
-                const { data: profile } = await supabase.from('users').select('*').eq('auth_id', authUser.id).single();
+                const profile = await getUserByAuthId(authUser.id);
                 if (profile) {
                     setUser(profile);
-                    setIsAdmin(profile.role?.includes('ADMIN') || profile.roles?.includes('ADMIN'));
-                    loadInitialData(profile.nip, profile.role?.includes('ADMIN'));
+                    const adminStatus = profile.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false;
+                    setIsAdmin(adminStatus);
+                    loadInitialData(profile.nip, adminStatus);
                 }
             }
         };

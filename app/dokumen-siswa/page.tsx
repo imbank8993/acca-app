@@ -6,7 +6,7 @@ import type { User } from '@/lib/types';
 
 export default function DokumenSiswaPage({ user }: { user?: User }) {
     return (
-        <PermissionGuard requiredPermission={{ resource: 'master.dokumen', action: 'view' }} user={user}>
+        <PermissionGuard requiredPermission={{ resource: 'dokumen_siswa', action: 'view' }} user={user}>
             <div className="page-wrapper">
                 <div className="page-header">
                     <div className="header-content">

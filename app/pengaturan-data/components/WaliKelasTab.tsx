@@ -200,21 +200,42 @@ export default function WaliKelasTab() {
     }
   }
 
-  const handleExport = () => {
-    if (list.length === 0) {
+  const handleExport = async () => {
+    if (totalItems === 0) {
       alert('Tidak ada data untuk diexport')
       return
     }
-    const dataToExport = list.map((item, index) => ({
-      No: index + 1,
-      Kelas: item.nama_kelas,
-      Nama_Guru: item.nama_guru,
-      NIP: item.nip,
-      Tahun_Ajaran: item.tahun_ajaran,
-      Semester: item.semester,
-      Status: item.aktif ? 'Aktif' : 'Non-Aktif',
-    }))
-    exportToExcel(dataToExport, `WaliKelas_${tahunAjaran.replace('/', '-')}_${semester}`)
+
+    try {
+      setLoading(true)
+      const params = new URLSearchParams({
+        q: searchTerm,
+        tahun_ajaran: tahunAjaran === 'Semua' ? '' : tahunAjaran,
+        semester: semester === 'Semua' ? '' : semester,
+        limit: '10000', // Fetch all for export
+      })
+      const res = await fetch(`/api/settings/wali-kelas?${params}`)
+      const json = await res.json()
+
+      if (!json.ok) throw new Error(json.error)
+      const allData: WaliKelas[] = json.data || []
+
+      const dataToExport = allData.map((item, index) => ({
+        No: index + 1,
+        Kelas: item.nama_kelas,
+        Nama_Guru: item.nama_guru,
+        NIP: item.nip,
+        Tahun_Ajaran: item.tahun_ajaran,
+        Semester: item.semester,
+        Status: item.aktif ? 'Aktif' : 'Non-Aktif',
+      }))
+      exportToExcel(dataToExport, `WaliKelas_${tahunAjaran.replace('/', '-')}_${semester}`)
+    } catch (err: any) {
+      console.error(err)
+      alert('Gagal fetching data untuk export: ' + err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const mapImportRow = (row: any) => {

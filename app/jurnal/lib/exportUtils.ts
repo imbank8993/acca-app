@@ -20,20 +20,25 @@ export const handleExport = async (
     let exportRaw = [...journals];
     let filename = 'Jurnal_Export';
 
+    // Ensure selected filters are treated as strings if they come as objects from react-select
+    const teacherVal = selectedTeacher && typeof selectedTeacher === 'object' ? (selectedTeacher as any).value : selectedTeacher;
+    const subjectVal = selectedSubject && typeof selectedSubject === 'object' ? (selectedSubject as any).value : selectedSubject;
+    const classVal = selectedClass && typeof selectedClass === 'object' ? (selectedClass as any).value : selectedClass;
+
     if (mode === 'GURU' && user) {
         exportRaw = exportRaw.filter(j => isJournalRelated(j, user.nip, user.nama));
         filename = `Jurnal_Personal_${user.nama || 'Guru'}`;
     }
 
-    if (selectedTeacher) {
+    if (teacherVal) {
         exportRaw = exportRaw.filter(j => {
-            const matchOrig = checkNameMatch(j.nama_guru, selectedTeacher);
-            const matchSub = checkNameMatch(j.guru_pengganti || '', selectedTeacher);
+            const matchOrig = checkNameMatch(j.nama_guru, teacherVal);
+            const matchSub = checkNameMatch(j.guru_pengganti || '', teacherVal);
             return matchOrig || matchSub;
         });
     }
-    if (selectedSubject) exportRaw = exportRaw.filter(j => j.mata_pelajaran === selectedSubject);
-    if (selectedClass) exportRaw = exportRaw.filter(j => j.kelas === selectedClass);
+    if (subjectVal) exportRaw = exportRaw.filter(j => j.mata_pelajaran === subjectVal);
+    if (classVal) exportRaw = exportRaw.filter(j => j.kelas === classVal);
     if (searchTerm) {
         const ls = searchTerm.toLowerCase();
         exportRaw = exportRaw.filter(j =>

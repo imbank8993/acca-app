@@ -197,8 +197,8 @@ export default function KelasTab({ user }: { user?: any }) {
 
   // Excel Functions
   const handleExport = () => {
-    const dataToExport = kelasList.map((k, index) => ({
-      'No': (currentPage - 1) * pageSize + index + 1,
+    const dataToExport = allData.map((k, index) => ({
+      'No': index + 1,
       'Nama Kelas': k.nama || '',
       'Tingkat': k.tingkat || '',
       'Program': k.program || '',

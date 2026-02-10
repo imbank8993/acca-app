@@ -7,6 +7,7 @@ export interface User {
     password?: string; // Only for migration, not exposed to frontend
     nip: string; // Renamed from guruId
     nama: string;
+    nama_lengkap?: string;
     role: string; // Raw role string: "GURU,KAMAD" or "GURU|KAMAD"
     roles: string[]; // Parsed roles: ["GURU", "KAMAD"]
     divisi: string;

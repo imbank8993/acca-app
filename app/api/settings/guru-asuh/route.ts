@@ -9,12 +9,17 @@ export async function GET(request: NextRequest) {
         const q = searchParams.get('q')
 
         const tahun_ajaran = searchParams.get('tahun_ajaran')
+        const nip = searchParams.get('nip')
 
         let query = supabase
             .from('guru_asuh')
             .select('*')
             .eq('aktif', true)
             .order('nama_guru', { ascending: true })
+
+        if (nip) {
+            query = query.eq('nip', nip)
+        }
 
         let targetTahunAjaran = tahun_ajaran;
         if (!targetTahunAjaran || targetTahunAjaran === 'Semua') {

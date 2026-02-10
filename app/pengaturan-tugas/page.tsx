@@ -5,7 +5,7 @@ import GuruMapelTab from './components/GuruMapelTab'
 import JadwalGuruTab from './components/JadwalGuruTab'
 import PlotingTugasTambahanTab from './components/PlotingTugasTambahanTab'
 
-type TabType = 'guru_mapel' | 'jadwal_guru' | 'tugas_tambahan'
+type TabType = 'guru_mapel' | 'jadwal_guru' | 'ploting_tugas'
 
 export default function TaskSettingsPage({ user }: { user?: any }) {
   const { hasPermission } = require('@/lib/permissions-client')
@@ -16,30 +16,16 @@ export default function TaskSettingsPage({ user }: { user?: any }) {
     () => [
       { key: 'guru_mapel', label: 'Guru Mapel', icon: 'bi-book' },
       { key: 'jadwal_guru', label: 'Jadwal Guru', icon: 'bi-calendar3' },
-      { key: 'tugas_tambahan', label: 'Tugas Tambahan', icon: 'bi-person-vcard' }
+      { key: 'ploting_tugas', label: 'Tugas Tambahan', icon: 'bi-person-vcard' }
     ],
     []
   )
 
-  const pagesArray = user?.pagesArray || []
-  const knownKeys = tabs.map(t => t.key)
-  const hasSpecificConfig = knownKeys.some(k => pagesArray.includes(k))
-
-  // Note: Keeping 'pengaturan_data' prefix for backward compatibility with existing permissions
   const allowedTabs = tabs.filter(tab => {
-    const hasRbac = hasPermission(permissions, `pengaturan_data:${tab.key}`, 'read', isAdmin)
-    if (!hasRbac) return false
-    if (isAdmin) return true
-
-    // Granular Page Access Check
-    const hasDirectAccess = pagesArray.includes(tab.key)
-    const hasParentAccess = pagesArray.includes('Pengaturan Tugas')
-
-    // Allow if explicitly selected OR (User has parent access AND hasn't opted into granular control yet)
-    return hasDirectAccess || (hasParentAccess && !hasSpecificConfig)
+    return hasPermission(permissions, 'pengaturan_tugas', `tab:${tab.key}`, isAdmin)
   })
 
-  // Default to first allowed or generic fallback (though fallback might blank if none allowed)
+  // Default to first allowed or generic fallback
   const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]?.key as TabType || 'guru_mapel')
 
   return (
@@ -72,7 +58,7 @@ export default function TaskSettingsPage({ user }: { user?: any }) {
       <div className="ts-content" role="tabpanel">
         {activeTab === 'guru_mapel' && <GuruMapelTab />}
         {activeTab === 'jadwal_guru' && <JadwalGuruTab />}
-        {activeTab === 'tugas_tambahan' && <PlotingTugasTambahanTab />}
+        {activeTab === 'ploting_tugas' && <PlotingTugasTambahanTab />}
       </div>
 
       <style jsx>{`

@@ -309,11 +309,11 @@ export default function SiswaKelasTab({ user }: { user?: any }) {
   }
 
   const handleExport = () => {
-    if (list.length === 0) {
+    if (allData.length === 0) {
       alert('Tidak ada data untuk diexport')
       return
     }
-    const dataToExport = list.map((item, index) => ({
+    const dataToExport = allData.map((item, index) => ({
       No: index + 1,
       NISN: item.nisn,
       Nama_Siswa: item.nama_siswa,

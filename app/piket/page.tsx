@@ -81,7 +81,7 @@ export default function PiketPage({ user }: { user?: User }) {
     const currentReports = filteredReports.slice(indexOfFirstItem, indexOfLastItem);
 
     return (
-        <PermissionGuard requiredPermission={{ resource: 'jurnal', action: 'view' }} user={user}>
+        <PermissionGuard requiredPermission={{ resource: 'piket', action: 'view' }} user={user}>
             <div className="piket-container">
                 <div className="piket-header">
                     <div className="header-info">

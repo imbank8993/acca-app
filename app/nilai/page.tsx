@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getUserByAuthId } from '@/lib/auth';
 import { ApiResponse, Siswa } from '@/lib/types';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import PermissionGuard from '@/components/PermissionGuard';
+import { hasPermission } from '@/lib/permissions-client';
 import './nilai.css';
 
 // --- Types ---
@@ -43,6 +45,11 @@ export default function NilaiPage() {
     const [user, setUser] = useState<any>(null);
     const [kelasList, setKelasList] = useState<string[]>([]);
     const [mapelByKelas, setMapelByKelas] = useState<Record<string, string[]>>({});
+
+    const isAdmin = user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false;
+    const canDo = (action: string) => {
+        return hasPermission(user?.permissions || [], 'nilai', action, isAdmin);
+    };
 
     // States
     const [kelas, setKelas] = useState('');
@@ -159,7 +166,7 @@ export default function NilaiPage() {
 
                 const { data: { user: authUser } } = await supabase.auth.getUser();
                 if (!authUser) return;
-                const { data: userData } = await supabase.from('users').select('*').eq('auth_id', authUser.id).maybeSingle();
+                const userData = await getUserByAuthId(authUser.id);
                 if (userData) {
                     setUser(userData);
                     const res = await fetch(`/api/scopes?nip=${userData.nip}`);
@@ -1023,7 +1030,9 @@ export default function NilaiPage() {
                         <div className="nl__actions shrink-0">
                             <button className="nl__btn nl__btnSecondary" onClick={() => handleExport(false)}><i className="bi bi-file-earmark-excel"></i> Export Data</button>
                             {activeMode !== 'REKAP' && (
-                                <button className="nl__btn nl__btnPrimary" onClick={() => setShowImportModal(true)}><i className="bi bi-upload"></i> Import</button>
+                                <button className="nl__btn nl__btnPrimary" onClick={() => setShowImportModal(true)} disabled={!canDo('input')}>
+                                    <i className="bi bi-upload"></i> Import
+                                </button>
                             )}
                             <input ref={fileInputRef} type="file" hidden accept=".xlsx,.xls" onChange={handleImport} />
                         </div>
@@ -1106,6 +1115,7 @@ export default function NilaiPage() {
                                                     value={getScore(s.nisn, activeMode === 'UH' ? 'UH' : activeMode === 'PAS' ? 'PAS' : (it as any).jenis, activeMode === 'PAS' ? '-' : materi, typeof it === 'string' ? '' : (it as any).nama_tagihan)}
                                                     onChange={e => handleScoreChange(s.nisn, activeMode === 'UH' ? 'UH' : activeMode === 'PAS' ? 'PAS' : (it as any).jenis, activeMode === 'PAS' ? '-' : materi, typeof it === 'string' ? '' : (it as any).nama_tagihan, e.target.value)}
                                                     onKeyDown={e => handleKeyDown(e, idx, cIdx)}
+                                                    readOnly={activeMode === 'REKAP' || !canDo('input')}
                                                 />
                                             </td>
                                         ))
@@ -1262,15 +1272,25 @@ export default function NilaiPage() {
 
             {/* Floating Action Toolbox */}
             <div className="nl__toolbox">
-                {Object.keys(changes).length > 0 && (<button className="nl__fab nl__fab--primary bg-slate-900" onClick={handleSave} title="Simpan Perubahan"><i className="bi bi-cloud-arrow-up"></i></button>)}
-                {(activeMode === 'KUIS' || activeMode === 'TUGAS') && (
+                {Object.keys(changes).length > 0 && canDo('input') && (
+                    <button className="nl__fab nl__fab--primary bg-slate-900" onClick={handleSave} title="Simpan Perubahan">
+                        <i className="bi bi-cloud-arrow-up"></i>
+                    </button>
+                )}
+                {(activeMode === 'KUIS' || activeMode === 'TUGAS') && canDo('input') && (
                     <button className="nl__fab nl__fab--primary" onClick={() => {
                         const jenisStr = activeMode.charAt(0) + activeMode.slice(1).toLowerCase();
                         setEditingTagihan({ jenis: jenisStr, materi_tp: materi, nama_tagihan: getNextAutoLabel(), topik: '' });
                         setShowTagihanModal(true);
-                    }} title="Tambah Kolom Nilai"><i className="bi bi-plus-lg"></i></button>
+                    }} title="Tambah Kolom Nilai">
+                        <i className="bi bi-plus-lg"></i>
+                    </button>
                 )}
-                <button className="nl__fab nl__fab--secondary" onClick={() => setShowConfigModal(true)} title="Konfigurasi Bobot"><i className="bi bi-sliders2"></i></button>
+                {canDo('config') && (
+                    <button className="nl__fab nl__fab--secondary" onClick={() => setShowConfigModal(true)} title="Konfigurasi Bobot">
+                        <i className="bi bi-sliders2"></i>
+                    </button>
+                )}
             </div>
 
 

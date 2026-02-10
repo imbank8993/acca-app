@@ -1,29 +1,31 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import UserDataTab from './UserDataTab'
 import BulkReplaceTab from './BulkReplaceTab'
+import PageAccessTab from './PageAccessTab'
+import RolePermissionsTab from './RolePermissionsTab'
+import { hasPermission } from '@/lib/permissions-client'
 
-type TabType = 'user_data' | 'bulk_replace'
+type TabType = 'user_data' | 'bulk_replace' | 'page_access' | 'role_permissions'
 
-export default function UserSettingsPage({ initialTab }: { initialTab?: string }) {
-  const [activeTab, setActiveTab] = useState<TabType>((initialTab as TabType) || 'user_data')
+export default function UserSettingsPage({ initialTab, user }: { initialTab?: string, user?: any }) {
+  const [activeTab, setActiveTab] = useState<TabType>('user_data')
 
-  const tabs = useMemo(
-    () => [
-      { key: 'user_data', label: 'Data & Status', icon: 'bi-person-gear' },
-      { key: 'bulk_replace', label: 'Ganti Data Massal', icon: 'bi-arrow-repeat' }
-    ],
-    []
-  )
+  const tabs = [
+    { key: 'user_data', label: 'Data & Status', icon: 'bi-person-gear' },
+    { key: 'bulk_replace', label: 'Ganti Data Massal', icon: 'bi-arrow-repeat' },
+    { key: 'page_access', label: 'Akses Halaman', icon: 'bi-shield-lock' },
+    { key: 'role_permissions', label: 'Izin Role & Fungsi', icon: 'bi-shield-check' }
+  ]
 
   return (
     <>
       {/* Header */}
       <div className="us-header">
         <div className="us-titleArea">
-          <h1>Pengaturan Users</h1>
-          <p>Kelola data dan status pengguna sistem dalam satu pusat kontrol.</p>
+          <h1>Pusat Pengaturan Sistem</h1>
+          <p>Konfigurasi akses, role, dan pemeliharaan data pengguna.</p>
         </div>
       </div>
 
@@ -47,6 +49,8 @@ export default function UserSettingsPage({ initialTab }: { initialTab?: string }
       <div className="us-content" role="tabpanel">
         {activeTab === 'user_data' && <UserDataTab />}
         {activeTab === 'bulk_replace' && <BulkReplaceTab />}
+        {activeTab === 'page_access' && <PageAccessTab />}
+        {activeTab === 'role_permissions' && <RolePermissionsTab />}
       </div>
 
       <style jsx>{`

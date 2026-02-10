@@ -227,8 +227,8 @@ export default function SiswaTab({ user }: { user?: any }) {
   // Excel Functions
   const handleExport = () => {
     if (!canExport) return;
-    const dataToExport = siswaList.map((s, index) => ({
-      'No': (currentPage - 1) * pageSize + index + 1,
+    const dataToExport = allData.map((s, index) => ({
+      'No': index + 1,
       'NISN': s.nisn || '',
       'Nama Lengkap': s.nama_lengkap || '',
       'NIK': s.nik || '',

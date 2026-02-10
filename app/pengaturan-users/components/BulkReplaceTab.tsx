@@ -34,7 +34,7 @@ export default function BulkReplaceTab() {
     // Column options based on table
     const getColumnsForTable = (tableName: string): string[] => {
         const columnMap: Record<string, string[]> = {
-            users: ['username', 'nip', 'nama', 'divisi'],
+            users: ['username', 'nip', 'nama', 'nama_lengkap', 'divisi'],
             master_guru: ['nip', 'nama_guru', 'divisi'],
             master_siswa: ['nisn', 'nama_siswa', 'kelas'],
             master_mapel: ['nama_mapel'],

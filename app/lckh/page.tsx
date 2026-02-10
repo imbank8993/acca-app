@@ -1,8 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getUserByAuthId } from '@/lib/auth';
 import Swal from 'sweetalert2';
 import PermissionGuard from '@/components/PermissionGuard';
+import { hasPermission } from '@/lib/permissions-client';
 import './lckh.css';
 
 export default function LckhPage() {
@@ -11,6 +13,11 @@ export default function LckhPage() {
     const [submission, setSubmission] = useState<any>(null);
     const [user, setUser] = useState<any>(null);
     const [userData, setUserData] = useState<any>(null);
+
+    const isAdmin = userData?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false;
+    const canDo = (action: string) => {
+        return hasPermission(userData?.permissions || [], 'lckh', action, isAdmin);
+    };
 
     // Data List
     const [periods, setPeriods] = useState<any[]>([]);
@@ -34,7 +41,7 @@ export default function LckhPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 setUser(user);
-                const { data: uData } = await supabase.from('users').select('*').eq('auth_id', user.id).single();
+                const uData = await getUserByAuthId(user.id);
                 setUserData(uData);
 
                 // Fetch Periods
@@ -305,6 +312,12 @@ export default function LckhPage() {
 
     const handleDelete = async () => {
         if (!submission) return;
+
+        if (!canDo('create')) {
+            Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin untuk menghapus laporan.', 'error');
+            return;
+        }
+
         const conf = await Swal.fire({
             title: 'Hapus Laporan?', text: 'Data draft akan dihapus permanen.', icon: 'warning',
             showCancelButton: true, confirmButtonText: 'Hapus', confirmButtonColor: '#d33'
@@ -377,9 +390,11 @@ export default function LckhPage() {
                     <aside className="lckh-sidebar">
                         <div className="sidebar-header">
                             <h2>DAFTAR LCKH</h2>
-                            <button onClick={handleCreateNew} className="btn-create">
-                                <i className="bi bi-plus-lg"></i> <span>Buat</span>
-                            </button>
+                            {canDo('create') && (
+                                <button onClick={handleCreateNew} className="btn-create">
+                                    <i className="bi bi-plus-lg"></i> <span>Buat</span>
+                                </button>
+                            )}
                         </div>
                         <div className="flex-1 overflow-y-auto p-2">
                             {submissionsList.map(sub => {
@@ -510,7 +525,7 @@ export default function LckhPage() {
 
                                         <button
                                             onClick={generateSummary}
-                                            disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
+                                            disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status)) || !canDo('create')}
                                             className="h-9 px-4 rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all text-xs font-semibold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                                         >
                                             <i className={`bi bi-arrow-repeat text-sm ${loading ? 'animate-spin' : ''}`}></i>
@@ -519,7 +534,7 @@ export default function LckhPage() {
 
                                         <button
                                             onClick={() => handleSave(false)}
-                                            disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
+                                            disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status)) || !canDo('create')}
                                             className="h-9 px-4 rounded-md border border-blue-200 bg-white text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all text-xs font-semibold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                                         >
                                             <i className="bi bi-cloud-arrow-up text-sm"></i>
@@ -538,7 +553,7 @@ export default function LckhPage() {
                                                     customClass: { popup: 'rounded-2xl', confirmButton: 'rounded-xl px-6', cancelButton: 'rounded-xl px-6' }
                                                 }).then(r => { if (r.isConfirmed) handleSave(true); });
                                             }}
-                                            disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status))}
+                                            disabled={loading || (submission && !['Draft', 'Revisi', 'Submitted'].includes(submission.status)) || !canDo('create')}
                                             className="h-9 px-4 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all text-xs font-semibold flex items-center gap-2 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                                         >
                                             <i className="bi bi-send-check text-sm"></i>

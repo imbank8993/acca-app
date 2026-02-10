@@ -28,21 +28,8 @@ export default function DataSettingsPage({ user }: { user?: any }) {
     []
   )
 
-  const pagesArray = user?.pagesArray || []
-  const knownKeys = tabs.map(t => t.key)
-  const hasSpecificConfig = knownKeys.some(k => pagesArray.includes(k))
-
   const allowedTabs = tabs.filter(tab => {
-    const hasRbac = hasPermission(permissions, `pengaturan_data:${tab.key}`, 'view', isAdmin)
-    if (!hasRbac) return false
-    if (isAdmin) return true
-
-    // Granular Page Access Check
-    const hasDirectAccess = pagesArray.includes(tab.key)
-    const hasParentAccess = pagesArray.includes('Pengaturan Data')
-
-    // Allow if explicitly selected OR (User has parent access AND hasn't opted into granular control yet)
-    return hasDirectAccess || (hasParentAccess && !hasSpecificConfig)
+    return hasPermission(permissions, 'pengaturan_data', `tab:${tab.key}`, isAdmin)
   })
 
   const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]?.key as TabType || 'siswa_kelas')
