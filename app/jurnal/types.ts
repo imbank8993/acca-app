@@ -13,6 +13,7 @@ export interface Journal {
     nip: string;
     guru_pengganti?: string;
     status_pengganti?: string;
+    filled_by?: string;
     keterangan_terlambat?: string;
     keterangan_tambahan?: string;
     guru_piket?: string;
@@ -44,6 +45,7 @@ export interface JurnalGuru {
     refleksi?: string;
     guru_pengganti?: string;
     status_pengganti?: string;
+    filled_by?: string;
     keterangan_terlambat?: string;
     keterangan_tambahan?: string;
     guru_piket?: string;

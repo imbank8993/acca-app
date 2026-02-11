@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
 
             if (mode === 'GURU') {
                 if (!nip) return NextResponse.json({ ok: false, error: 'NIP wajib' });
-                query = query.eq('nip', nip);
+                query = query.or(`nip.eq.${nip},guru_pengganti_nip.eq.${nip}`);
                 if (guruOption === 'KELAS' && kelas) query = query.eq('kelas', kelas);
             } else if (mode === 'ADMIN' && kelas) {
                 query = query.eq('kelas', kelas);

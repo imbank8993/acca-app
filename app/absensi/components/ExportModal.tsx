@@ -8,6 +8,7 @@ interface ExportModalProps {
     onClose: () => void;
     userRole: string;
     nip?: string;
+    namaGuru?: string;
     permissions?: any[];
     isAdmin?: boolean;
 }
@@ -27,7 +28,7 @@ const MONTHS = [
     { value: 12, label: 'Desember' }
 ];
 
-export default function ExportModal({ isOpen, onClose, userRole, nip, permissions = [], isAdmin = false }: ExportModalProps) {
+export default function ExportModal({ isOpen, onClose, userRole, nip, namaGuru, permissions = [], isAdmin = false }: ExportModalProps) {
     // Basic States
     const [academicYear, setAcademicYear] = useState('');
     const [academicYears, setAcademicYears] = useState<string[]>([]);
@@ -239,7 +240,7 @@ export default function ExportModal({ isOpen, onClose, userRole, nip, permission
         const aoa = [
             ["DAFTAR HADIR SISWA"],
             [`Mapel: ${firstSesi.mapel || '-'}`, "", "", `Kelas: ${firstSesi.kelas}`],
-            [`Guru: ${firstSesi.nama_guru || '-'}`, "", "", `Bulan: ${monthName} ${y}`],
+            [`Guru: ${namaGuru || firstSesi.nama_guru || '-'}`, "", "", `Bulan: ${monthName} ${y}`],
             [""],
             ["No", "NISN", "Nama", "Tanggal"]
         ];

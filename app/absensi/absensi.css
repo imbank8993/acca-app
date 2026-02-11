@@ -47,53 +47,9 @@ a:focus-visible {
 }
 
 .dark .absensi-header {
-  background: #0f172a;
+  background: #001f5c;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
-}
-
-.absensi-actions-wrap {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-  margin-top: 0.75rem;
-  align-items: stretch;
-}
-
-.absensi-actions-wrap .btn {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 0.6rem 0.5rem;
-  font-size: 0.82rem;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 42px;
-}
-
-.absensi-actions-wrap .btn span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-@media (max-width: 640px) {
-  .absensi-actions-wrap {
-    gap: 8px;
-  }
-
-  .absensi-actions-wrap .btn {
-    font-size: 0.68rem;
-    padding: 0.6rem 0.25rem;
-    flex-direction: column;
-    height: 64px;
-    gap: 4px;
-    letter-spacing: -0.01em;
-  }
-
-  .absensi-actions-wrap .btn i {
-    font-size: 1.1rem;
-  }
 }
 
 .absensi-title {
@@ -111,17 +67,17 @@ a:focus-visible {
 
 .filter-card {
   background: var(--n-card);
-  border-radius: var(--radius-xl);
-  padding: 1.75rem;
-  box-shadow: var(--n-shadow);
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: 0 10px 30px -5px rgba(0, 56, 168, 0.05);
   border: 1px solid var(--n-border);
   margin-bottom: var(--spacing-lg);
-  transition: background 0.3s ease, border-color 0.3s ease;
+  transition: all 0.3s ease;
 }
 
 .dark .filter-card {
   background: #0f172a;
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .filter-section-label {
@@ -138,9 +94,9 @@ a:focus-visible {
 
 .filter-section-label::before {
   content: "";
-  width: 3px;
-  height: 14px;
-  background: var(--n-primary);
+  width: 4px;
+  height: 16px;
+  background: #0038A8;
   border-radius: var(--radius-full);
 }
 
@@ -161,7 +117,8 @@ a:focus-visible {
 .form-input,
 .form-select {
   width: 100%;
-  padding: 0.62rem 0.9rem;
+  padding: 0.6rem 0.9rem;
+  /* Use padding instead of fixed height to prevent text cutoff */
   font-size: 0.875rem;
   background: var(--n-bg);
   border: 1.5px solid var(--n-border);
@@ -169,6 +126,22 @@ a:focus-visible {
   transition: all 0.18s ease;
   color: var(--n-ink);
   font-weight: 500;
+  box-sizing: border-box;
+  line-height: 1.25rem;
+}
+
+div.form-select,
+div.form-input {
+  display: flex !important;
+  align-items: center !important;
+  height: 40px;
+  /* Force height only for div containers */
+  padding: 0 0.9rem;
+}
+
+/* Ensure calendar icon is visible and centered */
+input[type="date"].form-input {
+  padding-right: 0.5rem;
 }
 
 .form-input:hover,
@@ -201,7 +174,7 @@ a:focus-visible {
 
 /* Buttons */
 .btn {
-  padding: 0.62rem 1rem;
+  padding: 0 1rem;
   font-size: 0.875rem;
   font-weight: 600;
   border-radius: var(--radius-md);
@@ -212,7 +185,7 @@ a:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  height: 38px;
+  height: 40px;
 }
 
 .btn:hover:not(:disabled) {
@@ -433,25 +406,29 @@ a:focus-visible {
   cursor: not-allowed;
 }
 
-/* Status Colors (Light Mode) */
+/* Status Colors (Consistent Palette) */
 .status-radio-item input:checked+.status-radio-label[data-status="HADIR"] {
   background: #3b82f6;
   color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .status-radio-item input:checked+.status-radio-label[data-status="IZIN"] {
-  background: #f59e0b;
+  background: #10b981;
   color: white;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 .status-radio-item input:checked+.status-radio-label[data-status="SAKIT"] {
-  background: #fb923c;
+  background: #f59e0b;
   color: white;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
 }
 
 .status-radio-item input:checked+.status-radio-label[data-status="ALPHA"] {
   background: #ef4444;
   color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 .dark .data-table th,
@@ -721,24 +698,6 @@ a:focus-visible {
     justify-content: center;
     height: 100%;
     border-radius: 10px;
-  }
-
-  .absensi-actions-wrap {
-    margin-top: 0.5rem;
-    gap: 8px;
-  }
-
-  .absensi-actions-wrap .btn {
-    font-size: 0.625rem;
-    padding: 0.5rem 0.2rem;
-    flex-direction: column;
-    height: 62px;
-    gap: 2px;
-    letter-spacing: -0.01em;
-  }
-
-  .absensi-actions-wrap .btn i {
-    font-size: 1.15rem;
   }
 }
 

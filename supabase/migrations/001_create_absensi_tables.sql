@@ -8,7 +8,7 @@
 -- =====================================================
 CREATE TABLE IF NOT EXISTS jadwal_guru (
     id BIGSERIAL PRIMARY KEY,
-    guru_id TEXT NOT NULL,
+    nip TEXT NOT NULL,
     nama_guru TEXT NOT NULL,
     hari TEXT NOT NULL CHECK (hari IN ('Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu')),
     jam_ke INTEGER NOT NULL CHECK (jam_ke >= 1 AND jam_ke <= 10),
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS jadwal_guru (
 );
 
 -- Indexes for jadwal_guru
-CREATE INDEX idx_jadwal_guru_guru_id ON jadwal_guru(guru_id, hari, aktif);
+CREATE INDEX idx_jadwal_guru_nip ON jadwal_guru(nip, hari, aktif);
 CREATE INDEX idx_jadwal_guru_kelas ON jadwal_guru(kelas, hari, aktif);
 
 -- =====================================================
@@ -31,7 +31,7 @@ CREATE INDEX idx_jadwal_guru_kelas ON jadwal_guru(kelas, hari, aktif);
 CREATE TABLE IF NOT EXISTS absensi_sesi (
     id BIGSERIAL PRIMARY KEY,
     jadwal_id BIGINT REFERENCES jadwal_guru(id) ON DELETE SET NULL,
-    guru_id TEXT NOT NULL,
+    nip TEXT NOT NULL,
     kelas TEXT NOT NULL,
     mata_pelajaran TEXT NOT NULL,
     tanggal DATE NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS absensi_sesi (
 );
 
 -- Indexes for absensi_sesi
-CREATE INDEX idx_absensi_sesi_guru ON absensi_sesi(guru_id, tanggal);
+CREATE INDEX idx_absensi_sesi_guru ON absensi_sesi(nip, tanggal);
 CREATE INDEX idx_absensi_sesi_kelas ON absensi_sesi(kelas, tanggal);
 
 -- =====================================================
@@ -87,7 +87,7 @@ CREATE POLICY "Teachers can view their own schedules"
     ON jadwal_guru
     FOR SELECT
     USING (
-        guru_id = current_setting('app.current_guru_id', true)
+        nip = current_setting('app.current_user_nip', true)
     );
 
 -- Admins can view all schedules
@@ -117,7 +117,7 @@ CREATE POLICY "Teachers can view their own attendance sessions"
     ON absensi_sesi
     FOR SELECT
     USING (
-        guru_id = current_setting('app.current_guru_id', true)
+        nip = current_setting('app.current_user_nip', true)
     );
 
 -- Teachers can create attendance sessions for their schedules
@@ -125,7 +125,7 @@ CREATE POLICY "Teachers can create attendance sessions"
     ON absensi_sesi
     FOR INSERT
     WITH CHECK (
-        guru_id = current_setting('app.current_guru_id', true)
+        nip = current_setting('app.current_user_nip', true)
     );
 
 -- Teachers can update their own attendance sessions
@@ -133,7 +133,7 @@ CREATE POLICY "Teachers can update their own sessions"
     ON absensi_sesi
     FOR UPDATE
     USING (
-        guru_id = current_setting('app.current_guru_id', true)
+        nip = current_setting('app.current_user_nip', true)
     );
 
 -- Admins can view all sessions
@@ -157,7 +157,7 @@ CREATE POLICY "Teachers can view their session details"
         EXISTS (
             SELECT 1 FROM absensi_sesi
             WHERE absensi_sesi.id = absensi_detail.sesi_id
-            AND absensi_sesi.guru_id = current_setting('app.current_guru_id', true)
+            AND absensi_sesi.nip = current_setting('app.current_user_nip', true)
         )
     );
 
@@ -169,7 +169,7 @@ CREATE POLICY "Teachers can manage their session details"
         EXISTS (
             SELECT 1 FROM absensi_sesi
             WHERE absensi_sesi.id = absensi_detail.sesi_id
-            AND absensi_sesi.guru_id = current_setting('app.current_guru_id', true)
+            AND absensi_sesi.nip = current_setting('app.current_user_nip', true)
         )
     );
 

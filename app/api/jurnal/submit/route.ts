@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
         const {
             nip,
             tanggal,
-            jam_ke, // "5" or "5-7" or [5,6,7]
+            jam_ke,
             kelas,
             materi,
             refleksi,
@@ -23,8 +23,14 @@ export async function POST(request: NextRequest) {
             auth_id,
             guru_piket,
             status_pengganti,
-            selected_hours // Optional: array of specific hours like [5, 7] if user unchecked 6
+            selected_hours,
+            filled_by: bodyFilledBy
         } = body;
+
+        // Determine who filled this (Strictly trust body if provided, otherwise default to SISWA)
+        console.log(`[JURNAL] RAW body.filled_by: ${body.filled_by}, bodyFilledBy: ${bodyFilledBy}`);
+        const filled_by = bodyFilledBy || 'SISWA';
+        console.log(`[JURNAL] Resolved filled_by: ${filled_by}`);
 
         // Validate required fields
         if (!nip || !tanggal || (!jam_ke && (!selected_hours || selected_hours.length === 0)) || !kelas) {
@@ -48,8 +54,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 2. Fetch master waktu to get the display time (e.g. "07:00 - 07:40") for each hour
-        // This is needed for the 'jam_ke' (string) column in DB
+        // 2. Fetch master waktu
         const { data: allWaktu } = await supabaseAdmin
             .from('master_waktu')
             .select('*')
@@ -59,37 +64,101 @@ export async function POST(request: NextRequest) {
 
         // 3. Process each hour individually
         for (const jamId of hoursToProcess) {
-            // STRICT MATCH: Ensure we don't create duplicates for the same teacher/date/hour/class
-            const { data: existing } = await supabaseAdmin
+            // MATCH BY SLOT (Date, Class, Hour) - Resilience for split records
+            const { data: slotMatches, error: matchError } = await supabaseAdmin
                 .from('jurnal_guru')
                 .select('*')
                 .match({
-                    nip,
                     tanggal,
                     jam_ke_id: jamId,
-                    kelas // Include class to handle potentially different schedules in same hour (rare but safe)
-                })
-                .maybeSingle();
+                    kelas
+                });
+
+            if (matchError) throw matchError;
+
+            // Pick the best match: Prioritize GURU/ADMIN over SISWA
+            const existing = slotMatches?.sort((a, b) => {
+                const priority = { 'GURU': 2, 'ADMIN': 1, 'SISWA': 0 };
+                const pA = priority[a.filled_by as keyof typeof priority] || 0;
+                const pB = priority[b.filled_by as keyof typeof priority] || 0;
+                return pB - pA;
+            })[0] || null;
+
+            if (slotMatches && slotMatches.length > 1) {
+                console.warn(`[JURNAL] Conflict detected! Multiple rows for Slot ${tanggal} | Kelas ${kelas} | Jam ${jamId}. Using ID=${existing?.id}`);
+            }
 
             const timeSlot = allWaktu?.find(w => w.jam_ke === jamId);
             const displayTime = timeSlot ? `${timeSlot.mulai.substring(0, 5)} - ${timeSlot.selesai.substring(0, 5)}` : String(jamId);
 
             let res;
             if (existing) {
-                // Update
+                // UPDATE logic
+                const updateData: any = {
+                    updated_at: new Date().toISOString()
+                };
+
+                // Helper to check for truly empty content
+                const isEmpty = (v: any) => v === null || v === undefined || String(v).trim() === '';
+
+                // HELPER: Check if ANY record in this slot has content
+                const anyRecordHasMateri = slotMatches?.some(r => !isEmpty(r.materi));
+                const anyRecordHasRefleksi = slotMatches?.some(r => !isEmpty(r.refleksi));
+
+                console.log(`[JURNAL] Slot Update: ID=${existing.id}, Source=${existing.filled_by}, RequestBy=${filled_by}, AnyMateri=${anyRecordHasMateri}`);
+
+                if (filled_by === 'GURU') {
+                    // TRUSTED GURU: Full control
+                    updateData.kategori_kehadiran = kategori_kehadiran || existing.kategori_kehadiran;
+                    if (guru_pengganti !== undefined) updateData.guru_pengganti = guru_pengganti;
+                    if (keterangan_terlambat !== undefined) updateData.keterangan_terlambat = keterangan_terlambat;
+                    if (keterangan_tambahan !== undefined) updateData.keterangan_tambahan = keterangan_tambahan;
+                    if (guru_piket !== undefined) updateData.guru_piket = guru_piket;
+                    if (status_pengganti !== undefined) updateData.status_pengganti = status_pengganti;
+
+                    updateData.materi = materi || existing.materi || '';
+                    updateData.refleksi = refleksi || existing.refleksi || '';
+                    updateData.filled_by = 'GURU';
+
+                    // Identity Sync
+                    if (existing.nip !== nip) {
+                        updateData.nip = nip;
+                        updateData.nama_guru = nama_guru;
+                    }
+                } else {
+                    // SISWA logic: Skip if already filled by ANYONE in ANY record for this slot
+                    updateData.kategori_kehadiran = kategori_kehadiran || existing.kategori_kehadiran;
+                    if (guru_pengganti !== undefined) updateData.guru_pengganti = guru_pengganti;
+                    if (keterangan_terlambat !== undefined) updateData.keterangan_terlambat = keterangan_terlambat;
+                    if (keterangan_tambahan !== undefined) updateData.keterangan_tambahan = keterangan_tambahan;
+                    if (guru_piket !== undefined) updateData.guru_piket = guru_piket;
+                    if (status_pengganti !== undefined) updateData.status_pengganti = status_pengganti;
+
+                    const isAuthoritative = existing.filled_by === 'GURU' || existing.filled_by === 'ADMIN';
+
+                    // Content protection: ONLY update if EMPTY in DB
+                    if (!anyRecordHasMateri && !isEmpty(materi)) {
+                        updateData.materi = materi;
+                    }
+                    if (!anyRecordHasRefleksi && !isEmpty(refleksi)) {
+                        updateData.refleksi = refleksi;
+                    }
+
+                    // Source tracking logic
+                    if (!isAuthoritative && (updateData.materi || updateData.refleksi)) {
+                        updateData.filled_by = 'SISWA';
+                    } else if (existing.filled_by === 'SISWA' && (updateData.materi || updateData.refleksi)) {
+                        updateData.filled_by = 'SISWA';
+                    }
+
+                    console.log(`[JURNAL] SISWA Update checks - AnyMateri:${anyRecordHasMateri}, WillUpdateMateri:${!!updateData.materi}`);
+                }
+
+                console.log(`[JURNAL] Final Update Payload for ID=${existing.id}:`, JSON.stringify(updateData));
+
                 const { data, error } = await supabaseAdmin
                     .from('jurnal_guru')
-                    .update({
-                        materi,
-                        refleksi,
-                        kategori_kehadiran: kategori_kehadiran || existing.kategori_kehadiran,
-                        guru_pengganti,
-                        keterangan_terlambat,
-                        keterangan_tambahan,
-                        guru_piket,
-                        status_pengganti,
-                        updated_at: new Date().toISOString()
-                    })
+                    .update(updateData)
                     .eq('id', existing.id)
                     .select()
                     .single();
@@ -97,7 +166,7 @@ export async function POST(request: NextRequest) {
                 if (error) throw error;
                 res = data;
             } else {
-                // Insert
+                // INSERT: New record
                 const { data, error } = await supabaseAdmin
                     .from('jurnal_guru')
                     .insert({
@@ -108,15 +177,16 @@ export async function POST(request: NextRequest) {
                         jam_ke: displayTime,
                         jam_ke_id: jamId,
                         kelas,
-                        mata_pelajaran,
-                        materi,
-                        refleksi,
+                        mata_pelajaran: mata_pelajaran,
+                        materi: materi || '',
+                        refleksi: refleksi || '',
                         kategori_kehadiran: kategori_kehadiran || 'Sesuai',
                         guru_pengganti,
                         keterangan_terlambat,
                         keterangan_tambahan,
                         guru_piket,
                         status_pengganti,
+                        filled_by,
                         created_at: new Date().toISOString()
                     })
                     .select()
@@ -137,7 +207,7 @@ export async function POST(request: NextRequest) {
     } catch (error: any) {
         console.error('Error submitting jurnal:', error);
         return corsResponse(NextResponse.json(
-            { ok: false, error: 'Failed to submit journal', details: error.message },
+            { ok: false, error: error.message || 'Failed to submit journal' },
             { status: 500 }
         ));
     }
@@ -146,4 +216,3 @@ export async function POST(request: NextRequest) {
 export async function OPTIONS() {
     return handleOptions();
 }
-

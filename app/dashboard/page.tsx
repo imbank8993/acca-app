@@ -336,6 +336,7 @@ const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<
   'pengaturan-users': () => <UserSettingsPage />,
   'reset-data': () => <ResetDataPage />,
   'profile': (user, onRefreshUser) => <ProfilePage user={user} onRefreshUser={onRefreshUser} />,
+  'ProfileSaya': (user, onRefreshUser) => <ProfilePage user={user} onRefreshUser={onRefreshUser} />,
 
   // MODUL KHUSUS
   'lckh': () => <LckhPage />,
@@ -353,6 +354,7 @@ const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<
   'TugasTambahan': () => <TugasTambahanPage />,
   'Master Data': (user) => <MasterDataPage user={user} />,
   'Pengaturan Data': (user) => <DataSettingsPage user={user} />,
+  'Pengaturan Tugas': (user) => <TaskSettingsPage user={user} />,
   'Reset Data': () => <ResetDataPage />,
   'LCKH': () => <LckhPage />,
   'LCKHApproval': () => <LckhApprovalPage />,

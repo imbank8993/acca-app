@@ -118,7 +118,7 @@ export const JurnalService = {
                             kelas: sched.kelas,
                             jam_ke_id: schedJam
                         })
-                        .single();
+                        .maybeSingle();
 
                     if (!existing) {
                         const { error: insertError } = await supabaseAdmin
@@ -132,7 +132,8 @@ export const JurnalService = {
                                 jam_ke_id: schedJam,
                                 kelas: sched.kelas,
                                 mata_pelajaran: sched.mata_pelajaran,
-                                kategori_kehadiran: 'Sesuai'
+                                kategori_kehadiran: 'Sesuai',
+                                filled_by: 'ADMIN'
                             });
 
                         if (insertError) {

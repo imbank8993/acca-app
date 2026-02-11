@@ -1,0 +1,1 @@
+Dashboard, Konfigurasi Data>Master Data|Pengaturan Data|Pengaturan Tugas|Pengaturan Users=pengaturan-users|Reset Data, LCKH>Ajukan LCKH=LCKH|Jurnal=jurnal|Absensi|Nilai|TugasTambahan,Ketidakhadiran,LCKH Approval=lckh-approval,Akademik>Informasi Akademik=Informasi|Upload Dokumen=DokumenSiswa|Laporan Piket=Piket|Laporan Guru Asuh=GuruAsuh

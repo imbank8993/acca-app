@@ -13,6 +13,12 @@ interface Scope {
     mapelByKelas: Record<string, string[]>;
     jamKeByKelasMapel: Record<string, string[]>;
     guru?: { nama: string; nip: string };
+    schedule?: {
+        hari: string;
+        jam_ke: string;
+        kelas: string;
+        mata_pelajaran: string;
+    }[];
 }
 
 interface Sesi {
@@ -23,6 +29,9 @@ interface Sesi {
     jam_ke: string;
     nama_guru: string;
     status_sesi: 'DRAFT' | 'FINAL';
+    materi?: string;
+    catatan?: string;
+    refleksi?: string;
     draft_type: string;
 }
 
@@ -50,6 +59,7 @@ export default function AbsensiPage() {
     const [namaGuru, setNamaGuru] = useState('');
     const [nipDisplay, setNipDisplay] = useState('');
     const [scope, setScope] = useState<Scope | null>(null);
+    const [userScope, setUserScope] = useState<Scope | null>(null);
     const [kelas, setKelas] = useState('');
     const [mapel, setMapel] = useState('');
     const [tanggal, setTanggal] = useState('');
@@ -59,6 +69,10 @@ export default function AbsensiPage() {
     const [rows, setRows] = useState<AbsensiRow[]>([]);
     const [initialSnapshot, setInitialSnapshot] = useState<Map<string, string>>(new Map());
 
+    // New States for Jurnal
+    const [materi, setMateri] = useState('');
+    const [refleksi, setRefleksi] = useState('');
+
     const [loading, setLoading] = useState(false);
 
     const [userPermissions, setUserPermissions] = useState<any[]>([]);
@@ -67,6 +81,11 @@ export default function AbsensiPage() {
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [userRole, setUserRole] = useState<string>('GURU');
     const [loggedInUser, setLoggedInUser] = useState({ nama: '', nip: '' });
+
+    // Substitute Mode State
+    const [isSubstituteMode, setIsSubstituteMode] = useState(false);
+    const [allTeachers, setAllTeachers] = useState<{ nip: string, nama: string }[]>([]);
+    const [selectedTeacher, setSelectedTeacher] = useState<{ nip: string, nama: string } | null>(null);
 
     useEffect(() => {
         const today = new Date().toISOString().split('T')[0];
@@ -129,9 +148,64 @@ export default function AbsensiPage() {
     useEffect(() => {
         if (scope && kelas) {
             const mapelList = scope.mapelByKelas[kelas] || [];
-            if (mapelList.length > 0 && !mapel) setMapel(mapelList[0]);
+            // Auto Select Mapel if only one
+            if (mapelList.length > 0) {
+                if (!mapel || !mapelList.includes(mapel)) {
+                    setMapel(mapelList[0]);
+                }
+            } else {
+                setMapel('');
+            }
         }
     }, [kelas, scope]);
+
+    // Fetch all teachers for Substitute Mode
+    useEffect(() => {
+        if (isSubstituteMode && allTeachers.length === 0) {
+            const fetchTeachers = async () => {
+                try {
+                    const res = await fetch('/api/master/guru?limit=1000&aktif=true');
+                    const json = await res.json();
+                    if (json.ok) {
+                        setAllTeachers(json.data.map((g: any) => ({ nip: g.nip, nama: g.nama_lengkap })));
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch teachers', e);
+                }
+            };
+            fetchTeachers();
+        }
+    }, [isSubstituteMode]);
+
+    const handleSubstituteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const nipVal = e.target.value;
+        if (!nipVal) {
+            setSelectedTeacher(null);
+            setNip(loggedInUser.nip); // Revert to user
+            setNamaGuru(loggedInUser.nama);
+            return;
+        }
+
+        const teacher = allTeachers.find(t => t.nip === nipVal);
+        if (teacher) {
+            setSelectedTeacher(teacher);
+            setNip(teacher.nip); // Set context to target teacher
+            setNamaGuru(teacher.nama);
+        }
+    };
+
+    const toggleSubstituteMode = () => {
+        const newMode = !isSubstituteMode;
+        setIsSubstituteMode(newMode);
+        if (!newMode) {
+            // Reset to logged in user
+            setSelectedTeacher(null);
+            setNip(loggedInUser.nip);
+            setNamaGuru(loggedInUser.nama);
+        }
+    };
+
+
 
     const formatJamRange = (jams: string[]) => {
         if (!jams || jams.length === 0) return [];
@@ -155,30 +229,105 @@ export default function AbsensiPage() {
         return ranges;
     };
 
-    useEffect(() => {
-        if (scope && kelas && mapel) {
-            const key = `${kelas}||${mapel}`;
-            const jamList = scope.jamKeByKelasMapel[key] || ['1'];
-            const ranges = formatJamRange(jamList);
-            if (ranges.length > 0) {
-                if (!jamKe || !ranges.includes(jamKe)) {
-                    setJamKe(ranges[0]);
-                }
-            }
+    // Compute available jams for the selected date
+    const getAvailableJams = () => {
+        if (!scope || !kelas || !mapel) return [];
+
+        let jams: string[] = [];
+
+        if (scope.schedule && tanggal) {
+            const dateObj = new Date(tanggal);
+            const dayName = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][dateObj.getUTCDay()];
+
+            // Get all jam_ke for this day
+            // Note: jam_ke in DB might be "1", "2", "1-2". We should probably handle them as is or split?
+            // formatJamRange expects individual numbers usually to sort and combine.
+            // If DB has "1-2", formatJamRange might fail if it tries to Number("1-2").
+            // existing logic passed scope.jamKeByKelasMapel which likely had straight numbers.
+
+            jams = scope.schedule
+                .filter((s: any) => {
+                    const matchBasics = s.kelas === kelas && s.hari === dayName;
+                    if (isSubstituteMode) return matchBasics; // Ignore mapel for substitute
+                    return matchBasics && s.mata_pelajaran === mapel;
+                })
+                .map((s: any) => s.jam_ke);
         }
-    }, [kelas, mapel, scope]);
+
+        // If we found specific schedule items, return them formatted
+        if (jams.length > 0) {
+            return formatJamRange(jams);
+        }
+
+        // If no schedule found for this day BUT we have scope.schedule, it means truly Empty for this day.
+        if (scope.schedule && scope.schedule.length > 0) {
+            return []; // No schedule today
+        }
+
+        // Fallback for legacy or if scope.schedule missing
+        const key = `${kelas}||${mapel}`;
+        return formatJamRange(scope.jamKeByKelasMapel[key] || []);
+    };
+
+    const availableJamRanges = getAvailableJams();
+
+    // Auto-select jam if only one option or invalid current selection
+    useEffect(() => {
+        if (availableJamRanges.length > 0) {
+            if (!jamKe || !availableJamRanges.includes(jamKe)) {
+                setJamKe(availableJamRanges[0]);
+            }
+        } else {
+            // If no schedule today, maybe clear?
+            // setJamKe('');
+        }
+    }, [availableJamRanges, jamKe]);
+
+    // Schedule Summary Helper
+    const getScheduleSummary = () => {
+        if (!scope?.schedule || !kelas || !mapel) return null;
+
+        const relevant = scope.schedule.filter((s: any) => s.kelas === kelas && s.mata_pelajaran === mapel);
+        if (relevant.length === 0) return null;
+
+        const byDay: Record<string, string[]> = {};
+        relevant.forEach((s: any) => {
+            if (!byDay[s.hari]) byDay[s.hari] = [];
+            byDay[s.hari].push(s.jam_ke);
+        });
+
+        const order = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+        const parts = order
+            .filter(day => byDay[day])
+            .map(day => {
+                const ranges = formatJamRange(byDay[day]);
+                return `${day} (${ranges.join(', ')})`;
+            });
+
+        return parts.join(', ');
+    };
 
     async function loadScopes() {
+        if (!nip) return;
         try {
             const res = await fetch(`/api/scopes?nip=${nip}`);
             const json = await res.json();
             if (json.ok && json.data) {
                 setScope(json.data);
+
+                // Store logged-in user's scope for merging subjects later
+                if (!userScope && nip === loggedInUser.nip) {
+                    setUserScope(json.data);
+                }
+
                 if (json.data.guru?.nama) {
                     setNamaGuru(json.data.guru.nama);
-                    setNipDisplay(json.data.guru.nip); // Assume this state exists based on context use
+                    setNipDisplay(json.data.guru.nip);
                 }
-                if (json.data.kelasList?.length > 0) setKelas(json.data.kelasList[0]);
+                if (json.data.kelasList?.length > 0) {
+                    // Only auto-select class if not already set or not in substitute mode
+                    if (!kelas) setKelas(json.data.kelasList[0]);
+                }
             }
         } catch (error) {
             console.error(error);
@@ -220,14 +369,40 @@ export default function AbsensiPage() {
             }
         }
 
+
+        // ADDITIONAL CHECK FOR SUBSTITUTE
+        // If substitute mode is ON, we are "Taking" someone else's class.
+        // We should ensure we are sending the *Original* teacher's data as ownership, 
+        // but we are the one performing it.
+
+        // The API expects `nip` to be the schedule owner (which `nip` state currently holds).
+        // It expects `nama_guru` to be schedule owner's name (which `namaGuru` state currently holds).
+
+        // We need to tell API that *I* am the one doing it if I am a substitute.
+
         setLoading(true);
         Swal.fire({ title: 'Memuat Data...', text: 'Mengambil data siswa & status', didOpen: () => Swal.showLoading() });
 
         try {
+            const payload: any = {
+                nip: nip, // Owner NIP
+                kelas,
+                mapel,
+                tanggal,
+                jam_ke: jamKe,
+                nama_guru: namaGuru // Owner Name
+            };
+
+            if (isSubstituteMode && loggedInUser.nip !== nip) {
+                // Add substitute meta
+                payload.guru_pengganti_nip = loggedInUser.nip;
+                payload.guru_pengganti_nama = loggedInUser.nama;
+            }
+
             const sesiRes = await authFetch('/api/absensi/sesi', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nip: nip, kelas, mapel, tanggal, jam_ke: jamKe, nama_guru: namaGuru })
+                body: JSON.stringify(payload)
             });
             const sesiJson = await sesiRes.json();
             if (!sesiJson.ok) throw new Error(sesiJson.error || 'Gagal memuat absensi');
@@ -335,6 +510,9 @@ export default function AbsensiPage() {
 
             setRows(detailRows);
             setCurrentSesi(sesi);
+            // Load Jurnal Data
+            setMateri(sesi.materi || '');
+            setRefleksi(sesi.refleksi || (sesi.catatan && !sesi.refleksi ? sesi.catatan : ''));
             Swal.close();
             // ...
         } catch (error: any) {
@@ -469,20 +647,12 @@ export default function AbsensiPage() {
                 let newRefId = row.ref_ketidakhadiran_id;
                 let newSystemSource = row.system_source;
 
-                console.log(`[StatusChange] NISN: ${nisn}, New: ${newStatus}, HasSource: ${!!row.system_source}`);
-
                 // 1. Restore from System Source logic
                 if (row.system_source) {
                     const sourceStatus = (row.system_source.status || '').trim().toUpperCase();
-                    console.log(`[StatusChange] SourceStatus: ${sourceStatus} vs New: ${newStatus}`);
-
                     if (sourceStatus === newStatus) {
-                        console.log('[StatusChange] Restoring from source...');
                         newRefId = row.system_source.id;
                         newCatatan = row.system_source.keterangan;
-
-                        // Feedback for user
-                        // Use a small delay to avoid React render cycle issues with Swal if multiple rapid clicks
                         setTimeout(() => {
                             const Toast = Swal.mixin({
                                 toast: true,
@@ -497,20 +667,16 @@ export default function AbsensiPage() {
                                 text: `Keterangan dikembalikan dari data sumber.`
                             });
                         }, 100);
-
                     } else if (newStatus === 'HADIR' || newStatus === 'ALPHA') {
-                        // User moved AWAY from the source status
                         newCatatan = '';
                         newRefId = undefined;
                     } else {
-                        // Manual divergence (e.g. source is SAKIT, user chose IZIN)
                         if (row.ref_ketidakhadiran_id) {
-                            newCatatan = ''; // Clear the old note if it was linked
+                            newCatatan = '';
                         }
                         newRefId = undefined;
                     }
                 } else {
-                    // No system source logic
                     if (newStatus === 'HADIR' || newStatus === 'ALPHA') {
                         newCatatan = '';
                         newRefId = undefined;
@@ -523,7 +689,7 @@ export default function AbsensiPage() {
                     otomatis: false,
                     catatan: newCatatan,
                     ref_ketidakhadiran_id: newRefId,
-                    system_source: newSystemSource // Explicitly preserve it
+                    system_source: newSystemSource
                 };
             }
             return row;
@@ -548,7 +714,12 @@ export default function AbsensiPage() {
             const resSesi = await authFetch('/api/absensi/sesi', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sesi_id: sesiId, status_sesi: makeFinal ? 'FINAL' : 'DRAFT' })
+                body: JSON.stringify({
+                    sesi_id: sesiId,
+                    status_sesi: makeFinal ? 'FINAL' : 'DRAFT',
+                    materi: materi,
+                    refleksi: refleksi
+                })
             });
             if (!resSesi.ok) throw new Error('Gagal update status sesi');
         };
@@ -566,11 +737,9 @@ export default function AbsensiPage() {
         };
 
         if (makeFinal) {
-            // When finalizing: Save Details FIRST (checked against DRAFT), THEN Finalize Sesi
             await doSaveDetails();
             await doSaveSession();
         } else {
-            // When Unlocking/Drafting: Set Sesi to DRAFT FIRST (Unlock), THEN Save Details
             await doSaveSession();
             await doSaveDetails();
         }
@@ -637,48 +806,121 @@ export default function AbsensiPage() {
                 </div>
 
                 {/* FILTER CARD */}
-                <div className="filter-card">
-
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
+                <div className="filter-card mb-10">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-y-8 gap-x-8">
+                        {/* BARIS 1: PENGGANTI, KELAS, MAPEL */}
                         <div className="md:col-span-2">
-                            <div className="form-group">
-                                <label className="form-label">Kelas</label>
-                                <select
-                                    className="form-select"
-                                    value={kelas}
-                                    onChange={e => setKelas(e.target.value)}
+                            <div className="form-group flex flex-col">
+                                <label className="form-label">Mode Pengganti</label>
+                                <div
+                                    className="form-select flex items-center justify-between cursor-pointer hover:border-amber-400 transition-colors"
+                                    onClick={toggleSubstituteMode}
                                 >
-                                    {scope?.kelasList.map(k => <option key={k} value={k}>{k}</option>)}
-                                </select>
+                                    <span className="text-xs font-bold text-slate-600">{isSubstituteMode ? 'AKTIF' : 'NON-AKTIF'}</span>
+                                    <div className="relative inline-flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={isSubstituteMode}
+                                            readOnly
+                                        />
+                                        <div className="w-8 h-4 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-amber-500"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="md:col-span-3">
-                            <div className="form-group">
-                                <label className="form-label">Mata Pelajaran</label>
-                                <select
-                                    className="form-select"
-                                    value={mapel}
-                                    onChange={e => setMapel(e.target.value)}
-                                >
-                                    {(scope?.mapelByKelas[kelas] || []).map(m => <option key={m} value={m}>{m}</option>)}
-                                </select>
-                            </div>
-                        </div>
+                        {isSubstituteMode ? (
+                            <>
+                                <div className="md:col-span-4 animate-fade-in">
+                                    <div className="form-group">
+                                        <label className="form-label">Nama Guru yang Digantikan</label>
+                                        <select
+                                            className="form-select border-amber-300 bg-amber-50/30"
+                                            value={selectedTeacher?.nip || ''}
+                                            onChange={handleSubstituteChange}
+                                        >
+                                            <option value="">-- Cari Nama Guru --</option>
+                                            {allTeachers.map(t => (
+                                                <option key={t.nip} value={t.nip}>{t.nama}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <div className="form-group">
+                                        <label className="form-label">Kelas</label>
+                                        <select
+                                            className="form-select"
+                                            value={kelas}
+                                            onChange={e => setKelas(e.target.value)}
+                                        >
+                                            {scope?.kelasList.map(k => <option key={k} value={k}>{k}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="md:col-span-4">
+                                    <div className="form-group">
+                                        <label className="form-label">Mata Pelajaran</label>
+                                        <select
+                                            className="form-select"
+                                            value={mapel}
+                                            onChange={e => setMapel(e.target.value)}
+                                        >
+                                            <option value="">-- Pilih Mata Pelajaran --</option>
+                                            {Array.from(new Set([
+                                                ...(scope?.mapelByKelas[kelas] || []),
+                                                ...(Object.values(userScope?.mapelByKelas || {}).flat())
+                                            ])).sort().map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="md:col-span-3">
+                                    <div className="form-group">
+                                        <label className="form-label">Kelas</label>
+                                        <select
+                                            className="form-select"
+                                            value={kelas}
+                                            onChange={e => setKelas(e.target.value)}
+                                        >
+                                            {scope?.kelasList.map(k => <option key={k} value={k}>{k}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="md:col-span-7">
+                                    <div className="form-group">
+                                        <label className="form-label">Mata Pelajaran</label>
+                                        <select
+                                            className="form-select"
+                                            value={mapel}
+                                            onChange={e => setMapel(e.target.value)}
+                                        >
+                                            {(scope?.mapelByKelas[kelas] || []).map(m => <option key={m} value={m}>{m}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                            </>
+                        )}
 
+                        {/* BARIS 2: TANGGAL, JAM, TOMBOL */}
                         <div className="md:col-span-2">
                             <div className="form-group">
                                 <label className="form-label">Tanggal Mengajar</label>
                                 <input
                                     type="date"
-                                    className="form-input"
+                                    className="form-input px-2"
                                     value={tanggal}
                                     onChange={e => setTanggal(e.target.value)}
                                 />
                             </div>
                         </div>
 
-                        <div className="md:col-span-2">
+                        <div className="md:col-span-4">
                             <div className="form-group">
                                 <label className="form-label">Jam Ke</label>
                                 <select
@@ -686,97 +928,165 @@ export default function AbsensiPage() {
                                     value={jamKe}
                                     onChange={e => setJamKe(e.target.value)}
                                 >
-                                    {formatJamRange((scope && scope.jamKeByKelasMapel[`${kelas}||${mapel}`]) || ['1']).map(j => (
-                                        <option key={j} value={j}>{j}</option>
-                                    ))}
+                                    {availableJamRanges.length > 0 ? (
+                                        availableJamRanges.map(j => (
+                                            <option key={j} value={j}>{j}</option>
+                                        ))
+                                    ) : (
+                                        <option value="" disabled>-- Tidak Ada Jadwal --</option>
+                                    )}
                                 </select>
                             </div>
                         </div>
 
-                        <div className="md:col-span-3">
+                        <div className="md:col-span-6">
                             <div className="form-group">
-                                <label className="form-label" style={{ opacity: 0 }}>-</label>
-                                <div className="flex gap-2">
+                                <label className="form-label hidden md:block opacity-0">&nbsp;</label>
+                                <div className="grid grid-cols-2 md:flex md:flex-row gap-3">
                                     <button
-                                        className="btn btn-primary w-full"
+                                        className="col-span-2 md:flex-1 btn btn-primary text-sm shadow-md whitespace-nowrap"
                                         onClick={bukaSesi}
                                         disabled={loading || !canDo('take')}
                                     >
-                                        <i className="bi bi-box-arrow-in-right"></i>
-                                        Buka
+                                        <i className="bi bi-box-arrow-in-right text-lg"></i>
+                                        Buka Sesi
+                                    </button>
+                                    <button
+                                        className="col-span-1 md:flex-[1.5] btn bg-orange-500 hover:bg-orange-600 text-white border-none text-[10px] sm:text-xs font-bold px-2 transition-all shadow-sm whitespace-nowrap"
+                                        onClick={refreshKetidakhadiran}
+                                        disabled={!currentSesi || isFinal || !canDo('refresh_ketidakhadiran')}
+                                        title="Refresh Sinkronisasi"
+                                    >
+                                        <i className="bi bi-arrow-clockwise text-base"></i>
+                                        Sinkron Izin/Sakit
                                     </button>
                                     <button
                                         onClick={() => setIsExportModalOpen(true)}
                                         disabled={!canDo('export')}
-                                        className="btn bg-[#1D6F42] hover:bg-[#155230] text-white shadow-lg shadow-green-900/20 border-none w-full"
-                                        title="Export Data Absensi ke Excel"
+                                        className="col-span-1 md:flex-1 btn bg-[#1D6F42] hover:bg-[#155230] text-white text-[10px] sm:text-xs font-bold px-1 whitespace-nowrap"
                                     >
-                                        <i className="bi bi-file-earmark-excel-fill"></i>
+                                        <i className="bi bi-file-earmark-excel text-base"></i>
                                         Export
                                     </button>
                                 </div>
                             </div>
                         </div>
+
+                        {/* SCHEDULE HINT (Full Width Footer of Filter) */}
+                        <div className="md:col-span-12 -mt-4">
+                            <div className="flex flex-wrap items-center gap-4">
+                                {getScheduleSummary() && (
+                                    <div className="text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 inline-flex items-center gap-2">
+                                        <i className="bi bi-calendar-check text-slate-400"></i>
+                                        <span><strong>Jadwal:</strong> {getScheduleSummary()}</span>
+                                    </div>
+                                )}
+                                {isSubstituteMode && !selectedTeacher && (
+                                    <div className="text-[11px] font-bold text-amber-600 animate-pulse flex items-center gap-1">
+                                        <i className="bi bi-exclamation-circle-fill"></i>
+                                        Wajib memilih nama guru yang digantikan
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="absensi-actions-wrap">
-                        <button
-                            className="btn btn-outline"
-                            onClick={refreshKetidakhadiran}
-                            disabled={!currentSesi || isFinal || !canDo('refresh_ketidakhadiran')}
-                            title="Ambil data terbaru dari modul ketidakhadiran"
-                        >
-                            <i className="bi bi-arrow-clockwise"></i>
-                            <span>Refresh Data</span>
-                        </button>
+                    <div className="mt-8 pt-6 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex gap-3">
+                            {currentSesi && (
+                                <>
+                                    {!isFinal ? (
+                                        <button
+                                            className="btn btn-primary px-8 shadow-lg shadow-blue-500/20"
+                                            disabled={loading || !canDo('finalize')}
+                                            onClick={() => handleSimpan(true)}
+                                        >
+                                            <i className="bi bi-check2-circle"></i>
+                                            <span>Simpan Final</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            className="btn btn-warning px-6"
+                                            disabled={loading || !canDo('save_draft')}
+                                            onClick={() => handleSimpan(false)}
+                                        >
+                                            <i className="bi bi-unlock"></i>
+                                            <span>Buka Kunci</span>
+                                        </button>
+                                    )}
+                                </>
+                            )}
+                        </div>
 
                         {currentSesi && (
-                            <>
-                                {!isFinal ? (
-                                    <button
-                                        className="btn btn-primary"
-                                        disabled={loading || !canDo('finalize')}
-                                        onClick={() => handleSimpan(true)}
-                                    >
-                                        <i className="bi bi-check-circle-fill"></i>
-                                        <span>Simpan</span>
-                                    </button>
-                                ) : (
-                                    <button
-                                        className="btn btn-warning"
-                                        disabled={loading || !canDo('save_draft')}
-                                        onClick={() => handleSimpan(false)}
-                                    >
-                                        <i className="bi bi-pencil-square"></i>
-                                        <span>Edit / Buka Kunci</span>
-                                    </button>
-                                )}
-                            </>
+                            <div className="text-xs font-medium text-slate-500 bg-slate-100 px-4 py-2 rounded-full border border-slate-200">
+                                <span className="opacity-60">Sesi Aktif:</span> <strong className="text-slate-700">{currentSesi.kelas}</strong> · {currentSesi.mapel} · {currentSesi.status_sesi === 'FINAL' ? '🔒 FINAL' : '📝 DRAFT'}
+                            </div>
                         )}
                     </div>
-
-                    {currentSesi && (
-                        <div className="session-info">
-                            <strong>{currentSesi.kelas}</strong> · {currentSesi.mapel} ·
-                            {currentSesi.tanggal} · Jam {currentSesi.jam_ke} ·
-                            <span className={`badge ${currentSesi.status_sesi === 'FINAL' ? 'badge-success' : 'badge-warning'}`}>
-                                {currentSesi.status_sesi}
-                            </span> ·
-                            Guru: {currentSesi.nama_guru}
-                        </div>
-                    )}
                 </div>
+
+                {/* JURNAL INPUT SECTION */}
+                {currentSesi && (
+                    <div className="bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm mb-10 animate-fade-in relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600"></div>
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm border border-blue-100">
+                                <i className="bi bi-journal-richtext text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-slate-800 leading-none mb-1">Jurnal Pembelajaran</h3>
+                                <p className="text-[11px] text-slate-500">Catat detail kegiatan mengajar di kelas ini</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="form-group flex flex-col">
+                                <label className="form-label">
+                                    Materi Pembelajaran <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    className="form-input min-h-[120px] py-3 h-auto"
+                                    placeholder="Jelaskan materi yang diajarkan hari ini..."
+                                    value={materi}
+                                    onChange={e => setMateri(e.target.value)}
+                                    disabled={isFinal}
+                                    style={{ resize: 'vertical' }}
+                                ></textarea>
+                            </div>
+
+                            <div className="form-group flex flex-col">
+                                <label className="form-label">
+                                    Refleksi / Catatan Guru
+                                </label>
+                                <textarea
+                                    className="form-input min-h-[120px] py-3 h-auto border-indigo-200/50"
+                                    placeholder="Catatan mengenai keaktifan siswa, kendala, atau tindak lanjut..."
+                                    value={refleksi}
+                                    onChange={e => setRefleksi(e.target.value)}
+                                    disabled={isFinal}
+                                    style={{ resize: 'vertical' }}
+                                ></textarea>
+                            </div>
+                        </div>
+                        {isFinal && (
+                            <div className="absolute top-4 right-4 text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                <i className="bi bi-lock-fill mr-1"></i> Terkunci
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* DATA TABLE */}
                 <div className="data-table">
                     <table>
                         <thead>
                             <tr>
-                                <th style={{ width: '60px', textAlign: 'center' }}>No</th>
-                                <th style={{ width: '150px' }}>NISN</th>
-                                <th style={{ width: '400px' }}>Nama Siswa</th>
-                                <th style={{ minWidth: '400px' }}>Status Kehadiran</th>
-                                <th style={{ width: '60px', textAlign: 'center' }}>Ket.</th>
+                                <th style={{ width: '5%', textAlign: 'center' }}>No</th>
+                                <th style={{ width: '15%' }}>NISN</th>
+                                <th style={{ width: '30%' }}>Nama Siswa</th>
+                                <th style={{ width: '45%' }}>Status Kehadiran</th>
+                                <th style={{ width: '5%', textAlign: 'center' }}></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -860,37 +1170,26 @@ export default function AbsensiPage() {
                     isOpen={isExportModalOpen}
                     onClose={() => setIsExportModalOpen(false)}
                     userRole={userRole}
-                    nip={nip}
+                    nip={loggedInUser.nip}
+                    namaGuru={loggedInUser.nama}
                     permissions={userPermissions}
                     isAdmin={isAdmin}
                 />
             </div >
-        </PermissionGuard>
+        </PermissionGuard >
     );
 }
 
 // PREMIUM STATUS RADIOS COMPONENT
 function StatusRadios({ nisn, index, currentStatus, disabled, onChange }: any) {
     const statuses = ['HADIR', 'IZIN', 'SAKIT', 'ALPHA'];
-    // Ensure currentStatus is safe
     const normalizedCurrent = (currentStatus || '').toString().trim().toUpperCase();
-
-    const getActiveStyle = (status: string) => {
-        switch (status) {
-            case 'HADIR': return { backgroundColor: '#3b82f6', color: '#ffffff', borderColor: '#3b82f6' };
-            case 'IZIN': return { backgroundColor: '#10b981', color: '#ffffff', borderColor: '#10b981' };
-            case 'SAKIT': return { backgroundColor: '#f59e0b', color: '#ffffff', borderColor: '#f59e0b' };
-            case 'ALPHA': return { backgroundColor: '#ef4444', color: '#ffffff', borderColor: '#ef4444' };
-            default: return {};
-        }
-    };
 
     return (
         <div className="status-radio-group">
             {statuses.map(status => {
                 const uniqueId = `r_${nisn}_${index}_${status}`;
                 const checked = normalizedCurrent === status;
-                const style = checked ? getActiveStyle(status) : {};
 
                 return (
                     <div key={status} className="status-radio-item">
@@ -907,7 +1206,6 @@ function StatusRadios({ nisn, index, currentStatus, disabled, onChange }: any) {
                             className="status-radio-label"
                             htmlFor={uniqueId}
                             data-status={status}
-                            style={style}
                         >
                             {status}
                         </label>

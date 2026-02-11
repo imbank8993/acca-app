@@ -1,14 +1,38 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import GuruMapelTab from './components/GuruMapelTab'
 import JadwalGuruTab from './components/JadwalGuruTab'
 import PlotingTugasTambahanTab from './components/PlotingTugasTambahanTab'
+import { hasPermission } from '@/lib/permissions-client'
 
 type TabType = 'guru_mapel' | 'jadwal_guru' | 'ploting_tugas'
 
-export default function TaskSettingsPage({ user }: { user?: any }) {
-  const { hasPermission } = require('@/lib/permissions-client')
+export default function TaskSettingsPage() {
+  const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  // Fetch User Data on Mount
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const { supabase } = await import('@/lib/supabase')
+        const { getUserByAuthId } = await import('@/lib/auth')
+
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (authUser) {
+          const dbUser = await getUserByAuthId(authUser.id)
+          setUser(dbUser)
+        }
+      } catch (error) {
+        console.error('Failed to load user', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadUser()
+  }, [])
+
   const permissions = user?.permissions || []
   const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
 
@@ -21,12 +45,30 @@ export default function TaskSettingsPage({ user }: { user?: any }) {
     []
   )
 
-  const allowedTabs = tabs.filter(tab => {
-    return hasPermission(permissions, 'pengaturan_tugas', `tab:${tab.key}`, isAdmin)
-  })
+  const allowedTabs = useMemo(() => {
+    if (!user) return []
+    return tabs.filter(tab => {
+      return hasPermission(permissions, 'pengaturan_tugas', `tab:${tab.key}`, isAdmin)
+    })
+  }, [user, permissions, isAdmin, tabs, hasPermission])
 
   // Default to first allowed or generic fallback
-  const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]?.key as TabType || 'guru_mapel')
+  const [activeTab, setActiveTab] = useState<TabType>('guru_mapel')
+
+  // Update active tab once allowedTabs are determined
+  useEffect(() => {
+    if (allowedTabs.length > 0 && !allowedTabs.find(t => t.key === activeTab)) {
+      setActiveTab(allowedTabs[0].key as TabType)
+    }
+  }, [allowedTabs, activeTab])
+
+  if (loading) {
+    return <div className="p-8 text-center text-slate-500">Memuat data...</div>
+  }
+
+  if (!user) {
+    return <div className="p-8 text-center text-red-500">Akses ditolak. Silakan login kembali.</div>
+  }
 
   return (
     <>

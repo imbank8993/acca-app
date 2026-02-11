@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase-admin';
 import type { MyScopes, ApiResponse } from '@/lib/types';
 
 /**
@@ -27,7 +27,9 @@ export async function GET(request: NextRequest) {
         const activeTA = await getActiveAcademicYearServer();
 
         // Ambil jadwal guru
-        let query = supabase
+        // We use supabaseAdmin here because a Substitute Teacher (User A) needs to fetch 
+        // the schedule of the Original Teacher (User B). Regular RLS policies might prevent this.
+        let query = supabaseAdmin
             .from('jadwal_guru')
             .select('*')
             .eq('nip', nip)
@@ -61,7 +63,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Fetch full teacher name from users table (instead of relying on potentially abbreviated schedule name)
-        const { data: userData } = await supabase
+        const { data: userData } = await supabaseAdmin
             .from('users')
             .select('nama')
             .eq('nip', nip)
@@ -70,7 +72,8 @@ export async function GET(request: NextRequest) {
         const namaGuru = userData?.nama || (jadwalList[0]?.nama_guru || '');
 
         // Group data
-        const kelasSet = new Set<string>(); const mapelByKelas: Record<string, Set<string>> = {};
+        const kelasSet = new Set<string>();
+        const mapelByKelas: Record<string, Set<string>> = {};
         const jamKeByKelasMapel: Record<string, Set<string>> = {};
 
         jadwalList.forEach(j => {
@@ -109,7 +112,8 @@ export async function GET(request: NextRequest) {
             guru: { nip: nip, nama: namaGuru },
             kelasList,
             mapelByKelas: mapelByKelasArray,
-            jamKeByKelasMapel: jamKeByKelasMapelArray
+            jamKeByKelasMapel: jamKeByKelasMapelArray,
+            schedule: jadwalList.map(j => ({ hari: j.hari, jam_ke: j.jam_ke, kelas: j.kelas, mata_pelajaran: j.mata_pelajaran }))
         };
 
         return NextResponse.json<ApiResponse<MyScopes>>({

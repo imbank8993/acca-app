@@ -320,7 +320,8 @@ export default function JournalModal({ isOpen, onClose, mode, initialData, user,
                 jam_ke: formData.jam_ke || selectedHours.sort((a, b) => a - b).join(','),
                 hari,
                 auth_id: user?.id,
-                selected_hours: selectedHours
+                selected_hours: selectedHours,
+                filled_by: 'GURU'
             };
 
             const res = await fetch('/api/jurnal/submit', {

@@ -70,8 +70,11 @@ export interface AbsensiSesi {
     draft_type: 'DRAFT_DEFAULT' | 'DRAFT_GURU' | 'FINAL';
     materi?: string;
     catatan?: string;
+    refleksi?: string;
     tahun_ajaran: string;
     semester: number;
+    guru_pengganti_nip?: string | null;
+    guru_pengganti_nama?: string | null;
     created_at: string;
     created_by: string;
     updated_at: string;
@@ -116,5 +119,11 @@ export interface MyScopes {
     kelasList?: string[];
     mapelByKelas?: Record<string, string[]>;
     jamKeByKelasMapel?: Record<string, string[]>;
+    schedule?: {
+        hari: string;
+        jam_ke: string;
+        kelas: string;
+        mata_pelajaran: string;
+    }[];
 }
 

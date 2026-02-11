@@ -103,6 +103,14 @@ export default function JurnalCards({
                                 <div className="jt__k">Mata Pelajaran</div>
                                 <div className="jt__v">{journal.mata_pelajaran}</div>
                             </div>
+                            <div className="jt__kv border-none">
+                                <div className="jt__k" style={{ fontSize: '0.65rem' }}>Sumber Data</div>
+                                <div className="jt__v">
+                                    {journal.filled_by === 'SISWA' && <span className="text-[0.65rem] px-1.5 py-0.5 bg-blue-100 text-blue-600 rounded-full font-bold uppercase"><i className="bi bi-person-fill"></i> Siswa</span>}
+                                    {journal.filled_by === 'GURU' && <span className="text-[0.65rem] px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded-full font-bold uppercase"><i className="bi bi-mortarboard-fill"></i> Guru</span>}
+                                    {(!journal.filled_by || journal.filled_by === 'ADMIN') && <span className="text-[0.65rem] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full font-bold uppercase">System</span>}
+                                </div>
+                            </div>
                         </div>
 
                         <div className="jt__cardActions">
