@@ -62,6 +62,44 @@ export default function DokumenSiswaTab({ user }: { user?: any }) {
         }
     }
 
+    const handleEditCategory = async (cat: any) => {
+        const { value: newName } = await Swal.fire({
+            title: 'Edit Nama Folder',
+            input: 'text',
+            inputValue: cat.name,
+            showCancelButton: true,
+            inputValidator: (value) => {
+                if (!value) return 'Nama folder tidak boleh kosong!'
+            }
+        })
+
+        if (newName && newName !== cat.name) {
+            try {
+                // 1. Update Category Table
+                const { error: catError } = await supabase
+                    .from('upload_categories')
+                    .update({ name: newName })
+                    .eq('id', cat.id)
+
+                if (catError) throw catError
+
+                // 2. Cascade Update to Documents Table
+                const { error: docError } = await supabase
+                    .from('uploaded_documents')
+                    .update({ category_name: newName })
+                    .eq('category_id', cat.id)
+
+                if (docError) throw docError
+
+                Swal.fire('Berhasil', 'Nama folder dan data dokumen telah diperbarui.', 'success')
+                fetchCategories()
+                fetchDocuments()
+            } catch (err: any) {
+                Swal.fire('Gagal', err.message || 'Terjadi kesalahan saat mengupdate folder.', 'error')
+            }
+        }
+    }
+
     const handleDeleteDocument = async (id: string, fileName: string) => {
         const result = await Swal.fire({
             title: 'Hapus Dokumen?',
@@ -193,9 +231,14 @@ export default function DokumenSiswaTab({ user }: { user?: any }) {
                                 <i className="bi bi-folder-fill"></i>
                                 <span>{cat.name}</span>
                             </div>
-                            <button onClick={() => handleDeleteCategory(cat.id)} className="btn-del-mini" title="Hapus Folder">
-                                <i className="bi bi-x"></i>
-                            </button>
+                            <div className="folder-actions">
+                                <button onClick={() => handleEditCategory(cat)} className="btn-edit-mini" title="Edit Folder">
+                                    <i className="bi bi-pencil-square"></i>
+                                </button>
+                                <button onClick={() => handleDeleteCategory(cat.id)} className="btn-del-mini" title="Hapus Folder">
+                                    <i className="bi bi-x"></i>
+                                </button>
+                            </div>
                         </div>
                     ))}
                     {categories.length === 0 && <p className="empty-text">Belum ada folder category.</p>}
@@ -336,6 +379,9 @@ export default function DokumenSiswaTab({ user }: { user?: any }) {
                 .ds-folder-card:hover { border-color: var(--n-primary); background: white; }
                 .folder-info { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; font-weight: 700; color: #475569; }
                 .folder-info i { color: #f59e0b; font-size: 1.1rem; }
+                .folder-actions { display: flex; gap: 4px; align-items: center; }
+                .btn-edit-mini { border: none; background: none; color: #3b82f6; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; font-size: 1rem; transition: all 0.2s; }
+                .btn-edit-mini:hover { transform: scale(1.2); color: #2563eb; }
                 .btn-del-mini { border: none; background: none; color: #ef4444; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; transition: all 0.2s; }
                 .btn-del-mini:hover { transform: scale(1.2); }
 
