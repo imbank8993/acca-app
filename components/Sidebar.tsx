@@ -30,6 +30,7 @@ const getMenuIcon = (path: string) => {
   if (p.includes('user')) return 'fa-user-group'
   if (p.includes('rekap')) return 'fa-chart-line'
   if (p.includes('status')) return 'fa-user-check'
+  if (p.includes('monitoring')) return 'fa-desktop'
   return 'fa-folder'
 }
 

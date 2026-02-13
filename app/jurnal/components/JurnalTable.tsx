@@ -117,9 +117,10 @@ export default function JurnalTable({
                                 </td>
                                 <td>
                                     <div className="jt__guru">{journal.nama_guru}</div>
-                                    {['diganti', 'tukaran', 'tim teaching', 'guru pengganti'].includes((journal.kategori_kehadiran || '').toLowerCase()) && journal.guru_pengganti && (
+                                    {journal.guru_pengganti && journal.guru_pengganti !== '-' && (
                                         <div className="text-xs font-semibold text-amber-600 mt-0.5 mb-1 flex items-center gap-1">
-                                            <i className="bi bi-arrow-right" title="Digantikan oleh"></i> <span>{journal.guru_pengganti}</span>
+                                            <i className="bi bi-arrow-return-right" title="Digantikan oleh"></i>
+                                            <span>{journal.guru_pengganti}</span>
                                         </div>
                                     )}
                                     <div className="jt__mapel">{journal.mata_pelajaran}</div>

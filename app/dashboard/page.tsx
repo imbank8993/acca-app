@@ -24,6 +24,9 @@ import PiketPage from '../piket/page'
 import InformasiPage from '../informasi/page'
 import DokumenSiswaPage from '../dokumen-siswa/page'
 import LaporanGuruAsuhPage from '../laporan-guru-asuh/page'
+import RekapJurnalPage from '../rekap-jurnal/page'
+import MonitoringPage from '../monitoring/page' // Import Monitoring Page
+import UserHeartbeat from '@/components/UserHeartbeat' // Import Heartbeat
 
 export default function DashboardPage() {
   return (
@@ -229,6 +232,7 @@ function DashboardLogic() {
 
   return (
     <>
+      <UserHeartbeat />
       <div className={`dashboard-layout ${sidebarOpen ? 'sidebar-mobile-open' : ''}`}>
         <Sidebar
           user={user}
@@ -360,6 +364,12 @@ const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<
   'LCKHApproval': () => <LckhApprovalPage />,
   'Nilai': () => <NilaiPage />,
   'GuruAsuh': (user) => <LaporanGuruAsuhPage user={user} />,
+
+  // REKAP DATA
+  'RekapJurnal': () => <RekapJurnalPage />,
+
+  // MONITORING
+  'monitoring': () => <MonitoringPage />,
 };
 
 function renderPageContent(page: string, user: User) {
