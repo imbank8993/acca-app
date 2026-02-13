@@ -144,6 +144,22 @@ function DashboardLogic() {
       if (userData) {
         setUser(userData)
 
+        // Log login activity if not already logged in this session (simple check)
+        const lastLog = sessionStorage.getItem('last_login_log');
+        const now = new Date().getTime();
+
+        if (!lastLog || now - parseInt(lastLog) > 30 * 60 * 1000) { // Log every 30 mins max if refreshing
+          fetch('/api/user/log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'LOGIN',
+              details: `User logged in or refreshed dashboard. Role: ${userData?.role}`
+            })
+          }).catch(err => console.error('Failed to log login:', err));
+          sessionStorage.setItem('last_login_log', now.toString());
+        }
+
         const pageParam = searchParams.get('page')
         if (pageParam && userData.pagesArray.includes(pageParam)) {
           setCurrentPage(pageParam)
@@ -164,21 +180,7 @@ function DashboardLogic() {
     } finally {
       setLoading(false)
 
-      // Log login activity if not already logged in this session (simple check)
-      const lastLog = sessionStorage.getItem('last_login_log');
-      const now = new Date().getTime();
 
-      if (!lastLog || now - parseInt(lastLog) > 30 * 60 * 1000) { // Log every 30 mins max if refreshing
-        fetch('/api/user/log', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'LOGIN',
-            details: `User logged in or refreshed dashboard. Role: ${userData?.role}`
-          })
-        }).catch(err => console.error('Failed to log login:', err));
-        sessionStorage.setItem('last_login_log', now.toString());
-      }
     }
   }
 
