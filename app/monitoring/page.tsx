@@ -60,20 +60,54 @@ export default function MonitoringPage() {
                 {loading && <div className="loading">Memuat data...</div>}
 
                 {!loading && activeTab === 'users' && (
-                    <div className="table-responsive">
-                        <table className="table">
-                            <thead>
-                                <tr>
-                                    <th>User</th>
-                                    <th>Role</th>
-                                    <th>Status</th>
-                                    <th>Terakhir Online</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {users.map((user) => (
-                                    <tr key={user.id}>
-                                        <td className="user-cell">
+                    <>
+                        <div className="table-responsive desktop-view">
+                            <table className="table">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Role</th>
+                                        <th>Status</th>
+                                        <th>Terakhir Online</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {users.map((user) => (
+                                        <tr key={user.id}>
+                                            <td className="user-cell">
+                                                {user.foto_profil ? (
+                                                    <img src={user.foto_profil} alt="" className="avatar" />
+                                                ) : (
+                                                    <div className="avatar-placeholder">{user.nama?.charAt(0)}</div>
+                                                )}
+                                                <div>
+                                                    <div className="user-name">{user.nama}</div>
+                                                    <div className="user-email">{user.email}</div>
+                                                </div>
+                                            </td>
+                                            <td><span className="badge role-badge">{user.role}</span></td>
+                                            <td>
+                                                {user.is_online ? (
+                                                    <span className="status-badge online">
+                                                        <span className="dot"></span> Online
+                                                    </span>
+                                                ) : (
+                                                    <span className="status-badge offline">Offline</span>
+                                                )}
+                                            </td>
+                                            <td className="text-gray-500">{user.last_seen_text}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Mobile Card View for Users */}
+                        <div className="mobile-view">
+                            {users.map((user) => (
+                                <div key={user.id} className="mobile-card">
+                                    <div className="mobile-card-header">
+                                        <div className="user-cell">
                                             {user.foto_profil ? (
                                                 <img src={user.foto_profil} alt="" className="avatar" />
                                             ) : (
@@ -83,23 +117,29 @@ export default function MonitoringPage() {
                                                 <div className="user-name">{user.nama}</div>
                                                 <div className="user-email">{user.email}</div>
                                             </div>
-                                        </td>
-                                        <td><span className="badge role-badge">{user.role}</span></td>
-                                        <td>
+                                        </div>
+                                        <div className="status-indicator">
                                             {user.is_online ? (
-                                                <span className="status-badge online">
-                                                    <span className="dot"></span> Online
-                                                </span>
+                                                <span className="status-dot online" title="Online"></span>
                                             ) : (
-                                                <span className="status-badge offline">Offline</span>
+                                                <span className="status-dot offline" title="Offline"></span>
                                             )}
-                                        </td>
-                                        <td className="text-gray-500">{user.last_seen_text}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                        </div>
+                                    </div>
+                                    <div className="mobile-card-body">
+                                        <div className="mobile-info-row">
+                                            <span className="mobile-label">Role</span>
+                                            <span className="badge role-badge">{user.role}</span>
+                                        </div>
+                                        <div className="mobile-info-row">
+                                            <span className="mobile-label">Terakhir Online</span>
+                                            <span className="mobile-value">{user.last_seen_text}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
                 )}
 
                 {!loading && activeTab === 'activity' && (
@@ -299,6 +339,65 @@ export default function MonitoringPage() {
                     padding: 8px;
                     border-radius: 6px;
                     margin-top: 4px;
+                }
+                /* Mobile View Styles */
+                .mobile-view { display: none; }
+                .desktop-view { display: block; }
+
+                .mobile-card {
+                    border: 1px solid #e5e7eb;
+                    border-radius: 12px;
+                    padding: 16px;
+                    margin-bottom: 12px;
+                    background: #fff;
+                    border: 1px solid #f3f4f6;
+                }
+                .mobile-card-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 12px;
+                    padding-bottom: 12px;
+                    border-bottom: 1px solid #f3f4f6;
+                }
+                .status-indicator {
+                    display: flex;
+                    align-items: center;
+                }
+                .status-dot {
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                }
+                .status-dot.online { background: #16a34a; box-shadow: 0 0 0 4px #dcfce7; }
+                .status-dot.offline { background: #9ca3af; box-shadow: 0 0 0 4px #f3f4f6; }
+
+                .mobile-info-row {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 8px;
+                }
+                .mobile-info-row:last-child { margin-bottom: 0; }
+                .mobile-label { font-size: 0.85rem; color: #6b7280; }
+                .mobile-value { font-size: 0.9rem; font-weight: 500; color: #374151; }
+
+                @media (max-width: 768px) {
+                    .monitoring-container { padding: 16px; }
+                    .content-area { padding: 16px; }
+                    
+                    /* Toggle Views */
+                    .mobile-view { display: block; }
+                    .desktop-view { display: none; }
+                    
+                    /* Adjust Tabs */
+                    .tabs { overflow-x: auto; white-space: nowrap; padding-bottom: 0px; }
+                    .tab-btn { padding: 10px 16px; font-size: 0.9rem; }
+                    
+                    /* Activity List Adjustments */
+                    .activity-item { flex-direction: column; gap: 12px; }
+                    .activity-header { flex-wrap: wrap; }
+                    .activity-time { margin-left: 0; width: 100%; margin-top: 4px; font-size: 0.75rem; }
                 }
             `}</style>
         </div>

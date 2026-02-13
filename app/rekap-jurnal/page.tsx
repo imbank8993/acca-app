@@ -261,7 +261,9 @@ export default function RekapJurnalPage() {
                     {/* Teacher List Section */}
                     <div className="card list-section">
                         <h2>Detail Per Guru</h2>
-                        <div className="table-responsive">
+
+                        {/* Desktop Table View */}
+                        <div className="table-responsive desktop-view">
                             <table className="table">
                                 <thead>
                                     <tr>
@@ -321,6 +323,53 @@ export default function RekapJurnalPage() {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* Mobile Card View */}
+                        <div className="mobile-view">
+                            {data?.teacherStats?.map((teacher: any, idx: number) => (
+                                <div key={idx} className="mobile-card">
+                                    <div className="mobile-card-header">
+                                        <div>
+                                            <div className="mobile-card-title">{teacher.nama}</div>
+                                            <div className="mobile-card-subtitle">{teacher.nip}</div>
+                                        </div>
+                                        <div className="mobile-card-total">
+                                            Total: {teacher.total}
+                                        </div>
+                                    </div>
+                                    <div className="mobile-card-body">
+                                        <div className="mobile-stats-grid">
+                                            {categoriesList.map(cat => {
+                                                const count = teacher.categories?.[cat] || 0;
+                                                if (count === 0) return null;
+                                                return (
+                                                    <div key={cat} className="mobile-stat-item">
+                                                        <span className="mobile-stat-label">{cat}</span>
+                                                        <span className="count-badge" style={{
+                                                            color: getCategoryColor(cat),
+                                                            background: `${getCategoryColor(cat)}20`
+                                                        }}>
+                                                            {count}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div className="mobile-card-footer">
+                                        <button
+                                            className="btn-detail full-width"
+                                            onClick={() => setSelectedTeacher(teacher)}
+                                        >
+                                            Lihat Detail Lengkap
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {(!data?.teacherStats || data.teacherStats.length === 0) && (
+                                <div className="text-center p-4 text-gray-500">Tidak ada data jurnal.</div>
+                            )}
                         </div>
                     </div>
                 </>
@@ -556,6 +605,66 @@ export default function RekapJurnalPage() {
                     color: white;
                 }
 
+                /* Mobile View Styles */
+                .mobile-view { display: none; }
+                .desktop-view { display: block; }
+
+                .mobile-card {
+                    border: 1px solid #e5e7eb;
+                    border-radius: 12px;
+                    padding: 16px;
+                    margin-bottom: 16px;
+                    background: #fff;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                }
+                .mobile-card-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    margin-bottom: 12px;
+                    padding-bottom: 12px;
+                    border-bottom: 1px solid #f3f4f6;
+                }
+                .mobile-card-title {
+                    font-weight: 600;
+                    color: #111827;
+                    font-size: 1rem;
+                }
+                .mobile-card-subtitle {
+                    font-size: 0.8rem;
+                    color: #6b7280;
+                }
+                .mobile-card-total {
+                    font-weight: 700;
+                    font-size: 1.1rem;
+                    color: #0038A8;
+                }
+                .mobile-stats-grid {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin-bottom: 16px;
+                }
+                .mobile-stat-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    background: #f9fafb;
+                    padding: 4px 8px;
+                    border-radius: 6px;
+                    border: 1px solid #f3f4f6;
+                }
+                .mobile-stat-label {
+                    font-size: 0.75rem;
+                    color: #4b5563;
+                }
+                .full-width {
+                    width: 100%;
+                    padding: 10px;
+                    display: flex;
+                    justify-content: center;
+                }
+
                 @media (max-width: 768px) {
                     .header-actions {
                         flex-direction: column;
@@ -568,6 +677,14 @@ export default function RekapJurnalPage() {
                     .filter-select {
                         flex: 1;
                     }
+                    
+                    /* Toggle Views */
+                    .mobile-view { display: block; }
+                    .desktop-view { display: none; }
+                    
+                    /* Adjust padding */
+                    .rekap-container { padding: 16px; }
+                    .card { padding: 16px; }
                 }
             `}</style>
         </div>
