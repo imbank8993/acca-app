@@ -17,15 +17,15 @@ export async function POST(request: NextRequest) {
         // Update last_seen in public.users (or auth.users if you have a trigger syncing them, but usually we extend in public.users)
         // Assuming public.users has auth_id or id matching auth.uid()
 
-        // Option 1: Update public.users based on auth_id
+        // Update public.users based on auth_id (linking to auth.users.id)
         const { error: updateError } = await supabaseAdmin
             .from('users')
             .update({ last_seen: new Date().toISOString() })
-            .eq('id', user.id); // Assuming 'id' in public.users is the UUID from auth
+            .eq('auth_id', user.id);
 
         if (updateError) {
-            // If id mismatch (maybe integer id?), try auth_id column if exists
             console.error('Error updating last_seen:', updateError);
+            return corsResponse(NextResponse.json({ error: 'Database Update Failed' }, { status: 500 }));
         }
 
         return corsResponse(NextResponse.json({ success: true }));
