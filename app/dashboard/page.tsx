@@ -27,6 +27,7 @@ import LaporanGuruAsuhPage from '../laporan-guru-asuh/page'
 import RekapJurnalPage from '../rekap-jurnal/page'
 import MonitoringPage from '../monitoring/page' // Import Monitoring Page
 import UserHeartbeat from '@/components/UserHeartbeat' // Import Heartbeat
+import CampionePage from '@/app/campione/page' // Import Campione Page
 
 export default function DashboardPage() {
   return (
@@ -386,8 +387,10 @@ const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<
   // REKAP DATA
   'RekapJurnal': () => <RekapJurnalPage />,
 
+
   // MONITORING
   'monitoring': () => <MonitoringPage />,
+  'campione': () => <CampionePage />,
 };
 
 function renderPageContent(page: string, user: User) {

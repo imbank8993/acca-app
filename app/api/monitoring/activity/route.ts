@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
     try {
-        // Join with users table to get names
+        // 1. Fetch activity logs
         const { data: logs, error } = await supabaseAdmin
             .from('activity_logs')
             .select(`
@@ -14,17 +14,39 @@ export async function GET(request: NextRequest) {
                 action,
                 details,
                 created_at,
-                user_id,
-                users (
-                    nama,
-                    role,
-                    foto_profil
-                )
+                user_id
             `)
             .order('created_at', { ascending: false })
-            .limit(50); // Limit to last 50 logs for now
+            .limit(50);
 
         if (error) throw error;
+
+        // 2. Fetch user details manually (since join might fail if FK is missing)
+        if (logs && logs.length > 0) {
+            const userIds = Array.from(new Set(logs.map(log => log.user_id).filter(id => id)));
+
+            if (userIds.length > 0) {
+                const { data: users, error: userError } = await supabaseAdmin
+                    .from('users')
+                    .select('auth_id, nama, role, foto_profil')
+                    .in('auth_id', userIds);
+
+                if (!userError && users) {
+                    const userMap = new Map(users.map(u => [u.auth_id, u]));
+
+                    // Merge user data into logs
+                    const logsWithUser = logs.map(log => ({
+                        ...log,
+                        users: userMap.get(log.user_id) || { nama: 'Unknown', role: 'Unknown', foto_profil: null }
+                    }));
+
+                    return corsResponse(NextResponse.json({
+                        success: true,
+                        data: logsWithUser
+                    }));
+                }
+            }
+        }
 
         return corsResponse(NextResponse.json({
             success: true,

@@ -1,18 +1,26 @@
-import { supabaseAdmin } from './supabase-admin';
+
+import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function logActivity(
-    userId: string,
+    userId: string | undefined, // Allow undefined, handle inside
     action: string,
-    details: string | object | null = null,
-    ipAddress: string | null = null
+    details: any = null,
+    req?: Request // Optional, to get IP if needed
 ) {
+    if (!userId) return; // Can't log without user
+
     try {
+        let ipAddress = null;
+        if (req) {
+            ipAddress = req.headers.get('x-forwarded-for') || 'unknown';
+        }
+
         const { error } = await supabaseAdmin
             .from('activity_logs')
             .insert({
                 user_id: userId,
-                action: action,
-                details: typeof details === 'object' ? JSON.stringify(details) : details,
+                action,
+                details: JSON.stringify(details),
                 ip_address: ipAddress
             });
 

@@ -117,7 +117,7 @@ export function parsePages(pagesStr: string): {
 /**
  * Full page configuration for Admin role
  */
-export const FULL_ADMIN_PAGES = "Dashboard=dashboard,Jurnal Guru=jurnal,Absensi Siswa=absensi,LCKH Submission=lckh,LCKH Approval=lckh-approval,Nilai=nilai,Tugas Tambahan=tugas-tambahan,Laporan Guru Asuh=laporan-guru-asuh,Ketidakhadiran=ketidakhadiran,Informasi Akademik=informasi-akademik,Upload Dokumen=dokumen-siswa,Laporan Piket=piket,Master Data=master,Pengaturan Data=pengaturan-data,Pengaturan Tugas=pengaturan-tugas,Pengaturan Users=pengaturan-users,Reset Data=reset-data";
+export const FULL_ADMIN_PAGES = "Dashboard=dashboard,Jurnal Guru=jurnal,Absensi Siswa=absensi,LCKH Submission=lckh,LCKH Approval=lckh-approval,Nilai=nilai,Tugas Tambahan=tugas-tambahan,Laporan Guru Asuh=laporan-guru-asuh,Ketidakhadiran=ketidakhadiran,Informasi Akademik=informasi-akademik,Upload Dokumen=dokumen-siswa,Laporan Piket=piket,Master Data=master,Pengaturan Data=pengaturan-data,Pengaturan Tugas=pengaturan-tugas,Pengaturan Users=pengaturan-users,Reset Data=reset-data,Campione=campione";
 
 /**
  * Build full user object from database row
