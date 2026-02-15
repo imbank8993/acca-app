@@ -103,6 +103,31 @@ function DashboardLogic() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Log page views
+  useEffect(() => {
+    if (!user) return;
+
+    const logPageView = async () => {
+      try {
+        await fetch('/api/user/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'VIEW_PAGE',
+            details: `User viewed module: ${currentPage}`
+          })
+        });
+      } catch (err) {
+        console.error('Failed to log page view:', err);
+      }
+    };
+
+    // Debounce slightly to avoid duplicate initial logs if strict mode is on
+    const timeoutId = setTimeout(logPageView, 1000);
+    return () => clearTimeout(timeoutId);
+
+  }, [currentPage, user]);
+
   const checkAuth = async () => {
     try {
       const {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Select from 'react-select';
+import * as XLSX from 'xlsx';
 
 export default function GenerateJurnalTab({ user }: { user?: any }) {
     const [settings, setSettings] = useState({
@@ -27,6 +28,11 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
 
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    // Import State
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [importData, setImportData] = useState<any[]>([]);
+    const [importStats, setImportStats] = useState<{ total: number, valid: number } | null>(null);
 
     useEffect(() => {
         loadSettings();
@@ -155,6 +161,110 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
             }
         } catch (error: any) {
             showMessage('error', 'Gagal menghapus jurnal: ' + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // --- Import Functions ---
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setImportFile(file);
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const data: any[] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+            if (data.length < 2) {
+                showMessage('error', 'File kosong atau format salah');
+                return;
+            }
+
+            // Map headers
+            const headers = data[0].map((h: any) => String(h).toLowerCase().trim());
+            const rows = data.slice(1);
+
+            const mappedData = rows.map((row: any) => {
+                const obj: any = {};
+                headers.forEach((h: string, i: number) => {
+                    if (h.includes('tanggal')) obj.tanggal = formatDate(row[i]);
+                    else if (h.includes('jam')) obj.jam_ke = row[i];
+                    else if (h.includes('kelas')) obj.kelas = row[i];
+                    else if (h.includes('guru') && !h.includes('pengganti') && !h.includes('piket')) obj.nama_guru = row[i];
+                    else if (h.includes('nip')) obj.nip = row[i];
+                    else if (h.includes('mapel') || h.includes('mata pelajaran')) obj.mata_pelajaran = row[i];
+                    else if (h.includes('materi')) obj.materi = row[i];
+                    else if (h.includes('refleksi')) obj.refleksi = row[i];
+                    else if (h.includes('kategori') || h.includes('kehadiran')) obj.kategori_kehadiran = row[i];
+                    else if (h.includes('pengganti')) {
+                        if (h.includes('status')) obj.status_pengganti = row[i];
+                        else obj.guru_pengganti = row[i];
+                    }
+                    else if (h.includes('terlambat')) obj.keterangan_terlambat = row[i];
+                    else if (h.includes('keterangan')) obj.keterangan_tambahan = row[i];
+                });
+                return obj;
+            }).filter((r: any) => r.tanggal && r.nama_guru && r.kelas && r.jam_ke);
+
+            setImportData(mappedData);
+            setImportStats({ total: rows.length, valid: mappedData.length });
+        };
+        reader.readAsBinaryString(file);
+    };
+
+    const formatDate = (val: any) => {
+        if (!val) return null;
+        if (typeof val === 'number') {
+            const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+            return date.toISOString().split('T')[0];
+        }
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+        return val;
+    };
+
+    const handleImportSubmit = async () => {
+        if (importData.length === 0) {
+            showMessage('error', 'Tidak ada data valid untuk diimport');
+            return;
+        }
+
+        if (!confirm(`Import ${importData.length} baris data jurnal?`)) return;
+
+        setLoading(true);
+        try {
+            const chunkSize = 100;
+            let successCount = 0;
+            let failCount = 0;
+
+            for (let i = 0; i < importData.length; i += chunkSize) {
+                const chunk = importData.slice(i, i + chunkSize);
+                const res = await fetch('/api/jurnal/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: chunk })
+                });
+                const result = await res.json();
+                if (result.success && result.results) {
+                    successCount += result.results.success || 0;
+                    failCount += result.results.failed || 0;
+                } else {
+                    failCount += chunk.length;
+                }
+            }
+
+            showMessage('success', `Import Selesai. Sukses: ${successCount}, Gagal: ${failCount}`);
+            setImportFile(null);
+            setImportData([]);
+            setImportStats(null);
+        } catch (error: any) {
+            showMessage('error', 'Gagal import: ' + error.message);
         } finally {
             setLoading(false);
         }
@@ -300,6 +410,45 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                     </div>
                 </div>
 
+                {/* Import Jurnal */}
+                <div className="card purple">
+                    <div className="card-head">
+                        <i className="bi bi-file-earmark-spreadsheet"></i>
+                        <h3>Import Excel</h3>
+                    </div>
+                    <div className="card-body">
+                        <div className="alert-info">
+                            <i className="bi bi-info-circle"></i>
+                            Format: Tanggal, Jam, Kelas, Nama Guru, Mapel, Kategori...
+                        </div>
+
+                        <div className="form-group">
+                            <label>File Excel (.xlsx)</label>
+                            <input
+                                type="file"
+                                accept=".xlsx, .xls"
+                                onChange={handleFileUpload}
+                                className="file-input"
+                            />
+                        </div>
+
+                        {importStats && (
+                            <div className="stats-box">
+                                <p>Total Baris: <strong>{importStats.total}</strong></p>
+                                <p>Data Valid: <strong className="text-green-600">{importStats.valid}</strong></p>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handleImportSubmit}
+                            disabled={loading || !importData.length}
+                            className="btn-purple"
+                        >
+                            {loading ? 'Mengimport...' : 'Mulai Import'}
+                        </button>
+                    </div>
+                </div>
+
                 {/* Delete Jurnal */}
                 <div className="card red">
                     <div className="card-head">
@@ -383,6 +532,7 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                 .card.blue .card-head { background: #eff6ff; color: #1e40af; border-color: #dbeafe; }
                 .card.green .card-head { background: #f0fdf4; color: #15803d; border-color: #dcfce7; }
                 .card.red .card-head { background: #fef2f2; color: #b91c1c; border-color: #fee2e2; }
+                .card.purple .card-head { background: #f3e8ff; color: #7e22ce; border-color: #e9d5ff; }
 
                 .card-body { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
 
@@ -409,7 +559,7 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                 .checkbox-group input { width: 18px; height: 18px; cursor: pointer; }
                 .checkbox-group label { font-size: 0.95rem; font-weight: 500; color: #334155; cursor: pointer; }
 
-                .btn-primary, .btn-success, .btn-danger {
+                .btn-primary, .btn-success, .btn-danger, .btn-purple {
                     padding: 12px;
                     border-radius: 12px;
                     font-weight: 700;
@@ -428,6 +578,9 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                 .btn-danger { background: linear-gradient(135deg, #ef4444, #dc2626); }
                 .btn-danger:hover:not(:disabled) { box-shadow: 0 8px 20px rgba(239, 68, 68, 0.25); transform: translateY(-2px); }
 
+                .btn-purple { background: linear-gradient(135deg, #9333ea, #7e22ce); }
+                .btn-purple:hover:not(:disabled) { box-shadow: 0 8px 20px rgba(147, 51, 234, 0.25); transform: translateY(-2px); }
+
                 button:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
 
                 .hint { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; font-style: italic; }
@@ -442,6 +595,34 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                     display: flex;
                     align-items: center;
                     gap: 8px;
+                }
+
+                .alert-info {
+                     background: #eff6ff;
+                     border: 1px solid #dbeafe;
+                     color: #1e40af;
+                     padding: 12px;
+                     border-radius: 8px;
+                     font-size: 0.85rem;
+                     display: flex;
+                     align-items: center;
+                     gap: 8px;
+                }
+
+                .stats-box {
+                    background: #fafafa;
+                    padding: 12px;
+                    border-radius: 8px;
+                    border: 1px dashed #d4d4d8;
+                    font-size: 0.9rem;
+                }
+
+                .file-input {
+                    padding: 10px;
+                    border: 1px solid #cbd5e1;
+                    border-radius: 10px;
+                    background: #f8fafc;
+                    width: 100%;
                 }
 
                 .message {

@@ -24,9 +24,9 @@ export default function CampioneDetailModal({ isOpen, onClose, teacherName, deta
     // or just show all returned (api returns all, but we might want to filter by type matches category)
     // The API pushes details for ALL types. We should filter by the active tab/category.
     const filteredDetails = details.filter(d => {
-        if (category === 'jamKosong' && d.type === 'Jam Kosong') return true;
-        if (category === 'penugasan' && d.type === 'Penugasan') return true;
-        if (category === 'terlambat' && d.type === 'Terlambat') return true;
+        if (category === 'jamKosong' && d.type.startsWith('Jam Kosong')) return true;
+        if (category === 'penugasan' && d.type.startsWith('Penugasan')) return true;
+        if (category === 'terlambat' && d.type.startsWith('Terlambat')) return true;
         return false;
     });
 
