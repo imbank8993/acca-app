@@ -98,9 +98,9 @@ export default function TaskSettingsPage() {
       </div>
 
       <div className="ts-content" role="tabpanel">
-        {activeTab === 'guru_mapel' && <GuruMapelTab />}
-        {activeTab === 'jadwal_guru' && <JadwalGuruTab />}
-        {activeTab === 'ploting_tugas' && <PlotingTugasTambahanTab />}
+        {activeTab === 'guru_mapel' && <GuruMapelTab user={user} />}
+        {activeTab === 'jadwal_guru' && <JadwalGuruTab user={user} />}
+        {activeTab === 'ploting_tugas' && <PlotingTugasTambahanTab user={user} />}
       </div>
 
       <style jsx>{`

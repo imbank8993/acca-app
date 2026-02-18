@@ -8,6 +8,13 @@ import PermissionGuard from '@/components/PermissionGuard';
 import './absensi.css';
 
 // Types
+interface ScheduleItem {
+    hari: string;
+    jam_ke: string;
+    kelas: string;
+    mata_pelajaran: string;
+}
+
 interface Scope {
     kelasList: string[];
     mapelByKelas: Record<string, string[]>;
@@ -53,7 +60,10 @@ interface AbsensiRow {
     source_type?: string; // To display on UI
 }
 
-export default function AbsensiPage() {
+export default function AbsensiPage({ user }: { user?: any }) {
+    const [selectedLevel, setSelectedLevel] = useState<string>('')
+    const [selectedClass, setSelectedClass] = useState<string>('')
+    const [schedule, setSchedule] = useState<ScheduleItem[]>([])
     const [nip, setNip] = useState('');
 
     const [namaGuru, setNamaGuru] = useState('');
@@ -272,16 +282,19 @@ export default function AbsensiPage() {
     const availableJamRanges = getAvailableJams();
 
     // Auto-select jam if only one option or invalid current selection
+    // IMPROVED RESPONSIVENESS: Reset jamKe when available ranges change significantly
     useEffect(() => {
         if (availableJamRanges.length > 0) {
+            // If current selection is invalid or empty, pick the first one
+            // Also, if the list changed (e.g. differnet day), auto-pick first for convenience
             if (!jamKe || !availableJamRanges.includes(jamKe)) {
                 setJamKe(availableJamRanges[0]);
             }
         } else {
-            // If no schedule today, maybe clear?
-            // setJamKe('');
+            // No schedule? Clear it
+            setJamKe('');
         }
-    }, [availableJamRanges, jamKe]);
+    }, [JSON.stringify(availableJamRanges), jamKe]); // Deep compare ranges to trigger update on logic change
 
     // Schedule Summary Helper
     const getScheduleSummary = () => {
@@ -311,7 +324,20 @@ export default function AbsensiPage() {
         if (!nip) return;
         try {
             const res = await fetch(`/api/scopes?nip=${nip}`);
-            const json = await res.json();
+            const text = await res.text();
+            let json;
+            try {
+                json = JSON.parse(text);
+            } catch (e) {
+                console.error('Failed to parse API response:', text.substring(0, 200));
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Kesalahan Sistem',
+                    text: 'Gagal memuat data scope. Server merespon dengan HTML (kemungkinan error 500 atau 404). Cek console.'
+                });
+                return;
+            }
+
             if (json.ok && json.data) {
                 setScope(json.data);
 
@@ -791,8 +817,10 @@ export default function AbsensiPage() {
         return `${statusClass} ${changeClass}`.trim();
     };
 
+
+
     return (
-        <PermissionGuard requiredPermission={{ resource: 'absensi', action: 'view' }}>
+        <PermissionGuard user={user} requiredPermission={{ resource: 'absensi', action: 'view' }}>
             <div className="max-w-7xl mx-auto p-4 md:p-6">
 
                 {/* PREMIUM HEADER */}
@@ -951,15 +979,29 @@ export default function AbsensiPage() {
                                         <i className="bi bi-box-arrow-in-right text-lg"></i>
                                         Buka Sesi
                                     </button>
-                                    <button
-                                        className="col-span-1 md:flex-[1.5] btn bg-orange-500 hover:bg-orange-600 text-white border-none text-[10px] sm:text-xs font-bold px-2 transition-all shadow-sm whitespace-nowrap"
-                                        onClick={refreshKetidakhadiran}
-                                        disabled={!currentSesi || isFinal || !canDo('refresh_ketidakhadiran')}
-                                        title="Refresh Sinkronisasi"
-                                    >
-                                        <i className="bi bi-arrow-clockwise text-base"></i>
-                                        Sinkron Izin/Sakit
-                                    </button>
+
+                                    {currentSesi && (
+                                        !isFinal ? (
+                                            <button
+                                                className="col-span-1 md:flex-[1.5] btn bg-blue-500 hover:bg-blue-600 text-white border-none text-[10px] sm:text-xs font-bold px-2 transition-all shadow-sm whitespace-nowrap"
+                                                disabled={loading || !canDo('finalize')}
+                                                onClick={() => handleSimpan(true)}
+                                            >
+                                                <i className="bi bi-check2-circle text-base"></i>
+                                                Simpan Final
+                                            </button>
+                                        ) : (
+                                            <button
+                                                className="col-span-1 md:flex-[1.5] btn bg-amber-100 text-amber-600 hover:bg-amber-200 border-none text-[10px] sm:text-xs font-bold px-2 transition-all shadow-sm whitespace-nowrap"
+                                                disabled={loading || !canDo('save_draft')}
+                                                onClick={() => handleSimpan(false)}
+                                            >
+                                                <i className="bi bi-unlock-fill text-base"></i>
+                                                Buka Kunci
+                                            </button>
+                                        )
+                                    )}
+
                                     <button
                                         onClick={() => setIsExportModalOpen(true)}
                                         disabled={!canDo('export')}
@@ -972,60 +1014,43 @@ export default function AbsensiPage() {
                             </div>
                         </div>
 
-                        {/* SCHEDULE HINT (Full Width Footer of Filter) */}
-                        <div className="md:col-span-12 -mt-4">
-                            <div className="flex flex-wrap items-center gap-4">
-                                {getScheduleSummary() && (
-                                    <div className="text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 inline-flex items-center gap-2">
-                                        <i className="bi bi-calendar-check text-slate-400"></i>
-                                        <span><strong>Jadwal:</strong> {getScheduleSummary()}</span>
-                                    </div>
-                                )}
-                                {isSubstituteMode && !selectedTeacher && (
-                                    <div className="text-[11px] font-bold text-amber-600 animate-pulse flex items-center gap-1">
-                                        <i className="bi bi-exclamation-circle-fill"></i>
-                                        Wajib memilih nama guru yang digantikan
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-8 pt-6 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
-                        <div className="flex gap-3">
-                            {currentSesi && (
-                                <>
-                                    {!isFinal ? (
-                                        <button
-                                            className="btn btn-primary px-8 shadow-lg shadow-blue-500/20"
-                                            disabled={loading || !canDo('finalize')}
-                                            onClick={() => handleSimpan(true)}
-                                        >
-                                            <i className="bi bi-check2-circle"></i>
-                                            <span>Simpan Final</span>
-                                        </button>
-                                    ) : (
-                                        <button
-                                            className="btn bg-white border border-amber-200 text-amber-600 hover:bg-amber-50 hover:border-amber-300 shadow-sm px-6 flex items-center gap-3 group"
-                                            disabled={loading || !canDo('save_draft')}
-                                            onClick={() => handleSimpan(false)}
-                                        >
-                                            <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center group-hover:bg-amber-200 transition-colors">
-                                                <i className="bi bi-unlock-fill text-xs"></i>
-                                            </div>
-                                            <span>Buka Kunci</span>
-                                        </button>
+                        {/* SCHEDULE & SESSION INFO (Unified Footer) */}
+                        <div className="md:col-span-12 mt-2 pt-4 border-t border-slate-100">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                {/* Left: Jadwal */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {getScheduleSummary() && (
+                                        <div className="text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 inline-flex items-center gap-2">
+                                            <i className="bi bi-calendar-check text-slate-400"></i>
+                                            <span><strong>Jadwal:</strong> {getScheduleSummary()}</span>
+                                        </div>
                                     )}
-                                </>
-                            )}
-                        </div>
+                                    {isSubstituteMode && !selectedTeacher && (
+                                        <div className="text-[11px] font-bold text-amber-600 animate-pulse flex items-center gap-1">
+                                            <i className="bi bi-exclamation-circle-fill"></i>
+                                            Wajib memilih nama guru yang digantikan
+                                        </div>
+                                    )}
+                                </div>
 
-                        {currentSesi && (
-                            <div className="text-xs font-medium text-slate-500 bg-slate-100 px-4 py-2 rounded-full border border-slate-200">
-                                <span className="opacity-60">Sesi Aktif:</span> <strong className="text-slate-700">{currentSesi.kelas}</strong> · {currentSesi.mapel} · {currentSesi.status_sesi === 'FINAL' ? '🔒 FINAL' : '📝 DRAFT'}
+                                {/* Right: Session Info */}
+                                {currentSesi && (
+                                    <div className="text-[10px] sm:text-xs font-medium text-slate-500 bg-blue-50/50 px-3 py-1.5 rounded-full border border-blue-100 flex items-center gap-2 self-start md:self-auto">
+                                        <span className="opacity-60">Sesi:</span>
+                                        <strong className="text-blue-700">{currentSesi.kelas}</strong>
+                                        <span className="text-slate-300">|</span>
+                                        <span className="truncate max-w-[150px]">{currentSesi.mapel}</span>
+                                        <span className="text-slate-300">|</span>
+                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${currentSesi.status_sesi === 'FINAL' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-amber-100 text-amber-700 border-amber-200'}`}>
+                                            {currentSesi.status_sesi === 'FINAL' ? 'FINAL' : 'DRAFT'}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
-                        )}
+                        </div>
                     </div>
+
+                    {/* Old footer removed - merged above */}
 
                     {/* JURNAL INPUT SECTION */}
                     {currentSesi && (
@@ -1039,7 +1064,7 @@ export default function AbsensiPage() {
                                         <span className="font-bold text-[var(--n-primary)] text-sm">Jurnal Pembelajaran</span>
                                     </div>
                                     {isFinal && (
-                                        <div className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-bold uppercase flex items-center gap-1">
+                                        <div className="text-[10px] bg-slate-200 text-slate-600 pl-4 pr-6 py-1.5 rounded-lg font-bold uppercase flex items-center gap-2 tracking-wide mr-1">
                                             <i className="bi bi-lock-fill"></i> Terkunci
                                         </div>
                                     )}
@@ -1050,11 +1075,12 @@ export default function AbsensiPage() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         {/* Materi */}
                                         <div className="flex flex-col gap-1.5">
-                                            <label className="text-[0.7rem] font-bold text-[var(--n-muted)] uppercase tracking-wider ml-2 mb-1">
+                                            <label className="text-[0.7rem] font-bold text-[var(--n-muted)] uppercase tracking-wider ml-4 mb-1">
                                                 Materi Pembelajaran <span className="text-red-500">*</span>
                                             </label>
                                             <textarea
-                                                className="w-full min-h-[160px] p-5 text-[0.9rem] font-medium rounded-[10px] border border-[var(--n-border)] bg-[var(--n-bg)] text-[var(--n-ink)] placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all resize-y"
+                                                className="w-full min-h-[160px] text-[0.9rem] font-medium rounded-[10px] border border-[var(--n-border)] bg-[var(--n-bg)] text-[var(--n-ink)] placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all resize-y"
+                                                style={{ padding: '14px' }}
                                                 placeholder="Contoh: Bab 3 — Persamaan Kuadrat..."
                                                 value={materi}
                                                 onChange={e => setMateri(e.target.value)}
@@ -1064,11 +1090,12 @@ export default function AbsensiPage() {
 
                                         {/* Refleksi */}
                                         <div className="flex flex-col gap-1.5">
-                                            <label className="text-[0.7rem] font-bold text-[var(--n-muted)] uppercase tracking-wider ml-2 mb-1">
+                                            <label className="text-[0.7rem] font-bold text-[var(--n-muted)] uppercase tracking-wider ml-4 mb-1">
                                                 Refleksi / Catatan
                                             </label>
                                             <textarea
-                                                className="w-full min-h-[160px] p-5 text-[0.9rem] font-medium rounded-[10px] border border-[var(--n-border)] bg-[var(--n-bg)] text-[var(--n-ink)] placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all resize-y"
+                                                className="w-full min-h-[160px] text-[0.9rem] font-medium rounded-[10px] border border-[var(--n-border)] bg-[var(--n-bg)] text-[var(--n-ink)] placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all resize-y"
+                                                style={{ padding: '14px' }}
                                                 placeholder="Catatan refleksi, kendala atau tindak lanjut..."
                                                 value={refleksi}
                                                 onChange={e => setRefleksi(e.target.value)}
@@ -1080,7 +1107,7 @@ export default function AbsensiPage() {
                             </div>
 
                             {/* SPACER (Explicit Gap) */}
-                            <div className="h-14 w-full"></div>
+                            <div className="h-6 w-full"></div>
                         </div>
                     )}
                 </div>

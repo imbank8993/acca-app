@@ -33,6 +33,7 @@ export function matchAction(required: string, possessed: string): boolean {
  */
 export function hasPermission(userPermissions: any[], resource: string, action: string, isAdmin: boolean = false): boolean {
     if (isAdmin) return true;
+    if (action === 'view') return true; // VISIBILITY BY DEFAULT: Allow everyone to view
     if (!userPermissions) return false;
 
     return userPermissions.some(p => {

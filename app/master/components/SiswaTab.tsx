@@ -5,6 +5,8 @@ import { exportToExcel } from '@/lib/excel-utils'
 import Pagination from '@/components/ui/Pagination'
 import Swal from 'sweetalert2'
 import ImportModal from '@/components/ui/ImportModal'
+import BulkDocsUploadModal from '@/components/ui/BulkDocsUploadModal'
+
 
 interface RawSiswa {
   nisn: string;
@@ -34,7 +36,10 @@ export default function SiswaTab({ user }: { user?: any }) {
   const isAdmin = user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false
 
   const canView = hasPermission(permissions, 'master.siswa', 'view', isAdmin)
-  const canManage = hasPermission(permissions, 'master.siswa', 'manage', isAdmin)
+  const canCreate = hasPermission(permissions, 'master.siswa', 'create', isAdmin)
+  const canUpdate = hasPermission(permissions, 'master.siswa', 'update', isAdmin)
+  const canDelete = hasPermission(permissions, 'master.siswa', 'delete', isAdmin)
+  const canImport = hasPermission(permissions, 'master.siswa', 'import', isAdmin)
   const canExport = hasPermission(permissions, 'master.siswa', 'export', isAdmin)
 
   if (!canView) {
@@ -61,14 +66,22 @@ export default function SiswaTab({ user }: { user?: any }) {
 
   // Import State
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false)
+
 
   const [formData, setFormData] = useState<Partial<RawSiswa>>({
     gender: 'L',
     aktif: true
   })
 
+  // Upload State
+  const [uploadMode, setUploadMode] = useState<'bulk' | 'single'>('bulk')
+  const [uploadTargetStudent, setUploadTargetStudent] = useState<RawSiswa | null>(null)
+
   // Selected Data for View
   const [selectedSiswa, setSelectedSiswa] = useState<RawSiswa | null>(null)
+
+
 
   useEffect(() => {
     fetchSiswa()
@@ -117,14 +130,14 @@ export default function SiswaTab({ user }: { user?: any }) {
   }
 
   const handleAddNew = () => {
-    if (!canManage) return;
+    if (!canCreate) return;
     setFormData({ gender: 'L', aktif: true })
     setIsEditMode(false)
     setShowModal(true)
   }
 
   const handleEdit = (siswa: RawSiswa) => {
-    if (!canManage) return;
+    if (!canUpdate) return;
     setFormData({ ...siswa })
     setIsEditMode(true)
     setShowModal(true)
@@ -137,7 +150,7 @@ export default function SiswaTab({ user }: { user?: any }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!canManage) return;
+    if (isEditMode ? !canUpdate : !canCreate) return;
     setSaving(true)
 
     try {
@@ -180,7 +193,7 @@ export default function SiswaTab({ user }: { user?: any }) {
   }
 
   const handleDelete = async (nisn: string) => {
-    if (!canManage) return;
+    if (!canDelete) return;
     const result = await Swal.fire({
       title: 'Hapus Siswa?',
       text: "Data yang dihapus tidak dapat dikembalikan!",
@@ -326,11 +339,14 @@ export default function SiswaTab({ user }: { user?: any }) {
         </div>
 
         <div className="sk__actions">
-          {canManage && (
-            <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
-              <i className="bi bi-upload" /> <span>Import</span>
-            </button>
+          {canImport && (
+            <>
+              <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+                <i className="bi bi-upload" /> <span>Import</span>
+              </button>
+            </>
           )}
+
 
           {canExport && (
             <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
@@ -338,7 +354,7 @@ export default function SiswaTab({ user }: { user?: any }) {
             </button>
           )}
 
-          {canManage && (
+          {canCreate && (
             <button className="sk__btn sk__btnPrimary" onClick={handleAddNew}>
               <i className="bi bi-plus-lg" /> <span>Tambah</span>
             </button>
@@ -403,16 +419,33 @@ export default function SiswaTab({ user }: { user?: any }) {
                       <button className="sk__iconBtn" onClick={() => handleView(siswa)} title="Lihat Detail">
                         <i className="bi bi-eye" />
                       </button>
-                      <button className="sk__iconBtn" onClick={() => handleEdit(siswa)} title="Edit">
-                        <i className="bi bi-pencil" />
-                      </button>
-                      <button
-                        className="sk__iconBtn danger"
-                        onClick={() => handleDelete(siswa.nisn)}
-                        title="Hapus"
-                      >
-                        <i className="bi bi-trash" />
-                      </button>
+                      {canUpdate && (
+                        <button className="sk__iconBtn" onClick={() => handleEdit(siswa)} title="Edit">
+                          <i className="bi bi-pencil" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          className="sk__iconBtn danger"
+                          onClick={() => handleDelete(siswa.nisn)}
+                          title="Hapus"
+                        >
+                          <i className="bi bi-trash" />
+                        </button>
+                      )}
+                      {canImport && (
+                        <button
+                          className="sk__iconBtn"
+                          onClick={() => {
+                            setUploadMode('single');
+                            setUploadTargetStudent(siswa);
+                            setShowBulkUploadModal(true);
+                          }}
+                          title="Upload Dokumen"
+                        >
+                          <i className="bi bi-cloud-upload" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -488,16 +521,33 @@ export default function SiswaTab({ user }: { user?: any }) {
                     <button className="sk__iconBtn" onClick={() => handleView(siswa)} title="Lihat">
                       <i className="bi bi-eye" />
                     </button>
-                    <button className="sk__iconBtn" onClick={() => handleEdit(siswa)} title="Edit">
-                      <i className="bi bi-pencil" />
-                    </button>
-                    <button
-                      className="sk__iconBtn danger"
-                      onClick={() => handleDelete(siswa.nisn)}
-                      title="Hapus"
-                    >
-                      <i className="bi bi-trash" />
-                    </button>
+                    {canUpdate && (
+                      <button className="sk__iconBtn" onClick={() => handleEdit(siswa)} title="Edit">
+                        <i className="bi bi-pencil" />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        className="sk__iconBtn danger"
+                        onClick={() => handleDelete(siswa.nisn)}
+                        title="Hapus"
+                      >
+                        <i className="bi bi-trash" />
+                      </button>
+                    )}
+                    {canImport && (
+                      <button
+                        className="sk__iconBtn"
+                        onClick={() => {
+                          setUploadMode('single');
+                          setUploadTargetStudent(siswa);
+                          setShowBulkUploadModal(true);
+                        }}
+                        title="Upload Dokumen"
+                      >
+                        <i className="bi bi-cloud-upload" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -525,6 +575,7 @@ export default function SiswaTab({ user }: { user?: any }) {
       {showModal && (
         <div className="sk__modalOverlay" role="dialog" aria-modal="true">
           <div className="sk__modal">
+            {/* ... content omitted for brevity ... */}
             <div className="sk__modalHead">
               <div className="sk__modalTitle">
                 <h2>{isEditMode ? 'Edit Data Siswa' : 'Tambah Siswa Baru'}</h2>
@@ -631,6 +682,20 @@ export default function SiswaTab({ user }: { user?: any }) {
           </div>
         </div>
       )}
+
+      {/* Bulk Upload Modal */}
+      <BulkDocsUploadModal
+        isOpen={showBulkUploadModal}
+        onClose={() => setShowBulkUploadModal(false)}
+        students={allData.map(s => ({ nisn: s.nisn, nama_lengkap: s.nama_lengkap }))}
+        onUploadSuccess={() => {
+          console.log('Upload batch completed');
+          // Optional: refresh or show notification
+        }}
+        initialMode={uploadMode}
+        preSelectedStudent={uploadTargetStudent ? { nisn: uploadTargetStudent.nisn, nama_lengkap: uploadTargetStudent.nama_lengkap } : null}
+      />
+
 
       {/* Standardized Import Modal */}
       <ImportModal

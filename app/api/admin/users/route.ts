@@ -179,7 +179,6 @@ export async function POST(request: NextRequest) {
             username,
             nip,
             nama,
-            nama_lengkap: nama_lengkap || nama,
             divisi: divisi || '',
             role: role || 'GURU',
             pages: pages || 'Dashboard',

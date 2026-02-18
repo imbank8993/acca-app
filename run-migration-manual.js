@@ -1,4 +1,4 @@
-const { createClient } = require('@supabase/supabase-client');
+const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: '.env.local' });
@@ -14,7 +14,8 @@ if (!supabaseUrl || !supabaseServiceKey) {
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function runMigration() {
-    const migrationPath = path.join(__dirname, 'supabase', 'migrations', '20260127_role_permissions.sql');
+    const targetFile = process.argv[2] || 'supabase/migrations/20260127_role_permissions.sql';
+    const migrationPath = path.resolve(targetFile);
     const sql = fs.readFileSync(migrationPath, 'utf8');
 
     console.log('🚀 Running migration: role_permissions...');
@@ -35,10 +36,15 @@ async function runMigration() {
     // But direct SQL is better. 
 
     console.log('Reading migration file...');
-    const statements = sql
+    // Remove comments and split by semicolon
+    const cleanSql = sql
+        .replace(/--.*$/gm, '') // Remove single line comments
+        .replace(/\/\*[\s\S]*?\*\//g, ''); // Remove block comments
+
+    const statements = cleanSql
         .split(';')
         .map(s => s.trim())
-        .filter(s => s.length > 0 && !s.startsWith('--'));
+        .filter(s => s.length > 0);
 
     for (const statement of statements) {
         try {
@@ -65,4 +71,4 @@ async function runMigration() {
 // But migrations are meant to be run via the CLI.
 
 // I'll try to run it via run_command psql if possible.
-console.log('Script loaded. Use runMigration() or similar.');
+runMigration().catch(console.error);

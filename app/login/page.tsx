@@ -357,7 +357,7 @@ export default function LoginPage() {
           height: 100%;
           background: linear-gradient(90deg, transparent, #fff, transparent);
           box-shadow: 0 0 15px #fff;
-          animation: bounceX 5s infinite ease-in-out;
+          animation: bounceX 12s infinite ease-in-out;
         }
 
         @keyframes bounceX {

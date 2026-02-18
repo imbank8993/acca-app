@@ -10,14 +10,52 @@ import { hasPermission } from '@/lib/permissions-client'
 type TabType = 'user_data' | 'bulk_replace' | 'page_access' | 'role_permissions'
 
 export default function UserSettingsPage({ initialTab, user }: { initialTab?: string, user?: any }) {
+  console.log('UserSettingsPage RECEIVED USER:', user);
   const [activeTab, setActiveTab] = useState<TabType>('user_data')
 
-  const tabs = [
-    { key: 'user_data', label: 'Data & Status', icon: 'bi-person-gear' },
-    { key: 'bulk_replace', label: 'Ganti Data Massal', icon: 'bi-arrow-repeat' },
-    { key: 'page_access', label: 'Akses Halaman', icon: 'bi-shield-lock' },
-    { key: 'role_permissions', label: 'Izin Role & Fungsi', icon: 'bi-shield-check' }
-  ]
+  const permissions = user?.permissions || []
+  const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
+
+  const tabs = useMemo(
+    () => [
+      { key: 'user_data', label: 'Data & Status User', icon: 'bi-person-gear' },
+      { key: 'bulk_replace', label: 'Ganti Data Massal', icon: 'bi-arrow-repeat' },
+      { key: 'page_access', label: 'Akses Halaman', icon: 'bi-shield-lock' },
+      { key: 'role_permissions', label: 'Izin Role & Fungsi', icon: 'bi-shield-check' }
+    ],
+    []
+  )
+
+  const allowedTabs = useMemo(() => {
+    // If no user prop yet, show nothing or just return empty
+    if (!user) return []
+
+    return tabs.filter(tab => {
+      // Special case: 'user_data' is usually allowed if you can access the page, 
+      // but we can enforce it too.
+      return hasPermission(permissions, 'pengaturan_users', `tab:${tab.key}`, isAdmin)
+    })
+  }, [user, permissions, isAdmin, tabs])
+
+  // Default active tab to first allowed
+  useEffect(() => {
+    if (allowedTabs.length > 0 && !allowedTabs.find(t => t.key === activeTab)) {
+      setActiveTab(allowedTabs[0].key as TabType)
+    }
+  }, [allowedTabs, activeTab])
+
+  if (!user) return <div className="p-8 text-center text-slate-500">Memuat data user settings...</div>
+
+  // If user has NO allowed tabs (e.g. only 'view' page but no tabs), show empty or message
+  if (allowedTabs.length === 0) {
+    return (
+      <div className="p-8 text-center text-red-500">
+        <i className="bi bi-slash-circle text-4xl mb-4 block"></i>
+        <p className="text-lg font-bold">Akses Terbatas</p>
+        <p>Anda tidak memiliki izin untuk melihat tab apapun di halaman ini.</p>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -31,7 +69,7 @@ export default function UserSettingsPage({ initialTab, user }: { initialTab?: st
 
       {/* Tabs */}
       <div className="us-tabs" role="tablist" aria-label="User settings tabs">
-        {tabs.map((tab) => (
+        {allowedTabs.map((tab) => (
           <button
             key={tab.key}
             role="tab"
@@ -47,7 +85,7 @@ export default function UserSettingsPage({ initialTab, user }: { initialTab?: st
       </div>
 
       <div className="us-content" role="tabpanel">
-        {activeTab === 'user_data' && <UserDataTab />}
+        {activeTab === 'user_data' && <UserDataTab user={user} />}
         {activeTab === 'bulk_replace' && <BulkReplaceTab />}
         {activeTab === 'page_access' && <PageAccessTab />}
         {activeTab === 'role_permissions' && <RolePermissionsTab />}

@@ -27,13 +27,20 @@ export default function DokumenSiswaTab({ user }: { user?: any }) {
 
     const fetchDocuments = async () => {
         setLoading(true)
+        // Original logic: Fetch from 'uploaded_documents' (Student Uploads)
         let query = supabase.from('uploaded_documents').select('*').order('created_at', { ascending: false })
 
         if (filterCategory) query = query.eq('category_id', filterCategory)
         if (filterUploader) query = query.ilike('uploader_name', `%${filterUploader}%`)
 
-        const { data } = await query
-        if (data) setDocuments(data)
+        const { data, error } = await query
+
+        if (error) {
+            console.error('Error fetching docs:', error)
+            setDocuments([])
+        } else if (data) {
+            setDocuments(data)
+        }
         setLoading(false)
     }
 

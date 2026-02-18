@@ -72,12 +72,20 @@ export default function Sidebar({
   const isMenuExpanded = (title: string) => expandedMenus.includes(title)
 
   const handleMenuClick = (item: PageNode) => {
+    // If item has children, toggle expand
     if (item.children && item.children.length > 0) {
       toggleSubmenu(item.title)
-    } else if (item.page) {
-      onNavigate(item.page)
-      if (window.innerWidth < 992) {
-        onToggle()
+      // If sidebar is collapsed, open it
+      if (isCollapsed) {
+        onCollapse()
+      }
+    } else {
+      // Navigate
+      if (item.page) {
+        onNavigate(item.page)
+        if (window.innerWidth < 992) {
+          onToggle()
+        }
       }
     }
   }

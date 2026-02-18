@@ -50,7 +50,7 @@ export default function PageAccessTab() {
     { title: 'Tugas Tambahan', page: 'tugas-tambahan' },
     { title: 'Ketidakhadiran', page: 'ketidakhadiran' },
     { title: 'Informasi Akademik', page: 'informasi-akademik' },
-    { title: 'Upload Dokumen', page: 'dokumen-siswa' },
+    { title: 'Upload Dokumen', page: 'arsip-siswa' },
     { title: 'Laporan Piket', page: 'piket' },
     { title: 'Master Data', page: 'master' },
     { title: 'Pengaturan Data', page: 'pengaturan-data' },
@@ -260,7 +260,7 @@ export default function PageAccessTab() {
   }
 
   const setAdminStandard = () => {
-    const adminPages = "Dashboard=dashboard,Jurnal Guru=jurnal,Absensi Siswa=absensi,LCKH Submission=lckh,LCKH Approval=lckh-approval,Nilai=nilai,Tugas Tambahan=tugas-tambahan,Ketidakhadiran=ketidakhadiran,Informasi Akademik=informasi-akademik,Upload Dokumen=dokumen-siswa,Laporan Piket=piket,Master Data=master,Pengaturan Data=pengaturan-data,Pengaturan Tugas=pengaturan-tugas,Pengaturan Users=pengaturan-users,Reset Data=reset-data";
+    const adminPages = "Dashboard,Akademik>Jurnal Guru=jurnal|Absensi Siswa=absensi|Nilai=nilai|Laporan Piket=piket|Informasi Akademik=informasi-akademik|Arsip Siswa=arsip-siswa,LCKH>LCKH Submission=lckh|LCKH Approval=lckh-approval,Administrasi>Master Data=master|Pengaturan Data=pengaturan-data|Pengaturan Users=pengaturan-users|Pengaturan Tugas=pengaturan-tugas|Reset Data=reset-data|Tugas Tambahan=tugas-tambahan|Ketidakhadiran=ketidakhadiran,Monitoring=monitoring,Rekap=RekapJurnal,Campione=campione";
     setPagesText(adminPages);
     Swal.fire({
       icon: 'success',

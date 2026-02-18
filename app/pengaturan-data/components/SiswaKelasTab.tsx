@@ -23,7 +23,11 @@ export default function SiswaKelasTab({ user }: { user?: any }) {
   // Permission Check
   const permissions = user?.permissions || []
   const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
-  const canManage = hasPermission(permissions, 'pengaturan_data:siswa_kelas', 'manage', isAdmin)
+  const canCreate = hasPermission(permissions, 'pengaturan_data.siswa_kelas', 'create', isAdmin)
+  const canUpdate = hasPermission(permissions, 'pengaturan_data.siswa_kelas', 'update', isAdmin)
+  const canDelete = hasPermission(permissions, 'pengaturan_data.siswa_kelas', 'delete', isAdmin)
+  const canImport = hasPermission(permissions, 'pengaturan_data.siswa_kelas', 'import', isAdmin)
+  const canExport = hasPermission(permissions, 'pengaturan_data.siswa_kelas', 'export', isAdmin)
 
   // Local Filter State
   const [tahunAjaran, setTahunAjaran] = useState(getCurrentAcademicYear())
@@ -214,7 +218,7 @@ export default function SiswaKelasTab({ user }: { user?: any }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!canManage) return // Fail safe
+    if (isEditMode ? !canUpdate : !canCreate) return
 
     if (!selectedClass || selectedStudents.length === 0) {
       alert('Pilih kelas dan siswa!')
@@ -289,7 +293,7 @@ export default function SiswaKelasTab({ user }: { user?: any }) {
   }
 
   const handleEdit = (item: SiswaKelas) => {
-    if (!canManage) return
+    if (!canUpdate) return
     setEditId(item.id!)
     setSelectedClass(item.kelas)
     setSelectedStudents([item.nisn])
@@ -297,7 +301,7 @@ export default function SiswaKelasTab({ user }: { user?: any }) {
   }
 
   const handleDelete = async (id: number) => {
-    if (!canManage) return
+    if (!canDelete) return
     if (!confirm('Hapus relasi siswa ini dari kelas?')) return
     try {
       const res = await fetch(`/api/settings/siswa-kelas?id=${id}`, { method: 'DELETE' })
@@ -309,6 +313,7 @@ export default function SiswaKelasTab({ user }: { user?: any }) {
   }
 
   const handleExport = () => {
+    if (!canExport) return;
     if (allData.length === 0) {
       alert('Tidak ada data untuk diexport')
       return
@@ -475,17 +480,19 @@ export default function SiswaKelasTab({ user }: { user?: any }) {
         </div>
 
         <div className="sk__actions">
-          {canManage && (
+          {canImport && (
             <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
               <i className="bi bi-upload" /> <span>Import</span>
             </button>
           )}
 
-          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
-            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
-          </button>
+          {canExport && (
+            <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
+              <i className="bi bi-file-earmark-excel" /> <span>Export</span>
+            </button>
+          )}
 
-          {canManage && (
+          {canCreate && (
             <button className="sk__btn sk__btnPrimary" onClick={openAdd}>
               <i className="bi bi-plus-lg" /> <span>Tambah</span>
             </button>
@@ -544,16 +551,20 @@ export default function SiswaKelasTab({ user }: { user?: any }) {
                   </td>
                   <td>
                     <div className="sk__rowActions">
-                      <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
-                        <i className="bi bi-pencil" />
-                      </button>
-                      <button
-                        className="sk__iconBtn danger"
-                        onClick={() => item.id && handleDelete(item.id)}
-                        title="Hapus"
-                      >
-                        <i className="bi bi-trash" />
-                      </button>
+                      {canUpdate && (
+                        <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
+                          <i className="bi bi-pencil" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          className="sk__iconBtn danger"
+                          onClick={() => item.id && handleDelete(item.id)}
+                          title="Hapus"
+                        >
+                          <i className="bi bi-trash" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -633,16 +644,20 @@ export default function SiswaKelasTab({ user }: { user?: any }) {
                           </span>
                         </div>
                         <div className="sk__actionsRight">
-                          <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
-                            <i className="bi bi-pencil" />
-                          </button>
-                          <button
-                            className="sk__iconBtn danger"
-                            onClick={() => item.id && handleDelete(item.id)}
-                            title="Hapus"
-                          >
-                            <i className="bi bi-trash" />
-                          </button>
+                          {canUpdate && (
+                            <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
+                              <i className="bi bi-pencil" />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              className="sk__iconBtn danger"
+                              onClick={() => item.id && handleDelete(item.id)}
+                              title="Hapus"
+                            >
+                              <i className="bi bi-trash" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

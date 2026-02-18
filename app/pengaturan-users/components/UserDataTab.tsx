@@ -5,10 +5,27 @@ import type { User } from '@/lib/types'
 import * as XLSX from 'xlsx'
 import Swal from 'sweetalert2'
 import Select from 'react-select'
+import { hasPermission } from '@/lib/permissions-client'
 import UserModal from './UserModal'
 
-export default function UserDataTab() {
+export default function UserDataTab({ user }: { user?: User }) {
   const [users, setUsers] = useState<User[]>([])
+
+  // Calculate permissions with robust Admin check
+  const isAdmin = useMemo(() => {
+    console.log('UserDataTab user:', user)
+    if (!user) return false
+    if (Array.isArray(user.roles) && user.roles.some(r => r.toUpperCase() === 'ADMIN')) return true
+    // Fallback for comma-separated string
+    if (typeof user.role === 'string' && user.role.toUpperCase().includes('ADMIN')) return true
+    return false
+  }, [user])
+  const perms = user?.permissions || []
+  const canAdd = hasPermission(perms, 'pengaturan_users.user_data', 'create', isAdmin)
+  const canEdit = hasPermission(perms, 'pengaturan_users.user_data', 'update', isAdmin)
+  const canStatus = hasPermission(perms, 'pengaturan_users.user_data', 'toggle_status', isAdmin)
+  const canImport = hasPermission(perms, 'pengaturan_users.user_data', 'import', isAdmin)
+  const canExport = hasPermission(perms, 'pengaturan_users.user_data', 'export', isAdmin)
   const [availableRoles, setAvailableRoles] = useState<{ value: string, label: string }[]>([])
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -140,7 +157,7 @@ export default function UserDataTab() {
       'id': u.id,
       'username': u.username,
       'nip': u.nip,
-      'nama_lengkap': u.nama_lengkap || u.nama,
+
       'nama': u.nama,
       'divisi': u.divisi,
       'role': u.role,
@@ -182,8 +199,7 @@ export default function UserDataTab() {
           return {
             username: String(row['username'] || row['Username'] || ''),
             nip: String(row['nip'] || row['NIP'] || ''),
-            nama_lengkap: String(row['nama_lengkap'] || row['Nama Lengkap'] || row['nama'] || ''),
-            nama: String(row['nama'] || row['Nama'] || ''),
+            nama: String(row['nama'] || row['Nama'] || row['Nama Lengkap'] || row['nama_lengkap'] || ''),
             divisi: String(row['divisi'] || row['Divisi'] || ''),
             role: String(row['role'] || row['Role'] || 'GURU'),
             pages: String(row['pages'] || row['Pages'] || 'Dashboard'),
@@ -258,16 +274,17 @@ export default function UserDataTab() {
         <div className="tabHeaderLeft">
           <h2>Kelola Data & Status User</h2>
           <p>Ubah informasi profil atau atur status aktivitas setiap personil.</p>
+          {/* DEBUG INFO REMOVED */}
         </div>
         <div className="tabHeaderActions">
-          <input type="file" ref={fileInputRef} hidden accept=".xlsx,.xls" onChange={handleFileChange} />
-          <button className="btnAction add" onClick={handleAdd}>
+          <input type="file" ref={fileInputRef} hidden accept="*" onChange={handleFileChange} />
+          <button className="btnAction add" onClick={handleAdd} disabled={!canAdd} title={!canAdd ? 'Akses ditolak' : 'Tambah Personil'}>
             <i className="bi bi-person-plus-fill"></i> Tambah Personil
           </button>
-          <button className="btnAction export" onClick={handleExport}>
+          <button className="btnAction export" onClick={handleExport} disabled={!canExport} title={!canExport ? 'Akses ditolak' : 'Export Data'}>
             <i className="bi bi-file-earmark-spreadsheet"></i> Export
           </button>
-          <button className="btnAction import" onClick={handleImportClick} disabled={importing}>
+          <button className="btnAction import" onClick={handleImportClick} disabled={importing || !canImport} title={!canImport ? 'Akses ditolak' : 'Import Data'}>
             <i className="bi bi-file-earmark-arrow-up"></i> {importing ? 'Importing...' : 'Import'}
           </button>
         </div>
@@ -357,14 +374,14 @@ export default function UserDataTab() {
                 </td>
                 <td>
                   <div className="actionRow">
-                    <button className="btnE" onClick={() => handleEdit(user)} title="Edit Data">
+                    <button className="btnE" onClick={() => handleEdit(user)} disabled={!canEdit} title={!canEdit ? 'Akses ditolak' : 'Edit Data'}>
                       <i className="bi bi-pencil-square"></i>
                     </button>
                     <button
                       className={`btnT ${user.aktif ? 'on' : 'off'}`}
                       onClick={() => handleToggleStatus(user)}
-                      disabled={toggling === user.id}
-                      title={user.aktif ? 'Nonaktifkan' : 'Aktifkan'}
+                      disabled={toggling === user.id || !canStatus}
+                      title={!canStatus ? 'Akses ditolak' : (user.aktif ? 'Nonaktifkan' : 'Aktifkan')}
                     >
                       <i className={`bi ${toggling === user.id ? 'bi-hourglass-split' : (user.aktif ? 'bi-toggle-on' : 'bi-toggle-off')}`}></i>
                     </button>
@@ -434,7 +451,7 @@ export default function UserDataTab() {
                 .btnAction.export { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
                 .btnAction.export:hover { background: #fff; color: #0f1b2a; border-color: #3aa6ff; }
                 .btnAction.import { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
-                .btnAction:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+                .btnAction:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; filter: grayscale(1); }
 
                 /* Stats Cards */
                 .statsRow { display: flex; gap: 20px; }
@@ -485,7 +502,8 @@ export default function UserDataTab() {
                 .btnT.on:hover { background: #ecfdf5; border-color: #10b981; color: #065f46; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15); }
                 .btnT.off { color: #f43f5e; opacity: 0.6; }
                 .btnT.off:hover { background: #fff1f2; border-color: #f43f5e; color: #9f1239; opacity: 1; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(244, 63, 94, 0.15); }
-                .btnT:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
+                .btnT:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; filter: grayscale(1); }
+                .btnE:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; filter: grayscale(1); }
 
                 .loadingCell { text-align: center; padding: 80px; color: #94a3b8; font-style: italic; font-size: 1.1rem; }
             `}</style>

@@ -120,13 +120,25 @@ export default function RolePermissionsTab() {
             }
 
             const relevant = masterPermissions.filter(p => p.resource === selectedResource.value)
-            const opts = relevant.map(p => ({
-                value: p.action,
-                label: p.action === 'view' ? `⭐ ${p.label} (Akses Utama)` : `${p.label} (${p.action})`,
-                description: p.description
-            })).sort((a, b) => {
+            const opts = relevant.map(p => {
+                let label = p.label
+                if (p.action === 'view') {
+                    label = `👁️ ${p.label} (Akses Utama)`
+                } else if (p.action === 'export' || p.action.startsWith('export:')) {
+                    label = `📥 ${p.label}`
+                } else {
+                    label = `${p.label} (${p.action})`
+                }
+
+                return {
+                    value: p.action,
+                    label: label,
+                    description: p.description
+                }
+            }).sort((a, b) => {
                 if (a.value === 'view') return -1;
                 if (b.value === 'view') return 1;
+                if (a.value === 'export') return -1; // Export second
                 return a.label.localeCompare(b.label);
             })
 
@@ -301,7 +313,7 @@ export default function RolePermissionsTab() {
             title: 'Import Permissions',
             text: 'Upload .xlsx (Kolom: Role, Resource, Action)',
             input: 'file',
-            inputAttributes: { accept: '.xlsx, .xls' }
+            inputAttributes: { accept: '*' }
         })
         if (!file) return
 

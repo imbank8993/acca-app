@@ -377,9 +377,11 @@ export default function GuruTab({ user }: { user?: any }) {
         </div>
 
         <div className="sk__actions">
-          <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
-            <i className="bi bi-upload" /> <span>Import</span>
-          </button>
+          {canDo('import') && (
+            <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+              <i className="bi bi-upload" /> <span>Import</span>
+            </button>
+          )}
 
           <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
             <i className="bi bi-download" /> <span>Export</span>
@@ -601,8 +603,8 @@ export default function GuruTab({ user }: { user?: any }) {
                       value={formData.nip || ''}
                       onChange={handleInputChange}
                       placeholder="Contoh: 19800101..."
-                      disabled={isEditMode && !canEditField('guru', 'edit_nip')}
-                      className={(isEditMode && !canEditField('guru', 'edit_nip')) ? 'bg-gray-100 cursor-not-allowed' : ''}
+                      disabled={isEditMode}
+                      className={isEditMode ? 'bg-gray-100 cursor-not-allowed' : ''}
                     />
                   </div>
 
@@ -615,8 +617,7 @@ export default function GuruTab({ user }: { user?: any }) {
                       value={formData.nama_lengkap || ''}
                       onChange={handleInputChange}
                       placeholder="Nama Lengkap dengan Gelar"
-                      disabled={isEditMode && !canEditField('guru', 'edit_nama')}
-                      className={(isEditMode && !canEditField('guru', 'edit_nama')) ? 'bg-gray-100 cursor-not-allowed' : ''}
+                      placeholder="Nama Lengkap dengan Gelar"
                     />
                   </div>
 
@@ -768,7 +769,7 @@ export default function GuruTab({ user }: { user?: any }) {
               </div>
             </div>
             <div className="sk__modalFoot">
-              {canEditField('guru', 'delete') && (
+              {canDo('delete') && (
                 <button
                   type="button"
                   onClick={() => {
@@ -781,7 +782,7 @@ export default function GuruTab({ user }: { user?: any }) {
                   <i className="bi bi-trash"></i> Hapus Guru
                 </button>
               )}
-              {canEditField('guru', 'update') && (
+              {canDo('update') && (
                 <button onClick={() => {
                   setShowViewModal(false)
                   handleEdit(selectedGuru)

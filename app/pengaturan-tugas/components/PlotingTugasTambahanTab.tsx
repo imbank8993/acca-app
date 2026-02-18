@@ -4,6 +4,11 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Swal from 'sweetalert2';
 import Select from 'react-select';
+import { hasPermission } from '@/lib/permissions-client';
+
+interface PlotingTugasTambahanTabProps {
+    user?: any
+}
 
 interface Guru {
     nip: string;
@@ -32,7 +37,15 @@ const customSelectStyles = {
     })
 };
 
-export default function PlotingTugasTambahanTab() {
+export default function PlotingTugasTambahanTab({ user }: PlotingTugasTambahanTabProps) {
+    // Permissions
+    const permissions = user?.permissions || []
+    const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
+
+    const canCreate = hasPermission(permissions, 'pengaturan_tugas.tugas_tambahan', 'create', isAdmin)
+    const canUpdate = hasPermission(permissions, 'pengaturan_tugas.tugas_tambahan', 'update', isAdmin)
+    const canDelete = hasPermission(permissions, 'pengaturan_tugas.tugas_tambahan', 'delete', isAdmin)
+
     const [tugasList, setTugasList] = useState<TugasTambahan[]>([]);
     const [guruOptions, setGuruOptions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -117,6 +130,7 @@ export default function PlotingTugasTambahanTab() {
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (editingTugas ? !canUpdate : !canCreate) return;
         if (!selectedGuru || !selectedJabatan) {
             Swal.fire('Error', 'Guru dan Jabatan wajib dipilih', 'error');
             return;
@@ -153,6 +167,7 @@ export default function PlotingTugasTambahanTab() {
     };
 
     const handleDelete = async (id: string) => {
+        if (!canDelete) return;
         const result = await Swal.fire({
             title: 'Hapus Penugasan?',
             text: 'Data penugasan akan dihapus permanen',
@@ -175,6 +190,7 @@ export default function PlotingTugasTambahanTab() {
     };
 
     const openEdit = (tugas: TugasTambahan) => {
+        if (!canUpdate) return;
         setEditingTugas(tugas);
         setSelectedGuru(guruOptions.find(o => o.value === tugas.nip));
         // Use jabatanOptions or try to find in current list. 
@@ -218,9 +234,11 @@ export default function PlotingTugasTambahanTab() {
                         <p className="text-xs text-slate-500 m-0">Set penugasan Wali Kelas, Wakil Kepala, dsb.</p>
                     </div>
                 </div>
-                <button className="jt__btn jt__btnPrimary" onClick={() => { resetForm(); setShowModal(true); }}>
-                    <i className="bi bi-plus-lg"></i> Tambah Penugasan
-                </button>
+                {canCreate && (
+                    <button className="jt__btn jt__btnPrimary" onClick={() => { resetForm(); setShowModal(true); }}>
+                        <i className="bi bi-plus-lg"></i> Tambah Penugasan
+                    </button>
+                )}
             </div>
 
             <div className="tt-table-wrap">
@@ -250,12 +268,16 @@ export default function PlotingTugasTambahanTab() {
                                     <td className="text-xs text-slate-500">{t.keterangan || '-'}</td>
                                     <td>
                                         <div className="flex justify-end gap-2">
-                                            <button className="jt__iconBtn" onClick={() => openEdit(t)}>
-                                                <i className="bi bi-pencil"></i>
-                                            </button>
-                                            <button className="jt__iconBtn danger" onClick={() => handleDelete(t.id)}>
-                                                <i className="bi bi-trash"></i>
-                                            </button>
+                                            {canUpdate && (
+                                                <button className="jt__iconBtn" onClick={() => openEdit(t)}>
+                                                    <i className="bi bi-pencil"></i>
+                                                </button>
+                                            )}
+                                            {canDelete && (
+                                                <button className="jt__iconBtn danger" onClick={() => handleDelete(t.id)}>
+                                                    <i className="bi bi-trash"></i>
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

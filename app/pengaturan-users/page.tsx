@@ -37,6 +37,7 @@ export default function PengaturanUsersPage() {
                         return
                     }
 
+                    console.log('PengaturanUsersPage SETTING USER:', userData);
                     setUser(userData)
                 } else {
                     router.push('/login')

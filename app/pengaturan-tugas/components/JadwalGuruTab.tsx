@@ -7,6 +7,11 @@ import ImportModal from '@/components/ui/ImportModal'
 import Pagination from '@/components/ui/Pagination'
 import { exportToExcel } from '@/utils/excelHelper'
 import { getCurrentAcademicYear } from '@/lib/date-utils'
+import { hasPermission } from '@/lib/permissions-client'
+
+interface JadwalGuruTabProps {
+    user?: any
+}
 
 // Interface reflects DB structure + Frontend needs
 interface JadwalGuru {
@@ -33,7 +38,17 @@ const dayOrder: Record<string, number> = {
     'Senin': 1, 'Selasa': 2, 'Rabu': 3, 'Kamis': 4, 'Jumat': 5, 'Sabtu': 6, 'Minggu': 7
 }
 
-export default function JadwalGuruTab() {
+export default function JadwalGuruTab({ user }: JadwalGuruTabProps) {
+    // Permissions
+    const permissions = user?.permissions || []
+    const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
+
+    const canCreate = hasPermission(permissions, 'pengaturan_tugas.jadwal_guru', 'create', isAdmin)
+    const canUpdate = hasPermission(permissions, 'pengaturan_tugas.jadwal_guru', 'update', isAdmin)
+    const canDelete = hasPermission(permissions, 'pengaturan_tugas.jadwal_guru', 'delete', isAdmin)
+    const canImport = hasPermission(permissions, 'pengaturan_tugas.jadwal_guru', 'import', isAdmin)
+    const canExport = hasPermission(permissions, 'pengaturan_tugas.jadwal_guru', 'export', isAdmin)
+
     const [list, setList] = useState<JadwalGuru[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -267,6 +282,7 @@ export default function JadwalGuruTab() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (isEditMode ? !canUpdate : !canCreate) return
         if (formJams.length === 0) return alert('Pilih minimal satu jam!')
         if (!formNip || !formGuru) return alert('NIP dan Nama Guru wajib diisi.')
 
@@ -321,6 +337,7 @@ export default function JadwalGuruTab() {
     const [editingIds, setEditingIds] = useState<number[]>([])
 
     const handleEdit = (item: any) => {
+        if (!canUpdate) return;
         if (item.ids && item.ids.length > 0) {
             setEditingIds(item.ids)
             setEditId(item.ids[0])
@@ -347,6 +364,7 @@ export default function JadwalGuruTab() {
     }
 
     const handleDelete = async (item: any) => {
+        if (!canDelete) return;
         if (!confirm('Hapus jadwal ini?')) return
 
         const idsToDelete = item.ids || [item.id]
@@ -430,6 +448,7 @@ export default function JadwalGuruTab() {
     }
 
     const handleGenerateProcess = async () => {
+        if (!canCreate) return;
         if (!generateFile) {
             alert('Pilih file Excel terlebih dahulu!')
             return
@@ -546,6 +565,7 @@ export default function JadwalGuruTab() {
     }
 
     const handleExport = () => {
+        if (!canExport) return;
         const data = list.map((l, i) => ({
             No: i + 1,
             NIP: l.nip,
@@ -591,12 +611,16 @@ export default function JadwalGuruTab() {
                 </div>
                 <div className="sk__cell">
                     <div className="sk__buttonRow">
-                        <button className="sk__btn sk__btnImport" onClick={() => setShowImport(true)} title="Import Excel">
-                            <i className="bi bi-upload" /> <span>Import</span>
-                        </button>
-                        <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Excel">
-                            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
-                        </button>
+                        {canImport && (
+                            <button className="sk__btn sk__btnImport" onClick={() => setShowImport(true)} title="Import Excel">
+                                <i className="bi bi-upload" /> <span>Import</span>
+                            </button>
+                        )}
+                        {canExport && (
+                            <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Excel">
+                                <i className="bi bi-file-earmark-excel" /> <span>Export</span>
+                            </button>
+                        )}
                     </div>
                 </div>
                 <div className="sk__cell">
@@ -618,12 +642,16 @@ export default function JadwalGuruTab() {
                 </div>
                 <div className="sk__cell">
                     <div className="sk__buttonRow">
-                        <button className="sk__btn sk__btnGenerate" onClick={() => setShowGenerateModal(true)} title="Generate dari Excel">
-                            <i className="bi bi-gear-fill" /> <span>Generate</span>
-                        </button>
-                        <button className="sk__btn sk__btnPrimary" onClick={openAdd}>
-                            <i className="bi bi-plus-lg" /> <span>Tambah</span>
-                        </button>
+                        {canCreate && (
+                            <button className="sk__btn sk__btnGenerate" onClick={() => setShowGenerateModal(true)} title="Generate dari Excel">
+                                <i className="bi bi-gear-fill" /> <span>Generate</span>
+                            </button>
+                        )}
+                        {canCreate && (
+                            <button className="sk__btn sk__btnPrimary" onClick={openAdd}>
+                                <i className="bi bi-plus-lg" /> <span>Tambah</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -659,8 +687,12 @@ export default function JadwalGuruTab() {
                                         <td className="tCenter tMuted">{item.berlaku_mulai ? item.berlaku_mulai.slice(0, 10) : '-'}</td>
                                         <td>
                                             <div className="sk__rowActions">
-                                                <button className="sk__iconBtn" onClick={() => handleEdit(item)}><i className="bi bi-pencil"></i></button>
-                                                <button className="sk__iconBtn danger" onClick={() => handleDelete(item)}><i className="bi bi-trash"></i></button>
+                                                {canUpdate && (
+                                                    <button className="sk__iconBtn" onClick={() => handleEdit(item)}><i className="bi bi-pencil"></i></button>
+                                                )}
+                                                {canDelete && (
+                                                    <button className="sk__iconBtn danger" onClick={() => handleDelete(item)}><i className="bi bi-trash"></i></button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -725,12 +757,16 @@ export default function JadwalGuruTab() {
                                                     </span>
                                                 </div>
                                                 <div className="sk__actionsRight">
-                                                    <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
-                                                        <i className="bi bi-pencil" />
-                                                    </button>
-                                                    <button className="sk__iconBtn danger" onClick={() => handleDelete(item)} title="Hapus">
-                                                        <i className="bi bi-trash" />
-                                                    </button>
+                                                    {canUpdate && (
+                                                        <button className="sk__iconBtn" onClick={() => handleEdit(item)} title="Edit">
+                                                            <i className="bi bi-pencil" />
+                                                        </button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <button className="sk__iconBtn danger" onClick={() => handleDelete(item)} title="Hapus">
+                                                            <i className="bi bi-trash" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -751,8 +787,8 @@ export default function JadwalGuruTab() {
                             <div className="sk__sheetSub">{mobileAction.item.hari}</div>
                         </div>
                         <div className="sk__sheetActions">
-                            <button className="sk__sheetBtn" onClick={() => { setMobileAction({ open: false, item: null }); handleEdit(mobileAction.item!) }}><i className="bi bi-pencil"></i> Edit</button>
-                            <button className="sk__sheetBtn danger" onClick={() => handleDelete(mobileAction.item)}><i className="bi bi-trash"></i> Hapus</button>
+                            {canUpdate && <button className="sk__sheetBtn" onClick={() => { setMobileAction({ open: false, item: null }); handleEdit(mobileAction.item!) }}><i className="bi bi-pencil"></i> Edit</button>}
+                            {canDelete && <button className="sk__sheetBtn danger" onClick={() => handleDelete(mobileAction.item)}><i className="bi bi-trash"></i> Hapus</button>}
                         </div>
                         <button className="sk__sheetCancel" onClick={() => setMobileAction({ open: false, item: null })}>Batal</button>
                     </div>

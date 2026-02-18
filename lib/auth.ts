@@ -126,11 +126,8 @@ export async function buildUserObject(dbUser: any): Promise<User> {
     const roles = parseRoles(dbUser.role || '');
     const isAdmin = roles.some(r => r === 'ADMIN');
 
-    // If Admin and pages is empty or minimal, give full pages
-    let effectivePages = dbUser.pages || '';
-    if (isAdmin && (!effectivePages || effectivePages.length < 20)) {
-        effectivePages = FULL_ADMIN_PAGES;
-    }
+    // Use user's customized pages from DB, or fallback to full admin pages if empty
+    let effectivePages = dbUser.pages || FULL_ADMIN_PAGES;
 
     const { pagesArray, pagesTree } = parsePages(effectivePages);
 

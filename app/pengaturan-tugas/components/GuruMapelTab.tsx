@@ -5,7 +5,12 @@ import { exportToExcel } from '@/utils/excelHelper'
 import ImportModal from '@/components/ui/ImportModal'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import Pagination from '@/components/ui/Pagination'
+import { hasPermission } from '@/lib/permissions-client'
 import { getCurrentAcademicYear } from '@/lib/date-utils'
+
+interface GuruMapelTabProps {
+    user?: any
+}
 
 interface GuruMapel {
     id?: number;
@@ -19,7 +24,17 @@ interface GuruMapel {
     aktif?: boolean;
 }
 
-export default function GuruMapelTab() {
+export default function GuruMapelTab({ user }: GuruMapelTabProps) {
+    // Permissions
+    const permissions = user?.permissions || []
+    const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
+
+    const canCreate = hasPermission(permissions, 'pengaturan_tugas.guru_mapel', 'create', isAdmin)
+    const canUpdate = hasPermission(permissions, 'pengaturan_tugas.guru_mapel', 'update', isAdmin)
+    const canDelete = hasPermission(permissions, 'pengaturan_tugas.guru_mapel', 'delete', isAdmin)
+    const canImport = hasPermission(permissions, 'pengaturan_tugas.guru_mapel', 'import', isAdmin)
+    const canExport = hasPermission(permissions, 'pengaturan_tugas.guru_mapel', 'export', isAdmin)
+
     // Local Filter State
     const [tahunAjaran, setTahunAjaran] = useState(getCurrentAcademicYear())
     const [semester, setSemester] = useState('Semua')
@@ -208,6 +223,7 @@ export default function GuruMapelTab() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (isEditMode ? !canUpdate : !canCreate) return
         if (!selectedNip || selectedMapels.length === 0) {
             alert('Pilih guru dan minimal satu mata pelajaran!')
             return
@@ -218,6 +234,7 @@ export default function GuruMapelTab() {
             const guru = masterGuru.find(g => g.nip === selectedNip)
 
             if (editId) {
+                if (!canUpdate) return;
                 // Edit Single Logic
                 if (formSemester === 'Semua') {
                     alert('Untuk Edit, mohon pilih semester spesifik (Ganjil atau Genap).');
@@ -294,6 +311,7 @@ export default function GuruMapelTab() {
     }
 
     const handleEdit = (item: GuruMapel) => {
+        if (!canUpdate) return
         setEditId(item.id!)
         setSelectedNip(item.nip)
         setSelectedMapels([item.nama_mapel])
@@ -303,6 +321,7 @@ export default function GuruMapelTab() {
     }
 
     const handleDelete = async (id: number) => {
+        if (!canDelete) return
         if (confirm('Hapus relasi guru mapel ini?')) {
             await fetch(`/api/settings/guru-mapel?id=${id}`, { method: 'DELETE' })
             fetchData()
@@ -310,6 +329,7 @@ export default function GuruMapelTab() {
     }
 
     const handleExport = () => {
+        if (!canExport) return
         if (list.length === 0) return alert('Tidak ada data')
         const dataToExport = list.map((item, index) => ({
             No: index + 1,
@@ -417,15 +437,21 @@ export default function GuruMapelTab() {
                 </div>
 
                 <div className="gm__actions" aria-label="Aksi">
-                    <button className="gm__btn gm__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
-                        <i className="bi bi-upload" /> <span>Import</span>
-                    </button>
-                    <button className="gm__btn gm__btnExport" onClick={handleExport} title="Export Excel">
-                        <i className="bi bi-file-earmark-excel" /> <span>Export</span>
-                    </button>
-                    <button className="gm__btn gm__btnPrimary" onClick={openAdd}>
-                        <i className="bi bi-plus-lg" /> <span>Tambah</span>
-                    </button>
+                    {canImport && (
+                        <button className="gm__btn gm__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+                            <i className="bi bi-upload" /> <span>Import</span>
+                        </button>
+                    )}
+                    {canExport && (
+                        <button className="gm__btn gm__btnExport" onClick={handleExport} title="Export Excel">
+                            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
+                        </button>
+                    )}
+                    {canCreate && (
+                        <button className="gm__btn gm__btnPrimary" onClick={openAdd}>
+                            <i className="bi bi-plus-lg" /> <span>Tambah</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -480,16 +506,20 @@ export default function GuruMapelTab() {
                                     </td>
                                     <td>
                                         <div className="gm__rowActions">
-                                            <button className="gm__iconBtn" onClick={() => handleEdit(item)} title="Edit">
-                                                <i className="bi bi-pencil" />
-                                            </button>
-                                            <button
-                                                className="gm__iconBtn danger"
-                                                onClick={() => item.id && handleDelete(item.id)}
-                                                title="Hapus"
-                                            >
-                                                <i className="bi bi-trash" />
-                                            </button>
+                                            {canUpdate && (
+                                                <button className="gm__iconBtn" onClick={() => handleEdit(item)} title="Edit">
+                                                    <i className="bi bi-pencil" />
+                                                </button>
+                                            )}
+                                            {canDelete && (
+                                                <button
+                                                    className="gm__iconBtn danger"
+                                                    onClick={() => item.id && handleDelete(item.id)}
+                                                    title="Hapus"
+                                                >
+                                                    <i className="bi bi-trash" />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -548,17 +578,20 @@ export default function GuruMapelTab() {
                                                     </span>
                                                 </div>
                                                 <div className="gm__cardActionsLeft">
-                                                    <button className="gm__iconBtn" onClick={() => handleEdit(item)} title="Edit" aria-label="Edit">
-                                                        <i className="bi bi-pencil" />
-                                                    </button>
-                                                    <button
-                                                        className="gm__iconBtn danger"
-                                                        onClick={() => item.id && handleDelete(item.id)}
-                                                        title="Hapus"
-                                                        aria-label="Hapus"
-                                                    >
-                                                        <i className="bi bi-trash" />
-                                                    </button>
+                                                    {canUpdate && (
+                                                        <button className="gm__iconBtn" onClick={() => handleEdit(item)} title="Edit" aria-label="Edit">
+                                                            <i className="bi bi-pencil" />
+                                                        </button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <button
+                                                            className="gm__iconBtn danger"
+                                                            onClick={() => item.id && handleDelete(item.id)}
+                                                            title="Hapus"
+                                                        >
+                                                            <i className="bi bi-trash" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

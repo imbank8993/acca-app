@@ -22,7 +22,8 @@ import LckhApprovalPage from '../lckh-approval/page'
 import ProfilePage from './components/ProfilePage'
 import PiketPage from '../piket/page'
 import InformasiPage from '../informasi/page'
-import DokumenSiswaPage from '../dokumen-siswa/page'
+import DokumenSiswaPage from '../arsip-siswa/page'
+import DokumenSiswaUploadsPage from '../dokumen-siswa/page'
 import LaporanGuruAsuhPage from '../laporan-guru-asuh/page'
 import RekapJurnalPage from '../rekap-jurnal/page'
 import MonitoringPage from '../monitoring/page' // Import Monitoring Page
@@ -307,7 +308,7 @@ function DashboardLogic() {
           width: 100%;
           min-height: 100dvh;
           overflow-x: hidden;
-          background: var(--n-bg, #f5f7fb);
+          background: var(--n-bg);
         }
 
         .main-content {
@@ -368,54 +369,55 @@ const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<
   'dashboard': (user) => <DashboardContent user={user} />,
 
   // OPERASIONAL
-  'absensi': () => <AbsensiPage />,
-  'ketidakhadiran': () => <KetidakhadiranPage />,
+  'absensi': (user) => <AbsensiPage />,
+  'ketidakhadiran': (user) => <KetidakhadiranPage />, // Check if accepts user
   'jurnal': (user) => <JurnalPage user={user} />,
   'piket': (user) => <PiketPage user={user} />,
   'informasi-akademik': (user) => <InformasiPage user={user} />,
   'dokumen-siswa': (user) => <DokumenSiswaPage user={user} />,
-  'tugas-tambahan': () => <TugasTambahanPage />,
+  'tugas-tambahan': (user) => <TugasTambahanPage />, // Check if accepts user
   'laporan-guru-asuh': (user) => <LaporanGuruAsuhPage user={user} />,
 
   // KONFIGURASI & PENGATURAN
   'master': (user) => <MasterDataPage user={user} />,
   'pengaturan-data': (user) => <DataSettingsPage user={user} />,
   'pengaturan-tugas': (user) => <TaskSettingsPage user={user} />,
-  'pengaturan-users': () => <UserSettingsPage />,
-  'reset-data': () => <ResetDataPage />,
+  'pengaturan-users': (user) => <UserSettingsPage user={user} />,
+  'reset-data': (user) => <ResetDataPage />, // Check if accepts user
   'profile': (user, onRefreshUser) => <ProfilePage user={user} onRefreshUser={onRefreshUser} />,
   'ProfileSaya': (user, onRefreshUser) => <ProfilePage user={user} onRefreshUser={onRefreshUser} />,
 
   // MODUL KHUSUS
-  'lckh': () => <LckhPage />,
-  'lckh-approval': () => <LckhApprovalPage />,
-  'nilai': () => <NilaiPage />,
+  'lckh': (user) => <LckhPage />, // Check if accepts user
+  'lckh-approval': (user) => <LckhApprovalPage />, // Check if accepts user
+  'nilai': (user) => <NilaiPage />, // Check if accepts user
 
   // ALIASES (FOR BACKWARD COMPATIBILITY OR VARIOUS LINKS)
   'Dashboard': (user) => <DashboardContent user={user} />,
-  'Absensi': () => <AbsensiPage />,
-  'Ketidakhadiran': () => <KetidakhadiranPage />,
+  'Absensi': (user) => <AbsensiPage />,
+  'Ketidakhadiran': (user) => <KetidakhadiranPage />,
   'Piket': (user) => <PiketPage user={user} />,
   'JurnalGuru': (user) => <JurnalPage user={user} />,
   'Informasi': (user) => <InformasiPage user={user} />,
   'DokumenSiswa': (user) => <DokumenSiswaPage user={user} />,
-  'TugasTambahan': () => <TugasTambahanPage />,
+  'TugasTambahan': (user) => <TugasTambahanPage />,
   'Master Data': (user) => <MasterDataPage user={user} />,
   'Pengaturan Data': (user) => <DataSettingsPage user={user} />,
   'Pengaturan Tugas': (user) => <TaskSettingsPage user={user} />,
-  'Reset Data': () => <ResetDataPage />,
-  'LCKH': () => <LckhPage />,
-  'LCKHApproval': () => <LckhApprovalPage />,
-  'Nilai': () => <NilaiPage />,
+  'Reset Data': (user) => <ResetDataPage />,
+  'LCKH': (user) => <LckhPage />,
+  'LCKHApproval': (user) => <LckhApprovalPage />,
+  'Nilai': (user) => <NilaiPage />,
   'GuruAsuh': (user) => <LaporanGuruAsuhPage user={user} />,
 
   // REKAP DATA
   'RekapJurnal': () => <RekapJurnalPage />,
 
-
   // MONITORING
   'monitoring': () => <MonitoringPage />,
   'campione': () => <CampionePage />,
+  'arsip-siswa': (user) => <DokumenSiswaPage user={user} />,
+  'dokumen-siswa': (user) => <DokumenSiswaUploadsPage user={user} />,
 };
 
 function renderPageContent(page: string, user: User) {
