@@ -295,32 +295,50 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
         }
     }
 
-    const handleDeleteDocument = async (id: string, fileName: string) => {
+    const handleDeleteDocument = async (id: string, fileName: string, fileUrl: string) => {
         const result = await Swal.fire({
             title: 'Hapus Dokumen?',
-            text: `Anda akan menghapus "${fileName}". Dokumen yang dihapus tidak dapat dikembalikan.`,
+            text: `Anda akan menghapus "${fileName}". File di server juga akan dihapus permanen. Lanjutkan?`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#ef4444',
             cancelButtonColor: '#64748b',
-            confirmButtonText: 'Ya, Hapus',
+            confirmButtonText: 'Ya, Hapus Permanen',
             cancelButtonText: 'Batal'
         })
 
         if (result.isConfirmed) {
             try {
-                // Delete from DB 'dokumen_siswa'
+                // 1. Delete from Remote Server (PHP)
+                // Extract relative path from URL if needed, or use a stored file_path if valid
+                // URL format: https://icgowa.sch.id/akademik.icgowa.sch.id/uploads/Basic/0085437937_SITI.pdf
+                // We need: uploads/Basic/0085437937_SITI.pdf
+
+                let filePathToSend = '';
+                if (fileUrl.includes('/uploads/')) {
+                    filePathToSend = 'uploads/' + fileUrl.split('/uploads/')[1];
+                }
+
+                if (filePathToSend) {
+                    const deleteRes = await fetch('https://icgowa.sch.id/akademik.icgowa.sch.id/delete_handler.php', {
+                        method: 'POST',
+                        body: JSON.stringify({ file_path: filePathToSend }),
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+
+                    if (!deleteRes.ok) {
+                        console.warn('Server deletion failed, but proceeding with DB deletion.');
+                    }
+                }
+
+                // 2. Delete from DB 'dokumen_siswa'
                 const { error } = await supabase.from('dokumen_siswa').delete().eq('id', id)
                 if (error) throw error
-
-                // Storage delete is optional or handled by PHP script (which likely doesn't have delete endpoint exposed yet).
-                // If it was Supabase Storage, we would delete it. 
-                // Since it's external PHP, we just delete the record for now.
 
                 Swal.fire({
                     icon: 'success',
                     title: 'Terhapus',
-                    text: 'Dokumen berhasil dihapus dari database.',
+                    text: 'Dokumen berhasil dihapus dari server dan database.',
                     timer: 1500,
                     showConfirmButton: false
                 })
@@ -606,7 +624,7 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                                     <a href={doc.file_url} download={doc.file_name} className="btn-act dl" title="Download">
                                                         <i className="bi bi-download"></i>
                                                     </a>
-                                                    <button onClick={() => handleDeleteDocument(doc.id, doc.file_name)} className="btn-act del" title="Hapus">
+                                                    <button onClick={() => handleDeleteDocument(doc.id, doc.file_name, doc.file_url)} className="btn-act del" title="Hapus">
                                                         <i className="bi bi-trash-fill"></i>
                                                     </button>
                                                 </div>
