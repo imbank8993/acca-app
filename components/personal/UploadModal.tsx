@@ -50,17 +50,24 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
         setFiles(prev => prev.filter((_, i) => i !== index));
     };
 
-    const uploadFile = (file: File, index: number): Promise<void> => {
-        return new Promise((resolve, reject) => {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('folder_id', selectedFolder === 'null' ? '' : selectedFolder);
+    const uploadFile = async (file: File, index: number): Promise<void> => {
+        // 1. Prepare: Get storage path and PHP URL
+        const folderName = folders.find(f => f.id === selectedFolder)?.nama || 'others';
+        const prepareRes = await fetch(`/api/personal/documents/upload/prepare?folder_name=${encodeURIComponent(folderName)}`);
+        const prepareData = await prepareRes.json();
 
-            const folderName = folders.find(f => f.id === selectedFolder)?.nama || 'others';
-            formData.append('folder_name', folderName);
+        if (!prepareData.ok) throw new Error(prepareData.error || 'Gagal menyiapkan unggahan');
+
+        const { phpUrl, storagePath } = prepareData;
+
+        // 2. Direct Upload to PHP
+        const uploadResult = await new Promise<any>((resolve, reject) => {
+            const phpFormData = new FormData();
+            phpFormData.append('file', file);
+            phpFormData.append('folder', storagePath);
 
             const xhr = new XMLHttpRequest();
-            xhr.open('POST', '/api/personal/documents/upload', true);
+            xhr.open('POST', phpUrl, true);
 
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable) {
@@ -73,19 +80,36 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
                 try {
                     const response = JSON.parse(xhr.responseText);
                     if (xhr.status === 200 && response.ok) {
-                        resolve();
+                        resolve(response);
                     } else {
-                        reject(response.error || `Gagal mengunggah ${file.name}`);
+                        reject(response.error || `Gagal mengunggah ${file.name} ke hosting`);
                     }
                 } catch (e) {
-                    console.error('JSON Parse Error:', xhr.responseText);
-                    reject(`Respon server tidak valid untuk ${file.name}`);
+                    console.error('PHP Upload Response Error:', xhr.responseText);
+                    reject(`Respon hosting tidak valid untuk ${file.name}`);
                 }
             };
 
-            xhr.onerror = () => reject(`Koneksi terputus saat mengunggah ${file.name}`);
-            xhr.send(formData);
+            xhr.onerror = () => reject(`Koneksi ke hosting terputus saat mengunggah ${file.name}`);
+            xhr.send(phpFormData);
         });
+
+        // 3. Save Metadata to Supabase via our API
+        const saveRes = await fetch('/api/personal/documents/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                publicUrl: uploadResult.publicUrl,
+                fileName: file.name,
+                fileSize: file.size,
+                folder_id: selectedFolder === 'null' ? '' : selectedFolder
+            })
+        });
+
+        const saveData = await saveRes.json();
+        if (!saveData.ok) {
+            throw new Error(saveData.error || 'Gagal menyimpan data dokumen ke database');
+        }
     };
 
     const handleUpload = async () => {
@@ -97,15 +121,16 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
         setUploading(true);
         let successCount = 0;
         let failCount = 0;
-
+        let lastError = '';
         for (let i = 0; i < files.length; i++) {
             setCurrentFileIndex(i);
             setProgress(0);
             try {
                 await uploadFile(files[i], i);
                 successCount++;
-            } catch (error) {
+            } catch (error: any) {
                 console.error(`Error uploading ${files[i].name}:`, error);
+                lastError = error;
                 failCount++;
             }
         }
@@ -123,9 +148,9 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
             onClose();
         } else {
             Swal.fire(
-                'Selesai dengan Masalah',
-                `${successCount} berhasil, ${failCount} gagal diunggah.`,
-                failCount > 0 ? 'warning' : 'success'
+                'Gagal Mengunggah',
+                `${successCount} berhasil, ${failCount} gagal diunggah.\nDetail error: ${lastError}`,
+                'error'
             );
             if (successCount > 0) onSuccess();
         }
