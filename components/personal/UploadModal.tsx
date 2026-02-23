@@ -70,11 +70,16 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
             };
 
             xhr.onload = () => {
-                const response = JSON.parse(xhr.responseText);
-                if (xhr.status === 200 && response.ok) {
-                    resolve();
-                } else {
-                    reject(response.error || `Gagal mengunggah ${file.name}`);
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    if (xhr.status === 200 && response.ok) {
+                        resolve();
+                    } else {
+                        reject(response.error || `Gagal mengunggah ${file.name}`);
+                    }
+                } catch (e) {
+                    console.error('JSON Parse Error:', xhr.responseText);
+                    reject(`Respon server tidak valid untuk ${file.name}`);
                 }
             };
 

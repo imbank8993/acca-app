@@ -145,13 +145,16 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
     };
 
     const handleDeleteDoc = async (docId: string, title: string) => {
+        const isShared = activeTab === 'shared';
         const result = await Swal.fire({
-            title: 'Hapus Dokumen?',
-            text: `Apakah Anda yakin ingin menghapus "${title}"?`,
+            title: isShared ? 'Lepas Berbagi?' : 'Hapus Dokumen?',
+            text: isShared
+                ? `Hapus "${title}" dari daftar Anda? Dokumen asli akan tetap ada di pemiliknya.`
+                : `Apakah Anda yakin ingin menghapus "${title}"?`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#ef4444',
-            confirmButtonText: 'Ya, Hapus',
+            confirmButtonText: isShared ? 'Ya, Lepas' : 'Ya, Hapus',
             cancelButtonText: 'Batal'
         });
 
@@ -174,13 +177,16 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
     };
 
     const handleDeleteFolder = async (folderId: string, folderName: string) => {
+        const isShared = activeTab === 'shared';
         const result = await Swal.fire({
-            title: 'Hapus Folder?',
-            text: `Apakah Anda yakin ingin menghapus folder "${folderName}" beserta seluruh isinya? Tindakan ini tidak dapat dibatalkan.`,
+            title: isShared ? 'Lepas Folder?' : 'Hapus Folder?',
+            text: isShared
+                ? `Hapus folder "${folderName}" dari daftar Anda? Isinya akan tetap ada di pemiliknya.`
+                : `Apakah Anda yakin ingin menghapus folder "${folderName}" beserta seluruh isinya? Tindakan ini tidak dapat dibatalkan.`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#ef4444',
-            confirmButtonText: 'Ya, Hapus Semua',
+            confirmButtonText: isShared ? 'Ya, Lepas' : 'Ya, Hapus Semua',
             cancelButtonText: 'Batal'
         });
 
@@ -198,6 +204,41 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                 }
             } catch (error) {
                 Swal.fire('Error', 'Gagal menghapus folder', 'error');
+            }
+        }
+    };
+
+    const handleBatchDelete = async () => {
+        if (selectedIds.length === 0) return;
+
+        const isShared = activeTab === 'shared';
+        const result = await Swal.fire({
+            title: isShared ? 'Lepas Berbagi Terpilih?' : 'Hapus Terpilih?',
+            text: isShared
+                ? `Lepas ${selectedIds.length} dokumen dari daftar Anda?`
+                : `Apakah Anda yakin ingin menghapus ${selectedIds.length} dokumen terpilih?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: isShared ? 'Ya, Lepas' : 'Ya, Hapus',
+            cancelButtonText: 'Batal'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const res = await fetch(`/api/personal/documents/delete?ids=${selectedIds.join(',')}`, {
+                    method: 'DELETE'
+                });
+                const json = await res.json();
+                if (json.ok) {
+                    Swal.fire('Berhasil!', json.message, 'success');
+                    setSelectedIds([]);
+                    fetchData();
+                } else {
+                    Swal.fire('Gagal', json.error, 'error');
+                }
+            } catch (error) {
+                Swal.fire('Error', 'Gagal memproses penghapusan', 'error');
             }
         }
     };
@@ -221,14 +262,16 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                     <div className="personal-actions">
                         {selectedIds.length > 0 && (
                             <div className="batch-actions animate-in fade-in slide-in-from-right-4 duration-200">
-                                <button className="btn-personal btn-danger-personal" onClick={() => {/* Handle batch delete */ }}>
+                                <button className="btn-personal btn-danger-personal" onClick={handleBatchDelete}>
                                     <i className="fa-solid fa-trash"></i>
-                                    Hapus ({selectedIds.length})
+                                    {activeTab === 'shared' ? 'Lepas' : 'Hapus'} ({selectedIds.length})
                                 </button>
-                                <button className="btn-personal btn-share-personal" onClick={handleShareMultiple}>
-                                    <i className="fa-solid fa-share-nodes"></i>
-                                    Bagikan ({selectedIds.length})
-                                </button>
+                                {activeTab === 'mine' && (
+                                    <button className="btn-personal btn-share-personal" onClick={handleShareMultiple}>
+                                        <i className="fa-solid fa-share-nodes"></i>
+                                        Bagikan ({selectedIds.length})
+                                    </button>
+                                )}
                                 <div className="h-8 w-px bg-slate-200 mx-2"></div>
                             </div>
                         )}
@@ -258,7 +301,7 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                     </div>
                 </nav>
 
-                {activeTab === 'mine' && !selectedFolder && folders.length > 0 && (
+                {!selectedFolder && folders.length > 0 && (
                     <section className="folder-grid">
                         {folders.map(folder => (
                             <div key={folder.id} className="folder-card group">
@@ -275,17 +318,19 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                                     >
                                         <i className={`fa-solid ${isDownloading === folder.id ? 'fa-spinner fa-spin' : 'fa-download'}`}></i>
                                     </button>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setShareData({ folderId: folder.id, title: folder.nama }); }}
-                                        className="btn-action-icon"
-                                        title="Bagikan Folder"
-                                    >
-                                        <i className="fa-solid fa-share-nodes"></i>
-                                    </button>
+                                    {activeTab === 'mine' && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setShareData({ folderId: folder.id, title: folder.nama }); }}
+                                            className="btn-action-icon"
+                                            title="Bagikan Folder"
+                                        >
+                                            <i className="fa-solid fa-share-nodes"></i>
+                                        </button>
+                                    )}
                                     <button
                                         onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id, folder.nama); }}
                                         className="btn-action-icon btn-delete"
-                                        title="Hapus Folder"
+                                        title={activeTab === 'shared' ? "Lepas Folder" : "Hapus Folder"}
                                     >
                                         <i className="fa-solid fa-trash-can"></i>
                                     </button>

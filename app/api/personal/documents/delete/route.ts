@@ -39,43 +39,62 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ ok: false, error: 'Dokumen tidak ditemukan' }, { status: 404 });
         }
 
-        // 2. check ownership for all
-        const unauthorized = docs.some(d => d.user_id !== dbUser.id);
-        if (unauthorized) {
-            return NextResponse.json({ ok: false, error: 'Tidak memiliki izin untuk menghapus satu atau lebih dokumen ini' }, { status: 403 });
+        const ownedDocs = docs.filter(d => d.user_id === dbUser.id);
+        const sharedDocs = docs.filter(d => d.user_id !== dbUser.id);
+
+        let deletedCount = 0;
+        let unsharedCount = 0;
+
+        // 2. Handle Owned Documents (Full Delete)
+        if (ownedDocs.length > 0) {
+            const PHP_DELETE_URL = process.env.NEXT_PUBLIC_PHP_DELETE_URL || 'https://icgowa.sch.id/acca.icgowa.sch.id/acca_delete.php';
+
+            const deletePromises = ownedDocs.map(async (doc) => {
+                try {
+                    const phpFormData = new FormData();
+                    phpFormData.append('file_url', doc.file_url);
+                    const deleteRes = await fetch(PHP_DELETE_URL, {
+                        method: 'POST',
+                        body: phpFormData
+                    });
+                    return await deleteRes.json();
+                } catch (err) {
+                    console.error(`Failed to delete ${doc.file_url} from hosting`, err);
+                    return { ok: false };
+                }
+            });
+
+            await Promise.all(deletePromises);
+
+            const { error: dbDeleteError } = await supabase
+                .from('personal_documents')
+                .delete()
+                .in('id', ownedDocs.map(d => d.id));
+
+            if (dbDeleteError) throw dbDeleteError;
+            deletedCount = ownedDocs.length;
         }
 
-        // 3. Delete from hosting via acca_delete.php
-        const PHP_DELETE_URL = process.env.NEXT_PUBLIC_PHP_DELETE_URL || 'https://icgowa.sch.id/acca.icgowa.sch.id/acca_delete.php';
+        // 3. Handle Shared Documents (Unshare)
+        if (sharedDocs.length > 0) {
+            const { error: unshareError } = await supabase
+                .from('personal_document_shares')
+                .delete()
+                .eq('shared_with_user_id', dbUser.id)
+                .in('document_id', sharedDocs.map(d => d.id));
 
-        const deletePromises = docs.map(async (doc) => {
-            try {
-                const phpFormData = new FormData();
-                phpFormData.append('file_url', doc.file_url);
-                const deleteRes = await fetch(PHP_DELETE_URL, {
-                    method: 'POST',
-                    body: phpFormData
-                });
-                return await deleteRes.json();
-            } catch (err) {
-                console.error(`Failed to delete ${doc.file_url} from hosting`, err);
-                return { ok: false };
-            }
+            if (unshareError) throw unshareError;
+            unsharedCount = sharedDocs.length;
+        }
+
+        const messages = [];
+        if (deletedCount > 0) messages.push(`${deletedCount} dokumen dihapus`);
+        if (unsharedCount > 0) messages.push(`${unsharedCount} dokumen dilepas (unshare)`);
+
+        return NextResponse.json({
+            ok: true,
+            message: messages.join(' dan ') || 'Berhasil diproses'
         });
-
-        await Promise.all(deletePromises);
-
-        // 4. Delete from Supabase
-        const { error: dbDeleteError } = await supabase
-            .from('personal_documents')
-            .delete()
-            .in('id', docs.map(d => d.id));
-
-        if (dbDeleteError) throw dbDeleteError;
-
-        return NextResponse.json({ ok: true, message: `${docs.length} dokumen berhasil dihapus` });
-
-        return NextResponse.json({ ok: true, message: 'Dokumen berhasil dihapus' });
 
     } catch (error: any) {
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 });

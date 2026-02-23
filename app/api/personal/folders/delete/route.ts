@@ -26,18 +26,42 @@ export async function DELETE(request: Request) {
 
         if (!dbUser) throw new Error('User not found');
 
-        // 1. Verify folder ownership
+        // 1. Verify folder ownership/sharing
         const { data: folder, error: folderError } = await supabase
             .from('personal_folders')
-            .select('*')
+            .select('id, user_id, nama')
             .eq('id', folderId)
-            .eq('user_id', dbUser.id)
             .single();
 
         if (folderError || !folder) {
-            return NextResponse.json({ ok: false, error: 'Folder tidak ditemukan atau Anda tidak memiliki izin' }, { status: 404 });
+            return NextResponse.json({ ok: false, error: 'Folder tidak ditemukan' }, { status: 404 });
         }
 
+        // If not owner, check if shared
+        if (folder.user_id !== dbUser.id) {
+            const { data: share, error: shareError } = await supabase
+                .from('personal_folder_shares')
+                .select('id')
+                .eq('folder_id', folderId)
+                .eq('shared_with_user_id', dbUser.id)
+                .single();
+
+            if (shareError || !share) {
+                return NextResponse.json({ ok: false, error: 'Akses ditolak' }, { status: 403 });
+            }
+
+            // Recipient context: Just unshare
+            const { error: unshareError } = await supabase
+                .from('personal_folder_shares')
+                .delete()
+                .eq('id', share.id);
+
+            if (unshareError) throw unshareError;
+
+            return NextResponse.json({ ok: true, message: `Berhenti berbagi folder "${folder.nama}"` });
+        }
+
+        // Owner context: Continue with full deletion...
         // 2. Fetch all documents in this folder
         const { data: docs, error: docsError } = await supabase
             .from('personal_documents')
