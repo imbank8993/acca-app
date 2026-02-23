@@ -30,6 +30,7 @@ import MonitoringPage from '../monitoring/page' // Import Monitoring Page
 import UserHeartbeat from '@/components/UserHeartbeat' // Import Heartbeat
 import CampionePage from '@/app/campione/page' // Import Campione Page
 import AgendaAkademikPage from '../agenda-akademik/page'
+import PersonalDocumentsPage from '../(dashboard)/personal-documents/page'
 
 export default function DashboardPage() {
   return (
@@ -154,8 +155,8 @@ function DashboardLogic() {
           role: 'ADMIN',
           roles: ['ADMIN', 'GURU'],
           divisi: 'IT',
-          pages: 'Dashboard, Jurnal>Jurnal=jurnal|Pengaturan Jurnal=jurnal/pengaturan,Konfigurasi Data>Master Data|Pengaturan Data|Reset Data,Absensi,Nilai,LCKHApproval,LCKH,Status User=LogLogin ,JadwalGuru,Rekap Data>Absensi=RekapAbsensi|Jurnal=RekapJurnal,Master Data>Wali Kelas=WaliKelas|Guru Asuh=GuruAsuh|Kelas,Pengaturan Akun=User,Export Data>Absensi=ExportAbsensi|Jurnal=ExportJurnal,Rekap Absen&Jurnal=RekapKehadiranJurnal,Layanan Guru>Absensi Guru=AbsensiSiswa|Jurnal Guru=JurnalGuru,Sosialisasi,Ketidakhadiran,StatusSiswa',
-          pagesArray: ['Dashboard', 'jurnal', 'jurnal/pengaturan', 'Master Data', 'Pengaturan Data', 'Reset Data', 'Absensi', 'Nilai', 'LCKHApproval', 'LCKH', 'LogLogin', 'JadwalGuru', 'RekapAbsensi', 'RekapJurnal', 'WaliKelas', 'GuruAsuh', 'Kelas', 'User', 'ExportAbsensi', 'ExportJurnal', 'RekapKehadiranJurnal', 'AbsensiSiswa', 'JurnalGuru', 'Sosialisasi', 'Ketidakhadiran', 'StatusSiswa'],
+          pages: 'Dashboard, Jurnal>Jurnal=jurnal|Pengaturan Jurnal=jurnal/pengaturan,Konfigurasi Data>Master Data|Pengaturan Data|Reset Data,Absensi,Nilai,LCKHApproval,LCKH,Status User=LogLogin ,JadwalGuru,Rekap Data>Absensi=RekapAbsensi|Jurnal=RekapJurnal,Master Data>Wali Kelas=WaliKelas|Guru Asuh=GuruAsuh|Kelas,Pengaturan Akun=User,Export Data>Absensi=ExportAbsensi|Jurnal=ExportJurnal,Rekap Absen&Jurnal=RekapKehadiranJurnal,Layanan Guru>Absensi Guru=AbsensiSiswa|Jurnal Guru=JurnalGuru,Sosialisasi,Ketidakhadiran,StatusSiswa,Dokumen Pribadi=personal-documents',
+          pagesArray: ['Dashboard', 'jurnal', 'jurnal/pengaturan', 'Master Data', 'Pengaturan Data', 'Reset Data', 'Absensi', 'Nilai', 'LCKHApproval', 'LCKH', 'LogLogin', 'JadwalGuru', 'RekapAbsensi', 'RekapJurnal', 'WaliKelas', 'GuruAsuh', 'Kelas', 'User', 'ExportAbsensi', 'ExportJurnal', 'RekapKehadiranJurnal', 'AbsensiSiswa', 'JurnalGuru', 'Sosialisasi', 'Ketidakhadiran', 'StatusSiswa', 'personal-documents'],
           pagesTree: [],
           aktif: true,
           photoUrl: null
@@ -419,6 +420,7 @@ const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<
   'campione': () => <CampionePage />,
   'agenda-akademik': () => <AgendaAkademikPage />,
   'arsip-siswa': (user) => <DokumenSiswaPage user={user} />,
+  'personal-documents': (user) => <PersonalDocumentsPage user={user} />,
 };
 
 function renderPageContent(page: string, user: User) {

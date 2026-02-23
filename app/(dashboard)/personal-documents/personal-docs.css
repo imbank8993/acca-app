@@ -1,0 +1,258 @@
+/* Personal Documents Specific Styles */
+.personal-container {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.personal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.personal-title h1 {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+}
+
+.personal-title p {
+    color: #64748b;
+    font-size: 1rem;
+}
+
+.personal-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.btn-personal {
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+
+.btn-primary-personal {
+    background-color: #1e3a8a;
+    color: white;
+    border: none;
+}
+
+.btn-primary-personal:hover {
+    background-color: #1e40af;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.btn-secondary-personal {
+    background-color: white;
+    color: #1e3a8a;
+    border: 1px solid #e2e8f0;
+}
+
+.btn-secondary-personal:hover {
+    background-color: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+/* Tabs */
+.personal-tabs {
+    display: flex;
+    gap: 2rem;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 2rem;
+}
+
+.personal-tab {
+    padding: 1rem 0;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.personal-tab.active {
+    color: #1e3a8a;
+}
+
+.personal-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: #1e3a8a;
+}
+
+/* Folder Grid */
+.folder-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.folder-card {
+    background: white;
+    padding: 1.25rem;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.folder-card:hover {
+    border-color: #1e3a8a;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+    transform: translateY(-2px);
+}
+
+.folder-icon {
+    font-size: 1.5rem;
+    color: #f59e0b;
+}
+
+.folder-name {
+    font-weight: 600;
+    color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Document List */
+.doc-list {
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+}
+
+.doc-item {
+    display: grid;
+    grid-template-columns: auto 1fr 150px 150px 120px;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.2s;
+}
+
+.doc-item:last-child {
+    border-bottom: none;
+}
+
+.doc-item:hover {
+    background-color: #f8fafc;
+}
+
+.doc-icon {
+    font-size: 1.25rem;
+    margin-right: 1rem;
+}
+
+.doc-name {
+    font-weight: 500;
+    color: #1e293b;
+}
+
+.doc-size,
+.doc-date,
+.doc-owner {
+    color: #64748b;
+    font-size: 0.875rem;
+}
+
+.doc-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.btn-action-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background-color: transparent;
+    color: #64748b;
+    transition: all 0.1s;
+}
+
+.btn-action-icon:hover {
+    background-color: #f1f5f9;
+    color: #1e3a8a;
+}
+
+.btn-delete:hover {
+    color: #ef4444;
+    background-color: #fee2e2;
+}
+
+/* Progress Bar */
+.upload-progress-container {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 0.75rem;
+}
+
+.progress-bar-bg {
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: #1e3a8a;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* Empty State */
+.empty-state {
+    padding: 4rem 2rem;
+    text-align: center;
+    color: #94a3b8;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .doc-item {
+        grid-template-columns: auto 1fr auto;
+    }
+
+    .doc-size,
+    .doc-date,
+    .doc-owner {
+        display: none;
+    }
+}
