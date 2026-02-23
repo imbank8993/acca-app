@@ -34,7 +34,50 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
 
     // Modal states
     const [isUploadOpen, setIsUploadOpen] = useState(false);
-    const [shareData, setShareData] = useState<{ id: string, title: string } | null>(null);
+    const [shareData, setShareData] = useState<{
+        id?: string,
+        ids?: string[],
+        folderId?: string,
+        title: string
+    } | null>(null);
+
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [isDownloading, setIsDownloading] = useState<string | null>(null);
+
+    const toggleSelectArr = (id: string) => {
+        setSelectedIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    const handleShareMultiple = () => {
+        if (selectedIds.length === 0) return;
+        setShareData({
+            ids: selectedIds,
+            title: `${selectedIds.length} Dokumen Terpilih`
+        });
+    };
+
+    const handleDownloadFolder = async (folderId: string, folderName: string) => {
+        setIsDownloading(folderId);
+        try {
+            const res = await fetch(`/api/personal/documents/download/folder?folder_id=${folderId}`);
+            if (!res.ok) throw new Error('Gagal mengunduh folder');
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${folderName}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        } catch (error) {
+            Swal.fire('Error', 'Gagal mengunduh folder', 'error');
+        } finally {
+            setIsDownloading(null);
+        }
+    };
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -130,6 +173,35 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
         }
     };
 
+    const handleDeleteFolder = async (folderId: string, folderName: string) => {
+        const result = await Swal.fire({
+            title: 'Hapus Folder?',
+            text: `Apakah Anda yakin ingin menghapus folder "${folderName}" beserta seluruh isinya? Tindakan ini tidak dapat dibatalkan.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'Ya, Hapus Semua',
+            cancelButtonText: 'Batal'
+        });
+
+        if (result.isConfirmed) {
+            try {
+                const res = await fetch(`/api/personal/folders/delete?id=${folderId}`, {
+                    method: 'DELETE'
+                });
+                const json = await res.json();
+                if (json.ok) {
+                    Swal.fire('Terhapus!', json.message, 'success');
+                    fetchData();
+                } else {
+                    Swal.fire('Gagal', json.error, 'error');
+                }
+            } catch (error) {
+                Swal.fire('Error', 'Gagal menghapus folder', 'error');
+            }
+        }
+    };
+
     const formatSize = (bytes: number) => {
         if (!bytes) return '0 B';
         const k = 1024;
@@ -147,6 +219,19 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                         <p>Kelola dan bagikan dokumen pribadi Anda dengan aman.</p>
                     </div>
                     <div className="personal-actions">
+                        {selectedIds.length > 0 && (
+                            <div className="batch-actions animate-in fade-in slide-in-from-right-4 duration-200">
+                                <button className="btn-personal btn-danger-personal" onClick={() => {/* Handle batch delete */ }}>
+                                    <i className="fa-solid fa-trash"></i>
+                                    Hapus ({selectedIds.length})
+                                </button>
+                                <button className="btn-personal btn-share-personal" onClick={handleShareMultiple}>
+                                    <i className="fa-solid fa-share-nodes"></i>
+                                    Bagikan ({selectedIds.length})
+                                </button>
+                                <div className="h-8 w-px bg-slate-200 mx-2"></div>
+                            </div>
+                        )}
                         <button className="btn-personal btn-secondary-personal" onClick={handleCreateFolder}>
                             <i className="fa-solid fa-folder-plus"></i>
                             Folder Baru
@@ -176,9 +261,35 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                 {activeTab === 'mine' && !selectedFolder && folders.length > 0 && (
                     <section className="folder-grid">
                         {folders.map(folder => (
-                            <div key={folder.id} className="folder-card" onClick={() => setSelectedFolder(folder.id)}>
-                                <i className="fa-solid fa-folder folder-icon"></i>
-                                <span className="folder-name">{folder.nama}</span>
+                            <div key={folder.id} className="folder-card group">
+                                <div className="folder-main" onClick={() => setSelectedFolder(folder.id)}>
+                                    <i className="fa-solid fa-folder folder-icon"></i>
+                                    <span className="folder-name">{folder.nama}</span>
+                                </div>
+                                <div className="folder-actions opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleDownloadFolder(folder.id, folder.nama); }}
+                                        className="btn-action-icon"
+                                        title="Download ZIP"
+                                        disabled={isDownloading === folder.id}
+                                    >
+                                        <i className={`fa-solid ${isDownloading === folder.id ? 'fa-spinner fa-spin' : 'fa-download'}`}></i>
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setShareData({ folderId: folder.id, title: folder.nama }); }}
+                                        className="btn-action-icon"
+                                        title="Bagikan Folder"
+                                    >
+                                        <i className="fa-solid fa-share-nodes"></i>
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id, folder.nama); }}
+                                        className="btn-action-icon btn-delete"
+                                        title="Hapus Folder"
+                                    >
+                                        <i className="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </section>
@@ -202,15 +313,33 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                     ) : documents.length > 0 ? (
                         <>
                             <div className="doc-item font-semibold bg-slate-50 border-b border-slate-200">
-                                <span></span>
+                                <div className="flex items-center">
+                                    <input
+                                        type="checkbox"
+                                        className="doc-checkbox"
+                                        checked={selectedIds.length === documents.length && documents.length > 0}
+                                        onChange={(e) => {
+                                            if (e.target.checked) setSelectedIds(documents.map(d => d.id));
+                                            else setSelectedIds([]);
+                                        }}
+                                    />
+                                </div>
                                 <span>Nama Dokumen</span>
                                 <span>Ukuran</span>
                                 <span>Tanggal</span>
                                 <span className="text-right">Aksi</span>
                             </div>
                             {documents.map(doc => (
-                                <div key={doc.id} className="doc-item">
-                                    <i className={`fa-solid ${getFileIcon(doc.extension)} doc-icon text-blue-900`}></i>
+                                <div key={doc.id} className={`doc-item ${selectedIds.includes(doc.id) ? 'selected' : ''}`}>
+                                    <div className="flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            className="doc-checkbox"
+                                            checked={selectedIds.includes(doc.id)}
+                                            onChange={() => toggleSelectArr(doc.id)}
+                                        />
+                                        <i className={`fa-solid ${getFileIcon(doc.extension)} doc-icon text-blue-900 ml-3`}></i>
+                                    </div>
                                     <span className="doc-name">{doc.judul}</span>
                                     <span className="doc-size">{formatSize(doc.size)}</span>
                                     <span className="doc-date">{new Date(doc.uploaded_at).toLocaleDateString('id-ID')}</span>
@@ -223,6 +352,14 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                                             title="Buka"
                                         >
                                             <i className="fa-solid fa-external-link"></i>
+                                        </a>
+                                        <a
+                                            href={doc.file_url}
+                                            download={doc.judul}
+                                            className="btn-action-icon text-blue-600"
+                                            title="Download"
+                                        >
+                                            <i className="fa-solid fa-download"></i>
                                         </a>
                                         {activeTab === 'mine' && (
                                             <>
@@ -268,7 +405,9 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                     isOpen={!!shareData}
                     onClose={() => setShareData(null)}
                     documentId={shareData.id}
-                    documentTitle={shareData.title}
+                    documentIds={shareData.ids}
+                    folderId={shareData.folderId}
+                    title={shareData.title}
                 />
             )}
         </div>

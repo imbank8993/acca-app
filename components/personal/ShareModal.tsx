@@ -6,21 +6,35 @@ import Swal from 'sweetalert2';
 interface ShareModalProps {
     isOpen: boolean;
     onClose: () => void;
-    documentId: string;
-    documentTitle: string;
+    documentIds?: string[]; // Array of IDs for multi-share
+    documentId?: string;    // Single ID
+    folderId?: string;      // Folder share
+    title: string;          // Name of folder or single/multiple docs
 }
 
 interface User {
     id: number;
-    nama_lengkap: string;
+    nama_lengkap?: string;
+    nama?: string;
     username: string;
 }
 
-export default function ShareModal({ isOpen, onClose, documentId, documentTitle }: ShareModalProps) {
+export default function ShareModal({
+    isOpen,
+    onClose,
+    documentIds,
+    documentId,
+    folderId,
+    title
+}: ShareModalProps) {
     const [search, setSearch] = useState('');
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(false);
     const [sharing, setSharing] = useState<number | null>(null);
+
+    const isFolder = !!folderId;
+    const isMulti = !!documentIds && documentIds.length > 0;
+    const ids = isMulti ? documentIds : (documentId ? [documentId] : []);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -48,13 +62,18 @@ export default function ShareModal({ isOpen, onClose, documentId, documentTitle 
     const handleShare = async (userId: number) => {
         setSharing(userId);
         try {
-            const res = await fetch('/api/personal/documents/share', {
+            const url = isFolder
+                ? '/api/personal/folders/share'
+                : '/api/personal/documents/share';
+
+            const body = isFolder
+                ? { folder_id: folderId, shared_with_user_id: userId }
+                : { document_ids: ids, shared_with_user_id: userId };
+
+            const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    document_id: documentId,
-                    shared_with_user_id: userId
-                })
+                body: JSON.stringify(body)
             });
             const json = await res.json();
             if (json.ok) {
@@ -70,7 +89,7 @@ export default function ShareModal({ isOpen, onClose, documentId, documentTitle 
                 Swal.fire('Gagal', json.error, 'error');
             }
         } catch (error) {
-            Swal.fire('Error', 'Gagal membagikan dokumen', 'error');
+            Swal.fire('Error', 'Gagal membagikan akses', 'error');
         } finally {
             setSharing(null);
         }
@@ -83,8 +102,10 @@ export default function ShareModal({ isOpen, onClose, documentId, documentTitle 
             <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center mb-6">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">Bagikan Dokumen</h2>
-                        <p className="text-xs text-slate-500 mt-1 line-clamp-1">{documentTitle}</p>
+                        <h2 className="text-xl font-bold text-slate-800">
+                            {isFolder ? 'Bagikan Folder' : 'Bagikan Dokumen'}
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-1 line-clamp-1">{title}</p>
                     </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
                         <i className="fa-solid fa-xmark text-xl"></i>
@@ -111,17 +132,17 @@ export default function ShareModal({ isOpen, onClose, documentId, documentTitle 
                                 <div key={user.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group">
                                     <div className="flex items-center gap-3">
                                         <div className="w-9 h-9 rounded-full bg-blue-900/10 text-blue-900 flex items-center justify-center font-bold text-sm">
-                                            {user.nama_lengkap.charAt(0).toUpperCase()}
+                                            {(user.nama_lengkap || user.nama || '?').charAt(0).toUpperCase()}
                                         </div>
                                         <div>
-                                            <div className="text-sm font-semibold text-slate-800">{user.nama_lengkap}</div>
+                                            <div className="text-sm font-semibold text-slate-800">{user.nama_lengkap || user.nama}</div>
                                             <div className="text-xs text-slate-500">@{user.username}</div>
                                         </div>
                                     </div>
                                     <button
                                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${sharing === user.id
-                                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                                : 'bg-blue-900/10 text-blue-900 hover:bg-blue-900 hover:text-white'
+                                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                            : 'bg-blue-900/10 text-blue-900 hover:bg-blue-900 hover:text-white'
                                             }`}
                                         onClick={() => handleShare(user.id)}
                                         disabled={sharing !== null}

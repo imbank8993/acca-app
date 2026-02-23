@@ -30,10 +30,24 @@ export async function POST(request: Request) {
             return NextResponse.json({ ok: false, error: 'Ukuran file melebihi 500MB' }, { status: 400 });
         }
 
+        // Get public.users.id and nama
+        const { data: dbUser, error: userError } = await supabase
+            .from('users')
+            .select('id, nama')
+            .eq('auth_id', authUser.id)
+            .single();
+
+        if (userError || !dbUser) {
+            return NextResponse.json({ ok: false, error: 'Internal User not found' }, { status: 404 });
+        }
+
+        // Construct storage path: [User Name]/[Folder Name]
+        const storagePath = `${dbUser.nama}/${folderName}`;
+
         // Forward to acca_upload.php
         const phpFormData = new FormData();
         phpFormData.append('file', file);
-        phpFormData.append('folder', folderName);
+        phpFormData.append('folder', storagePath);
 
         const PHP_HANDLER_URL = process.env.NEXT_PUBLIC_PHP_HANDLER_URL || 'https://icgowa.sch.id/acca.icgowa.sch.id/acca_upload.php';
 
@@ -50,16 +64,6 @@ export async function POST(request: Request) {
         const uploadResult = await uploadRes.json();
 
         if (uploadResult.ok) {
-            // Get public.users.id
-            const { data: dbUser, error: userError } = await supabase
-                .from('users')
-                .select('id')
-                .eq('auth_id', authUser.id)
-                .single();
-
-            if (userError || !dbUser) {
-                return NextResponse.json({ ok: false, error: 'Internal User not found' }, { status: 404 });
-            }
 
             // Save to personal_documents
             const { data: docData, error: dbError } = await supabase

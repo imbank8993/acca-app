@@ -26,15 +26,33 @@ export async function GET(request: Request) {
         }
 
         if (shared) {
-            // List documents shared with this user
-            const { data, error } = await supabase
+            // List documents shared with this user (Direct + via Folders)
+            // Fetch direct shares
+            const { data: directDocs, error: directError } = await supabase
                 .from('personal_documents')
-                .select('*, personal_document_shares!inner(*), owner:users(nama_lengkap, username)')
-                .eq('personal_document_shares.shared_with_user_id', dbUser.id)
-                .order('uploaded_at', { ascending: false });
+                .select('*, personal_document_shares!inner(*), owner:users(nama, username)')
+                .eq('personal_document_shares.shared_with_user_id', dbUser.id);
 
-            if (error) throw error;
-            return NextResponse.json({ ok: true, data });
+            // Fetch folder-based shares
+            const { data: folderDocs, error: folderError } = await supabase
+                .from('personal_documents')
+                .select('*, owner:users(nama, username)')
+                .in('folder_id', (
+                    await supabase
+                        .from('personal_folder_shares')
+                        .select('folder_id')
+                        .eq('shared_with_user_id', dbUser.id)
+                ).data?.map(f => f.folder_id) || []);
+
+            if (directError || folderError) throw (directError || folderError);
+
+            // Merge and deduplicate
+            const combined = [...(directDocs || []), ...(folderDocs || [])];
+            const unique = combined.filter((doc, index, self) =>
+                index === self.findIndex((d) => d.id === doc.id)
+            );
+
+            return NextResponse.json({ ok: true, data: unique });
         } else {
             // List user's own documents
             let query = supabase

@@ -5,10 +5,13 @@ export async function DELETE(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const docId = searchParams.get('id');
+        const docIds = searchParams.get('ids')?.split(',').filter(Boolean);
 
-        if (!docId) {
+        if (!docId && (!docIds || docIds.length === 0)) {
             return NextResponse.json({ ok: false, error: 'ID dokumen tidak ditemukan' }, { status: 400 });
         }
+
+        const ids = docIds || [docId];
 
         const supabase = await createClient();
         const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -18,61 +21,59 @@ export async function DELETE(request: Request) {
         }
 
         // Get public.users.id
-        const { data: dbUser, error: userError } = await supabase
+        const { data: dbUser } = await supabase
             .from('users')
             .select('id')
             .eq('auth_id', authUser.id)
             .single();
 
-        if (userError || !dbUser) {
-            return NextResponse.json({ ok: false, error: 'Internal User not found' }, { status: 404 });
-        }
+        if (!dbUser) throw new Error('User not found');
 
-        // 1. Get document info to get file_url
-        const { data: doc, error: getError } = await supabase
+        // 1. Get documents info
+        const { data: docs, error: getError } = await supabase
             .from('personal_documents')
-            .select('file_url, user_id')
-            .eq('id', docId)
-            .single();
+            .select('id, file_url, user_id')
+            .in('id', ids);
 
-        if (getError || !doc) {
+        if (getError || !docs || docs.length === 0) {
             return NextResponse.json({ ok: false, error: 'Dokumen tidak ditemukan' }, { status: 404 });
         }
 
-        // 2. check ownership
-        if (doc.user_id !== dbUser.id) {
-            return NextResponse.json({ ok: false, error: 'Tidak memiliki izin untuk menghapus dokumen ini' }, { status: 403 });
+        // 2. check ownership for all
+        const unauthorized = docs.some(d => d.user_id !== dbUser.id);
+        if (unauthorized) {
+            return NextResponse.json({ ok: false, error: 'Tidak memiliki izin untuk menghapus satu atau lebih dokumen ini' }, { status: 403 });
         }
 
         // 3. Delete from hosting via acca_delete.php
         const PHP_DELETE_URL = process.env.NEXT_PUBLIC_PHP_DELETE_URL || 'https://icgowa.sch.id/acca.icgowa.sch.id/acca_delete.php';
 
-        const phpFormData = new FormData();
-        phpFormData.append('file_url', doc.file_url);
-
-        try {
-            const deleteRes = await fetch(PHP_DELETE_URL, {
-                method: 'POST',
-                body: phpFormData
-            });
-            const deleteResult = await deleteRes.json();
-            if (!deleteResult.ok) {
-                console.error("Hosting delete error:", deleteResult.error);
-                // We proceed to delete from DB anyway to keep it clean, 
-                // but maybe we should throw or log it.
+        const deletePromises = docs.map(async (doc) => {
+            try {
+                const phpFormData = new FormData();
+                phpFormData.append('file_url', doc.file_url);
+                const deleteRes = await fetch(PHP_DELETE_URL, {
+                    method: 'POST',
+                    body: phpFormData
+                });
+                return await deleteRes.json();
+            } catch (err) {
+                console.error(`Failed to delete ${doc.file_url} from hosting`, err);
+                return { ok: false };
             }
-        } catch (err) {
-            console.error("Failed to call hosting delete script:", err);
-        }
+        });
 
-        // 4. Delete from Supabase (this will also delete shares via ON DELETE CASCADE if configured, 
-        // but we should check our migration) - Migration has ON DELETE CASCADE.
+        await Promise.all(deletePromises);
+
+        // 4. Delete from Supabase
         const { error: dbDeleteError } = await supabase
             .from('personal_documents')
             .delete()
-            .eq('id', docId);
+            .in('id', docs.map(d => d.id));
 
         if (dbDeleteError) throw dbDeleteError;
+
+        return NextResponse.json({ ok: true, message: `${docs.length} dokumen berhasil dihapus` });
 
         return NextResponse.json({ ok: true, message: 'Dokumen berhasil dihapus' });
 

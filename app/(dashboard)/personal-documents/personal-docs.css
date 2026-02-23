@@ -203,56 +203,92 @@
     background-color: #fee2e2;
 }
 
-/* Progress Bar */
-.upload-progress-container {
-    margin-top: 1.5rem;
-    padding: 1rem;
-    background: #f8fafc;
-    border-radius: 0.75rem;
+/* Selection & Checkboxes */
+.doc-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: #1e3a8a;
+    cursor: pointer;
 }
 
-.progress-bar-bg {
-    height: 8px;
-    background: #e2e8f0;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 0.5rem;
+.doc-item.selected {
+    background-color: #f0f7ff;
 }
 
-.progress-bar-fill {
-    height: 100%;
-    background: #1e3a8a;
-    transition: width 0.3s ease;
+.doc-item.selected .doc-name {
+    color: #1e3a8a;
+    font-weight: 700;
 }
 
-.progress-text {
+/* Batch Actions */
+.batch-actions {
     display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    color: #64748b;
+    align-items: center;
+    gap: 0.75rem;
 }
 
-/* Empty State */
-.empty-state {
-    padding: 4rem 2rem;
-    text-align: center;
-    color: #94a3b8;
+.btn-danger-personal {
+    background-color: #fee2e2;
+    color: #ef4444;
+    border: 1px solid #fecaca;
 }
 
-.empty-state i {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    display: block;
+.btn-danger-personal:hover {
+    background-color: #fecaca;
+}
+
+.btn-share-personal {
+    background-color: #eff6ff;
+    color: #1e3a8a;
+    border: 1px solid #dbeafe;
+}
+
+.btn-share-personal:hover {
+    background-color: #dbeafe;
+}
+
+/* Folder Actions */
+.folder-card {
+    position: relative;
+    padding: 0 !important;
+    /* Reset for better layout */
+    display: flex;
+    flex-direction: column;
+}
+
+.folder-main {
+    flex: 1;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+}
+
+.folder-actions {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 4px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.folder-card:hover .folder-actions {
+    opacity: 1;
 }
 
 @media (max-width: 768px) {
-    .doc-item {
-        grid-template-columns: auto 1fr auto;
-    }
-
-    .doc-size,
-    .doc-date,
-    .doc-owner {
-        display: none;
+    .folder-actions {
+        opacity: 1;
+        position: static;
+        transform: none;
+        padding: 0.5rem 1.25rem;
+        border-top: 1px solid #f1f5f9;
+        justify-content: flex-end;
     }
 }

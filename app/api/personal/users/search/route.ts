@@ -15,14 +15,14 @@ export async function GET(request: Request) {
 
         let query = supabase
             .from('users')
-            .select('id, nama_lengkap, username')
+            .select('id, nama, username') // Use 'nama' as fallback for now
             .eq('aktif', true)
             .neq('auth_id', authUser.id) // Don't share with self
-            .order('nama_lengkap', { ascending: true })
+            .order('nama', { ascending: true })
             .limit(20);
 
         if (q) {
-            query = query.or(`nama_lengkap.ilike.%${q}%,username.ilike.%${q}%`);
+            query = query.or(`nama.ilike.%${q}%,username.ilike.%${q}%`);
         }
 
         const { data, error } = await query;
