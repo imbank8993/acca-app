@@ -70,7 +70,7 @@ export default function MedalPodium({ top3, label, onSelect }: { top3: Winner[],
                     justify-content: center;
                     align-items: flex-end;
                     gap: 40px; /* Increased gap */
-                    margin: 10px 0 160px; /* Increased bottom margin to prevent overlap with Runner Ups */
+                    margin: 30px 0 160px; /* Increased top margin for gap between badge and podium */
                     min-height: 250px; /* Reduced min-height to prevent huge top gap */
                 }
                 .podium-item {

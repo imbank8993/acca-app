@@ -16,13 +16,14 @@ interface Winner {
 
 interface CampioneData {
     jamKosong: Winner[];
-    penugasan: Winner[];
+    penugasanTanpa: Winner[];
+    penugasanDengan: Winner[];
     terlambat: Winner[];
 }
 
 export default function CampionePage() {
-    const [activeTab, setActiveTab] = useState<'jamKosong' | 'penugasan' | 'terlambat'>('jamKosong');
-    const [data, setData] = useState<CampioneData>({ jamKosong: [], penugasan: [], terlambat: [] });
+    const [activeTab, setActiveTab] = useState<'jamKosong' | 'penugasanTanpa' | 'penugasanDengan' | 'terlambat'>('jamKosong');
+    const [data, setData] = useState<CampioneData>({ jamKosong: [], penugasanTanpa: [], penugasanDengan: [], terlambat: [] });
     const [loading, setLoading] = useState(true);
 
     const fetchData = async () => {
@@ -42,7 +43,7 @@ export default function CampionePage() {
 
     // Trigger confetti when data is loaded and not empty
     useEffect(() => {
-        if (!loading && (data.jamKosong.length > 0 || data.penugasan.length > 0 || data.terlambat.length > 0)) {
+        if (!loading && (data.jamKosong.length > 0 || data.penugasanTanpa.length > 0 || data.penugasanDengan.length > 0 || data.terlambat.length > 0)) {
             const duration = 3 * 1000;
             const animationEnd = Date.now() + duration;
             const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
@@ -80,7 +81,8 @@ export default function CampionePage() {
     const getTabLabel = () => {
         switch (activeTab) {
             case 'jamKosong': return 'Jam Kosong';
-            case 'penugasan': return 'Penugasan';
+            case 'penugasanTanpa': return 'Penugasan Tanpa Pendampingan';
+            case 'penugasanDengan': return 'Penugasan Dengan Pendampingan';
             case 'terlambat': return 'Terlambat';
             default: return '';
         }
@@ -90,7 +92,8 @@ export default function CampionePage() {
     const getGradient = () => {
         switch (activeTab) {
             case 'jamKosong': return 'linear-gradient(135deg, #FF6B6B 0%, #EE5253 100%)';
-            case 'penugasan': return 'linear-gradient(135deg, #48DBFB 0%, #0ABDE3 100%)';
+            case 'penugasanTanpa': return 'linear-gradient(135deg, #48DBFB 0%, #0ABDE3 100%)';
+            case 'penugasanDengan': return 'linear-gradient(135deg, #1DD1A1 0%, #10AC84 100%)';
             case 'terlambat': return 'linear-gradient(135deg, #FF9F43 0%, #EE5A24 100%)';
             default: return 'none';
         }
@@ -124,13 +127,19 @@ export default function CampionePage() {
                         className={`tab-btn ${activeTab === 'jamKosong' ? 'active' : ''}`}
                         onClick={() => setActiveTab('jamKosong')}
                     >
-                        <i className="bi bi-calendar-x"></i> Jam Kosong
+                        <i className="bi bi-calendar-x"></i> Kosong
                     </button>
                     <button
-                        className={`tab-btn ${activeTab === 'penugasan' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('penugasan')}
+                        className={`tab-btn ${activeTab === 'penugasanTanpa' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('penugasanTanpa')}
                     >
-                        <i className="bi bi-journal-text"></i> Penugasan
+                        <i className="bi bi-journal"></i> Tanpa Pendampingan
+                    </button>
+                    <button
+                        className={`tab-btn ${activeTab === 'penugasanDengan' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('penugasanDengan')}
+                    >
+                        <i className="bi bi-journal-check"></i> Dengan Pendampingan
                     </button>
                     <button
                         className={`tab-btn ${activeTab === 'terlambat' ? 'active' : ''}`}
@@ -139,7 +148,10 @@ export default function CampionePage() {
                         <i className="bi bi-alarm"></i> Terlambat
                     </button>
                     <div className="tab-indicator" style={{
-                        transform: `translateX(${activeTab === 'jamKosong' ? '0%' : activeTab === 'penugasan' ? '100%' : '200%'})`
+                        transform: `translateX(${activeTab === 'jamKosong' ? '0%' :
+                            activeTab === 'penugasanTanpa' ? '100%' :
+                                activeTab === 'penugasanDengan' ? '200%' : '300%'
+                            })`
                     }}></div>
                 </div>
 
@@ -151,7 +163,7 @@ export default function CampionePage() {
                         </div>
                     ) : (
                         <div className="animate-fade-in">
-                            <div className="header-badge" style={{ background: getGradient() }}>
+                            <div className="header-badge" style={{ background: getGradient(), marginBottom: '8px' }}>
                                 TOP {getTabLabel().toUpperCase()}
                             </div>
 
@@ -216,7 +228,7 @@ export default function CampionePage() {
                     padding: 8px;
                     border-radius: 16px;
                     display: grid;
-                    grid-template-columns: 1fr 1fr 1fr;
+                    grid-template-columns: 1fr 1fr 1fr 1fr;
                     position: relative;
                     box-shadow: 0 4px 20px rgba(0,0,0,0.08);
                     margin-bottom: 30px;
@@ -244,7 +256,7 @@ export default function CampionePage() {
                     position: absolute;
                     top: 8px;
                     left: 8px;
-                    width: calc(33.333% - 5px);
+                    width: calc(25% - 5px);
                     height: calc(100% - 16px);
                     background: white;
                     border-radius: 12px;
@@ -325,7 +337,8 @@ export default function CampionePage() {
 
                 @media (max-width: 768px) {
                     .title { font-size: 1.8rem; }
-                    .tab-btn { font-size: 0.8rem; padding: 12px 8px; }
+                    .tabs-container { grid-template-columns: 1fr 1fr; }
+                    .tab-btn { font-size: 0.75rem; padding: 10px 6px; }
                     .stats-card { padding: 20px; }
                 }
             `}</style>

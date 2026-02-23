@@ -17,7 +17,7 @@ export default function LeaderboardList({ list, startIndex, label, onSelect }: {
     return (
         <div className="list-container">
             {list.map((item, index) => (
-                <div key={item.nip} className="list-item" onClick={() => onSelect(item)}>
+                <div key={item.nip || item.nama} className="list-item" onClick={() => onSelect(item)}>
                     <div className="rank">#{startIndex + index}</div>
                     <div className="avatar">
                         {item.nama.charAt(0)}

@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
                 id,
                 nip,
                 nama_guru,
+                guru_pengganti,
                 kategori_kehadiran,
                 status_pengganti,
                 keterangan_terlambat,
@@ -30,106 +31,105 @@ export async function GET(request: NextRequest) {
             nip: string,
             nama: string,
             jam_kosong: number,
-            penugasan: number,
+            penugasanTanpa: number,
+            penugasanDengan: number,
             terlambat: number,
             details: any[]
         }> = {};
 
-        jurnals?.forEach(j => {
-            if (!j.nip) return;
-            const key = j.nip;
-
+        const ensureKey = (key: string, nama: string, nip: string) => {
             if (!stats[key]) {
-                stats[key] = {
-                    nip: key,
-                    nama: j.nama_guru || 'Unknown',
-                    jam_kosong: 0,
-                    penugasan: 0,
-                    terlambat: 0,
-                    details: []
-                };
+                stats[key] = { nip, nama, jam_kosong: 0, penugasanTanpa: 0, penugasanDengan: 0, terlambat: 0, details: [] };
             }
+        };
 
-            let incidentType = null;
+        jurnals?.forEach(j => {
+            // ── 1. GURU ASLI ──────────────────────────────────────────────
+            const keyAsli = j.nip || j.nama_guru;
+            if (!keyAsli) return;
+
+            ensureKey(keyAsli, j.nama_guru || 'Unknown', j.nip || '');
+
             const kategori = (j.kategori_kehadiran || '').trim();
             const statusPengganti = (j.status_pengganti || '').trim();
             const ketTerlambat = (j.keterangan_terlambat || '').trim();
-            const isHadir = ['Hadir', 'Hadir (Daring)', 'Dinas Luar'].includes(kategori);
+            const namaGuruPengganti = (j.guru_pengganti || '').trim();
 
-            // Helper: Check if substitute is considered absent
-            const isSubstituteAbsent = statusPengganti === 'Tidak Hadir' || statusPengganti === 'Kosong';
+            const KATEGORI_HADIR = [
+                'Hadir', 'Hadir (Daring)', 'Dinas Luar', 'Sesuai',
+                'Tim teaching', 'Tukaran', 'Tukaran/Diganti', '-', ''
+            ];
+            const isHadir = !kategori || KATEGORI_HADIR.some(k => kategori.toLowerCase() === k.toLowerCase());
 
-            // Logic 1: Jam Kosong (Empty Class)
-            // Occurs if teacher is NOT present AND (no valid substitute OR substitute is absent)
-            // Also covers cases where it is "Penugasan" but the substitute didn't show up.
+            let incidentAsli: string | null = null;
+
             if (!isHadir) {
-                const isPenugasan = kategori.toLowerCase().includes('penugasan');
+                const isPenugasanTanpa = kategori.toLowerCase().includes('tanpa pendampingan');
+                const isPenugasanDengan = kategori.toLowerCase().includes('dengan pendampingan');
 
-                if (isSubstituteAbsent) {
-                    // If substitute is marked absent, it's ALWAYS a Jam Kosong, even if it was "Penugasan"
-                    stats[key].jam_kosong++;
-                    incidentType = 'Jam Kosong (Pengganti Tdk Hadir)';
-                } else if (!isPenugasan && !['terlambat', 'izin', 'sakit', 'cuti'].includes(kategori.toLowerCase()) && !statusPengganti) {
-                    // If it's Alpa/Tanpa Keterangan and no substitute
-                    stats[key].jam_kosong++;
-                    incidentType = 'Jam Kosong';
-                } else if (['izin', 'sakit', 'cuti'].includes(kategori.toLowerCase()) && !statusPengganti) {
-                    // Izin/Sakit but no substitute assigned/recorded
-                    stats[key].jam_kosong++;
-                    incidentType = 'Jam Kosong (Tdk Ada Pengganti)';
+                if (isPenugasanTanpa) {
+                    stats[keyAsli].penugasanTanpa++;
+                    incidentAsli = 'Penugasan Tanpa Pendampingan';
+                } else if (isPenugasanDengan) {
+                    stats[keyAsli].penugasanDengan++;
+                    incidentAsli = 'Penugasan Dengan Pendampingan';
+                } else if (kategori === 'Terlambat') {
+                    stats[keyAsli].terlambat++;
+                    incidentAsli = 'Terlambat';
+                } else {
+                    // Semua kategori absensi lainnya (Sakit, Izin, Kosong, Alpa, dll) → Jam Kosong
+                    // Status guru asli mengikuti kategori_kehadiran, tidak peduli ada/tidaknya pengganti
+                    stats[keyAsli].jam_kosong++;
+                    incidentAsli = namaGuruPengganti
+                        ? `Jam Kosong (${kategori})`
+                        : `Jam Kosong (${kategori})`;
+                }
+            } else {
+                // Guru hadir tapi ada keterangan terlambat
+                if (ketTerlambat && ketTerlambat !== '-') {
+                    stats[keyAsli].terlambat++;
+                    incidentAsli = 'Terlambat';
                 }
             }
 
-            // Logic 2: Penugasan (Assignment)
-            // Must contain "Penugasan" in category (Handling both "Tanpa" and "Dengan" Pendampingan)
-            // AND Substitute must NOT be absent (handled above)
-            if (kategori.toLowerCase().includes('penugasan') && !isSubstituteAbsent) {
-                stats[key].penugasan++;
-                incidentType = 'Penugasan';
-            }
-
-            // Logic 3: Terlambat (Late)
-            // Explicit category 'Terlambat' OR has lateness description
-            // Note: A teacher can be 'Hadir' but have 'keterangan_terlambat' filled
-            if (kategori === 'Terlambat' || (ketTerlambat && ketTerlambat !== '-' && ketTerlambat !== '')) {
-                stats[key].terlambat++;
-                // Prefer "Terlambat" label even if they were also marked "Hadir" technically
-                incidentType = 'Terlambat';
-            }
-
-            // Correction for Overlap:
-            // If it was counted as 'Jam Kosong' above (due to bad substitute), don't double count as Penugasan.
-            // But 'Terlambat' is usually distinct from 'Jam Kosong' (you are there, just late).
-            // However, verify we don't double assign incidentType if primarily it was 'Jam Kosong'.
-            if (incidentType === 'Jam Kosong (Pengganti Tdk Hadir)' && kategori.toLowerCase().includes('penugasan')) {
-                // Already handled in logic 1, effectively removing it from "Penugasan" count if we didn't add it there.
-                // Just ensuring incidentType reflects the worst case.
-            }
-
-            // Simple exclusive check for stats increment to avoid double counting if logic overlaps?
-            // The above logic increments specific counters. 
-            // We should ensure a single event doesn't increment multiple conflicting counters unless intended.
-            // Current logic allows 'Terlambat' to count independently of 'Jam Kosong'/'Penugasan' 
-            // (e.g. you could be 'Terlambat' AND then leave? No, likely one status per journal).
-
-            // Refined Exclusive Logic for Incident Type (for display precedence):
-            if (stats[key].jam_kosong > 0 && incidentType?.startsWith('Jam Kosong')) {
-                // Keep as Jam Kosong
-            } else if (stats[key].penugasan > 0 && incidentType === 'Penugasan') {
-                // Keep
-            } else if (stats[key].terlambat > 0 && incidentType === 'Terlambat') {
-                // Keep
-            }
-
-            if (incidentType) {
-                stats[key].details.push({
-                    type: incidentType,
+            if (incidentAsli) {
+                stats[keyAsli].details.push({
+                    type: incidentAsli,
                     tanggal: j.tanggal,
                     kelas: j.kelas,
                     mapel: j.mata_pelajaran,
                     jam_ke: j.jam_ke,
-                    keterangan: ketTerlambat || kategori || statusPengganti
+                    keterangan: ketTerlambat || kategori
                 });
+            }
+
+            // ── 2. GURU PENGGANTI ─────────────────────────────────────────
+            // Hanya diproses jika ada nama guru pengganti
+            if (namaGuruPengganti) {
+                ensureKey(namaGuruPengganti, namaGuruPengganti, '');
+
+                let incidentPengganti: string | null = null;
+
+                if (statusPengganti === 'Tidak Hadir' || statusPengganti === 'Kosong') {
+                    // Pengganti tidak hadir → Jam Kosong menjadi tanggung jawab pengganti
+                    stats[namaGuruPengganti].jam_kosong++;
+                    incidentPengganti = 'Jam Kosong (Tidak Hadir sebagai Pengganti)';
+                } else if (statusPengganti === 'Terlambat') {
+                    stats[namaGuruPengganti].terlambat++;
+                    incidentPengganti = 'Terlambat (sebagai Pengganti)';
+                }
+                // Jika statusPengganti === 'Hadir' → pengganti hadir, tidak ada insiden
+
+                if (incidentPengganti) {
+                    stats[namaGuruPengganti].details.push({
+                        type: incidentPengganti,
+                        tanggal: j.tanggal,
+                        kelas: j.kelas,
+                        mapel: j.mata_pelajaran,
+                        jam_ke: j.jam_ke,
+                        keterangan: `Menggantikan: ${j.nama_guru}`
+                    });
+                }
             }
         });
 
@@ -138,23 +138,33 @@ export async function GET(request: NextRequest) {
         const topJamKosong = [...allStats]
             .sort((a, b) => b.jam_kosong - a.jam_kosong)
             .filter(s => s.jam_kosong > 0)
+            .map(s => ({ ...s, count: s.jam_kosong }))
             .slice(0, 10);
 
-        const topPenugasan = [...allStats]
-            .sort((a, b) => b.penugasan - a.penugasan)
-            .filter(s => s.penugasan > 0)
+        const topPenugasanTanpa = [...allStats]
+            .sort((a, b) => b.penugasanTanpa - a.penugasanTanpa)
+            .filter(s => s.penugasanTanpa > 0)
+            .map(s => ({ ...s, count: s.penugasanTanpa }))
+            .slice(0, 10);
+
+        const topPenugasanDengan = [...allStats]
+            .sort((a, b) => b.penugasanDengan - a.penugasanDengan)
+            .filter(s => s.penugasanDengan > 0)
+            .map(s => ({ ...s, count: s.penugasanDengan }))
             .slice(0, 10);
 
         const topTerlambat = [...allStats]
             .sort((a, b) => b.terlambat - a.terlambat)
             .filter(s => s.terlambat > 0)
+            .map(s => ({ ...s, count: s.terlambat }))
             .slice(0, 10);
 
         return corsResponse(NextResponse.json({
             success: true,
             data: {
                 jamKosong: topJamKosong,
-                penugasan: topPenugasan,
+                penugasanTanpa: topPenugasanTanpa,
+                penugasanDengan: topPenugasanDengan,
                 terlambat: topTerlambat
             }
         }));
