@@ -419,7 +419,6 @@ const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<
   'campione': () => <CampionePage />,
   'agenda-akademik': () => <AgendaAkademikPage />,
   'arsip-siswa': (user) => <DokumenSiswaPage user={user} />,
-  'dokumen-siswa': (user) => <DokumenSiswaUploadsPage user={user} />,
 };
 
 function renderPageContent(page: string, user: User) {
