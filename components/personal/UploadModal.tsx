@@ -68,6 +68,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
 
             const xhr = new XMLHttpRequest();
             xhr.open('POST', phpUrl, true);
+            xhr.timeout = 600000; // 10 minutes timeout for large files
 
             xhr.upload.onprogress = (event) => {
                 if (event.lengthComputable) {
@@ -90,6 +91,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
                 }
             };
 
+            xhr.ontimeout = () => reject(`Unggahan ${file.name} melebihi batas waktu (10 menit). Koneksi mungkin terlalu lambat.`);
             xhr.onerror = () => reject(`Koneksi ke hosting terputus saat mengunggah ${file.name}`);
             xhr.send(phpFormData);
         });

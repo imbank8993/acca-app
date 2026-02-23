@@ -7,6 +7,11 @@ header('Content-Type: application/json');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS')
     exit;
 
+// Increase time limits for large file uploads
+set_time_limit(0);
+ini_set('max_execution_time', 0);
+ini_set('max_input_time', 0);
+
 // 1. Pengaturan Direktori
 $base_dir = "uploads/";
 
@@ -77,5 +82,13 @@ if (isset($_FILES['file'])) {
         echo json_encode(["ok" => false, "error" => "Gagal memindahkan file di server"]);
     }
 } else {
-    echo json_encode(["ok" => false, "error" => "Tidak ada file yang diterima"]);
+    // Diagnostik jika $_FILES kosong pada request POST
+    $error_msg = "Tidak ada file yang diterima";
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_FILES)) {
+        $post_max = ini_get('post_max_size');
+        $upload_max = ini_get('upload_max_filesize');
+        $content_length = $_SERVER['CONTENT_LENGTH'] ?? 'unknown';
+        $error_msg = "File tidak terdeteksi oleh server. Kemungkinan besar ukuran file ($content_length bytes) melebihi batas server (post_max_size: $post_max, upload_max_filesize: $upload_max).";
+    }
+    echo json_encode(["ok" => false, "error" => $error_msg]);
 }
