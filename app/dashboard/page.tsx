@@ -29,6 +29,7 @@ import RekapJurnalPage from '../rekap-jurnal/page'
 import MonitoringPage from '../monitoring/page' // Import Monitoring Page
 import UserHeartbeat from '@/components/UserHeartbeat' // Import Heartbeat
 import CampionePage from '@/app/campione/page' // Import Campione Page
+import AgendaAkademikPage from '../agenda-akademik/page'
 
 export default function DashboardPage() {
   return (
@@ -416,6 +417,7 @@ const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<
   // MONITORING
   'monitoring': () => <MonitoringPage />,
   'campione': () => <CampionePage />,
+  'agenda-akademik': () => <AgendaAkademikPage />,
   'arsip-siswa': (user) => <DokumenSiswaPage user={user} />,
   'dokumen-siswa': (user) => <DokumenSiswaUploadsPage user={user} />,
 };
