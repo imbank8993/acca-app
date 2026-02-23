@@ -6,8 +6,8 @@ import Swal from 'sweetalert2';
 interface ShareModalProps {
     isOpen: boolean;
     onClose: () => void;
-    documentIds?: string[]; // Array of IDs for multi-share
-    documentId?: string;    // Single ID
+    ids?: string[]; // Array of IDs for multi-share
+    id?: string;    // Single ID
     folderId?: string;      // Folder share
     title: string;          // Name of folder or single/multiple docs
 }
@@ -22,8 +22,8 @@ interface User {
 export default function ShareModal({
     isOpen,
     onClose,
-    documentIds,
-    documentId,
+    ids,
+    id,
     folderId,
     title
 }: ShareModalProps) {
@@ -33,8 +33,7 @@ export default function ShareModal({
     const [sharing, setSharing] = useState<number | null>(null);
 
     const isFolder = !!folderId;
-    const isMulti = !!documentIds && documentIds.length > 0;
-    const ids = isMulti ? documentIds : (documentId ? [documentId] : []);
+    const documentIds = ids || (id ? [id] : []);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -68,7 +67,7 @@ export default function ShareModal({
 
             const body = isFolder
                 ? { folder_id: folderId, shared_with_user_id: userId }
-                : { document_ids: ids, shared_with_user_id: userId };
+                : { document_ids: documentIds, shared_with_user_id: userId };
 
             const res = await fetch(url, {
                 method: 'POST',
@@ -98,70 +97,76 @@ export default function ShareModal({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="flex justify-between items-center mb-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md transition-all">
+            <div className="bg-white w-full max-w-md rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] p-8 overflow-hidden animate-in fade-in zoom-in duration-300 border border-white/20">
+                <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">
+                        <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">
                             {isFolder ? 'Bagikan Folder' : 'Bagikan Dokumen'}
                         </h2>
-                        <p className="text-xs text-slate-500 mt-1 line-clamp-1">{title}</p>
+                        <p className="text-sm text-slate-400 font-medium mt-1 line-clamp-1">"{title}"</p>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-                        <i className="fa-solid fa-xmark text-xl"></i>
+                    <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all">
+                        <i className="fa-solid fa-xmark text-lg"></i>
                     </button>
                 </div>
 
-                <div className="space-y-4">
-                    <div className="relative">
-                        <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <div className="space-y-6">
+                    <div className="relative group">
+                        <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500"></i>
                         <input
                             type="text"
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900/10 focus:border-blue-900 transition-all outline-none"
+                            className="w-full pl-12 pr-4 h-12 bg-slate-50/80 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all outline-none font-semibold text-slate-700"
                             placeholder="Cari nama atau username..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
 
-                    <div className="max-h-[300px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                    <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1 custom-scrollbar min-h-[200px]">
                         {loading ? (
-                            <div className="p-4 text-center text-slate-400 text-sm">Mencari...</div>
+                            <div className="flex flex-col items-center justify-center py-10 gap-3">
+                                <i className="fa-solid fa-circle-notch fa-spin text-2xl text-blue-500"></i>
+                                <div className="text-slate-400 text-xs font-bold uppercase tracking-widest">Mencari Pengguna...</div>
+                            </div>
                         ) : users.length > 0 ? (
                             users.map(user => (
-                                <div key={user.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-full bg-blue-900/10 text-blue-900 flex items-center justify-center font-bold text-sm">
+                                <div key={user.id} className="flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group/item">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-400 text-white flex items-center justify-center font-black text-lg shadow-sm">
                                             {(user.nama_lengkap || user.nama || '?').charAt(0).toUpperCase()}
                                         </div>
-                                        <div>
-                                            <div className="text-sm font-semibold text-slate-800">{user.nama_lengkap || user.nama}</div>
-                                            <div className="text-xs text-slate-500">@{user.username}</div>
+                                        <div className="flex flex-col">
+                                            <div className="text-sm font-bold text-slate-800">{user.nama_lengkap || user.nama}</div>
+                                            <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wide">@{user.username}</div>
                                         </div>
                                     </div>
                                     <button
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${sharing === user.id
+                                        className={`h-9 px-4 rounded-xl text-xs font-black transition-all shadow-sm ${sharing === user.id
                                             ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                            : 'bg-blue-900/10 text-blue-900 hover:bg-blue-900 hover:text-white'
+                                            : 'bg-white text-blue-600 border border-blue-100 hover:bg-blue-600 hover:text-white hover:border-blue-600'
                                             }`}
                                         onClick={() => handleShare(user.id)}
                                         disabled={sharing !== null}
                                     >
-                                        {sharing === user.id ? 'Memproses...' : 'Bagikan'}
+                                        {sharing === user.id ? '...' : 'Bagikan'}
                                     </button>
                                 </div>
                             ))
                         ) : (
-                            <div className="p-4 text-center text-slate-400 text-sm">Tidak ada user ditemukan.</div>
+                            <div className="flex flex-col items-center justify-center py-10 opacity-40">
+                                <i className="fa-solid fa-users-slash text-3xl mb-3"></i>
+                                <div className="text-xs font-bold uppercase tracking-widest">Tidak ada hasil</div>
+                            </div>
                         )}
                     </div>
 
-                    <div className="pt-4 border-t border-slate-100">
+                    <div className="pt-6 border-t border-slate-100">
                         <button
-                            className="w-full px-4 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-lg hover:bg-slate-50 transition-all"
+                            className="w-full h-12 border-2 border-slate-100 text-slate-500 font-bold rounded-2xl hover:bg-slate-50 hover:text-slate-700 transition-all"
                             onClick={onClose}
                         >
-                            Tutup
+                            Selesai
                         </button>
                     </div>
                 </div>

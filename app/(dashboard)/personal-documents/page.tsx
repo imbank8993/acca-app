@@ -243,6 +243,28 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
         }
     };
 
+    const handleBatchDownload = async () => {
+        if (selectedIds.length === 0) return;
+        setIsDownloading('batch');
+        try {
+            const res = await fetch(`/api/personal/documents/download/batch?ids=${selectedIds.join(',')}`);
+            if (!res.ok) throw new Error('Gagal mengunduh dokumen');
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ruang_dokumen_${new Date().getTime()}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        } catch (error) {
+            Swal.fire('Error', 'Gagal mengunduh dokumen terpilih', 'error');
+        } finally {
+            setIsDownloading(null);
+        }
+    };
+
     const formatSize = (bytes: number) => {
         if (!bytes) return '0 B';
         const k = 1024;
@@ -262,9 +284,13 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                     <div className="personal-actions">
                         {selectedIds.length > 0 && (
                             <div className="batch-actions animate-in fade-in slide-in-from-right-4 duration-200">
-                                <button className="btn-personal btn-danger-personal" onClick={handleBatchDelete}>
-                                    <i className="fa-solid fa-trash"></i>
-                                    {activeTab === 'shared' ? 'Lepas' : 'Hapus'} ({selectedIds.length})
+                                <button
+                                    className="btn-personal btn-secondary-personal"
+                                    onClick={handleBatchDownload}
+                                    disabled={isDownloading === 'batch'}
+                                >
+                                    <i className={`fa-solid ${isDownloading === 'batch' ? 'fa-spinner fa-spin' : 'fa-download'}`}></i>
+                                    Unduh ({selectedIds.length})
                                 </button>
                                 {activeTab === 'mine' && (
                                     <button className="btn-personal btn-share-personal" onClick={handleShareMultiple}>
@@ -272,7 +298,11 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                                         Bagikan ({selectedIds.length})
                                     </button>
                                 )}
-                                <div className="h-8 w-px bg-slate-200 mx-2"></div>
+                                <button className="btn-personal btn-danger-personal" onClick={handleBatchDelete}>
+                                    <i className="fa-solid fa-trash"></i>
+                                    {activeTab === 'shared' ? 'Lepas' : 'Hapus'}
+                                </button>
+                                <div className="h-8 w-px bg-slate-200 mx-2 hidden md:block"></div>
                             </div>
                         )}
                         <button className="btn-personal btn-secondary-personal" onClick={handleCreateFolder}>
@@ -306,10 +336,14 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                         {folders.map(folder => (
                             <div key={folder.id} className="folder-card group">
                                 <div className="folder-main" onClick={() => setSelectedFolder(folder.id)}>
-                                    <i className="fa-solid fa-folder folder-icon"></i>
-                                    <span className="folder-name">{folder.nama}</span>
+                                    <div className="folder-icon-wrapper">
+                                        <i className="fa-solid fa-folder folder-icon"></i>
+                                    </div>
+                                    <div className="folder-info">
+                                        <h3>{folder.nama}</h3>
+                                    </div>
                                 </div>
-                                <div className="folder-actions opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="folder-actions">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); handleDownloadFolder(folder.id, folder.nama); }}
                                         className="btn-action-icon"
@@ -341,9 +375,9 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                 )}
 
                 {selectedFolder && (
-                    <div className="mb-4">
+                    <div className="mb-6">
                         <button
-                            className="text-blue-900 font-semibold flex items-center gap-2"
+                            className="bg-blue-50 text-blue-900 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-100 transition-colors"
                             onClick={() => setSelectedFolder(null)}
                         >
                             <i className="fa-solid fa-arrow-left"></i>
@@ -352,86 +386,125 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                     </div>
                 )}
 
-                <section className="doc-list">
+                <section className="document-container">
                     {loading ? (
                         <div className="p-8 text-center text-slate-500">Memuat dokumen...</div>
                     ) : documents.length > 0 ? (
                         <>
-                            <div className="doc-item font-semibold bg-slate-50 border-b border-slate-200">
-                                <div className="flex items-center">
-                                    <input
-                                        type="checkbox"
-                                        className="doc-checkbox"
-                                        checked={selectedIds.length === documents.length && documents.length > 0}
-                                        onChange={(e) => {
-                                            if (e.target.checked) setSelectedIds(documents.map(d => d.id));
-                                            else setSelectedIds([]);
-                                        }}
-                                    />
-                                </div>
-                                <span>Nama Dokumen</span>
-                                <span>Ukuran</span>
-                                <span>Tanggal</span>
-                                <span className="text-right">Aksi</span>
-                            </div>
-                            {documents.map(doc => (
-                                <div key={doc.id} className={`doc-item ${selectedIds.includes(doc.id) ? 'selected' : ''}`}>
-                                    <div className="flex items-center">
+                            {/* DESKTOP VIEW */}
+                            <div className="doc-list">
+                                <div className="doc-header">
+                                    <div className="flex justify-center">
                                         <input
                                             type="checkbox"
                                             className="doc-checkbox"
-                                            checked={selectedIds.includes(doc.id)}
-                                            onChange={() => toggleSelectArr(doc.id)}
+                                            checked={documents.length > 0 && selectedIds.length === documents.length}
+                                            onChange={() => {
+                                                if (selectedIds.length === documents.length) setSelectedIds([]);
+                                                else setSelectedIds(documents.map(d => d.id));
+                                            }}
                                         />
-                                        <i className={`fa-solid ${getFileIcon(doc.extension)} doc-icon text-blue-900 ml-3`}></i>
                                     </div>
-                                    <span className="doc-name">{doc.judul}</span>
-                                    <span className="doc-size">{formatSize(doc.size)}</span>
-                                    <span className="doc-date">{new Date(doc.uploaded_at).toLocaleDateString('id-ID')}</span>
-                                    <div className="doc-actions">
-                                        <a
-                                            href={doc.file_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="btn-action-icon"
-                                            title="Buka"
-                                        >
-                                            <i className="fa-solid fa-external-link"></i>
-                                        </a>
-                                        <a
-                                            href={doc.file_url}
-                                            download={doc.judul}
-                                            className="btn-action-icon text-blue-600"
-                                            title="Download"
-                                        >
-                                            <i className="fa-solid fa-download"></i>
-                                        </a>
-                                        {activeTab === 'mine' && (
-                                            <>
-                                                <button
-                                                    className="btn-action-icon"
-                                                    title="Bagikan"
-                                                    onClick={() => setShareData({ id: doc.id, title: doc.judul })}
-                                                >
+                                    <div>NAMA DOKUMEN</div>
+                                    <div>UKURAN</div>
+                                    <div>TANGGAL</div>
+                                    <div className="text-right">AKSI</div>
+                                </div>
+                                {documents.map(doc => (
+                                    <div key={doc.id} className={`doc-item ${selectedIds.includes(doc.id) ? 'selected' : ''}`}>
+                                        <div className="flex justify-center">
+                                            <input
+                                                type="checkbox"
+                                                className="doc-checkbox"
+                                                checked={selectedIds.includes(doc.id)}
+                                                onChange={() => toggleSelectArr(doc.id)}
+                                            />
+                                        </div>
+                                        <div className="flex items-center">
+                                            <div className="doc-icon-box">
+                                                <i className={`fa-solid ${getFileIcon(doc.extension)} text-lg`}></i>
+                                            </div>
+                                            <span className="doc-name">{doc.judul}</span>
+                                        </div>
+                                        <span className="doc-size">{formatSize(doc.size)}</span>
+                                        <span className="doc-date">{new Date(doc.uploaded_at).toLocaleDateString('id-ID')}</span>
+                                        <div className="doc-actions">
+                                            <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="btn-action-icon" title="Buka">
+                                                <i className="fa-solid fa-external-link"></i>
+                                            </a>
+                                            <a href={doc.file_url} download={doc.judul} className="btn-action-icon" title="Download">
+                                                <i className="fa-solid fa-download"></i>
+                                            </a>
+                                            {activeTab === 'mine' && (
+                                                <button className="btn-action-icon" title="Bagikan" onClick={() => setShareData({ id: doc.id, title: doc.judul })}>
                                                     <i className="fa-solid fa-share-nodes"></i>
                                                 </button>
-                                                <button
-                                                    className="btn-action-icon btn-delete"
-                                                    title="Hapus"
-                                                    onClick={() => handleDeleteDoc(doc.id, doc.judul)}
-                                                >
-                                                    <i className="fa-solid fa-trash-can"></i>
-                                                </button>
-                                            </>
-                                        )}
+                                            )}
+                                            <button
+                                                className="btn-action-icon btn-delete"
+                                                title={activeTab === 'mine' ? "Hapus" : "Lepas"}
+                                                onClick={() => handleDeleteDoc(doc.id, doc.judul)}
+                                            >
+                                                <i className={`fa-solid ${activeTab === 'mine' ? 'fa-trash-can' : 'fa-link-slash'}`}></i>
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
+
+                            {/* MOBILE VIEW (CARDS) */}
+                            <div className="mobile-doc-cards">
+                                {documents.map(doc => (
+                                    <div key={doc.id} className={`mobile-doc-card ${selectedIds.includes(doc.id) ? 'selected' : ''}`}>
+                                        <div className="mobile-doc-header">
+                                            <input
+                                                type="checkbox"
+                                                className="doc-checkbox"
+                                                checked={selectedIds.includes(doc.id)}
+                                                onChange={() => toggleSelectArr(doc.id)}
+                                            />
+                                            <div className="doc-icon-box">
+                                                <i className={`fa-solid ${getFileIcon(doc.extension)} text-lg`}></i>
+                                            </div>
+                                            <div className="mobile-doc-info">
+                                                <span className="mobile-doc-name">{doc.judul}</span>
+                                                <div className="mobile-doc-meta">
+                                                    <span>{formatSize(doc.size)}</span>
+                                                    <span>•</span>
+                                                    <span>{new Date(doc.uploaded_at).toLocaleDateString('id-ID')}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="mobile-doc-actions">
+                                            <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="btn-action-icon" title="Buka">
+                                                <i className="fa-solid fa-external-link"></i>
+                                            </a>
+                                            <a href={doc.file_url} download={doc.judul} className="btn-action-icon" title="Download">
+                                                <i className="fa-solid fa-download"></i>
+                                            </a>
+                                            {activeTab === 'mine' && (
+                                                <button className="btn-action-icon" title="Bagikan" onClick={() => setShareData({ id: doc.id, title: doc.judul })}>
+                                                    <i className="fa-solid fa-share-nodes"></i>
+                                                </button>
+                                            )}
+                                            <button
+                                                className="btn-action-icon btn-delete"
+                                                title={activeTab === 'mine' ? "Hapus" : "Lepas"}
+                                                onClick={() => handleDeleteDoc(doc.id, doc.judul)}
+                                            >
+                                                <i className={`fa-solid ${activeTab === 'mine' ? 'fa-trash-can' : 'fa-link-slash'}`}></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </>
                     ) : (
-                        <div className="empty-state">
-                            <i className="fa-solid fa-folder-open"></i>
-                            <p>Belum ada dokumen {activeTab === 'shared' ? 'yang dibagikan' : ''}.</p>
+                        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
+                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                                <i className="fa-solid fa-folder-open text-4xl text-slate-300"></i>
+                            </div>
+                            <p className="text-slate-500 font-semibold">Belum ada dokumen {activeTab === 'shared' ? 'yang dibagikan' : ''}.</p>
                         </div>
                     )}
                 </section>
@@ -449,10 +522,10 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                 <ShareModal
                     isOpen={!!shareData}
                     onClose={() => setShareData(null)}
-                    documentId={shareData.id}
-                    documentIds={shareData.ids}
-                    folderId={shareData.folderId}
+                    ids={shareData.ids}
+                    id={shareData.id}
                     title={shareData.title}
+                    folderId={shareData.folderId}
                 />
             )}
         </div>

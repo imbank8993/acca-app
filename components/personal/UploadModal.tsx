@@ -160,18 +160,21 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-slate-800">Unggah Dokumen</h2>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600" disabled={uploading}>
-                        <i className="fa-solid fa-xmark text-xl"></i>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md transition-all">
+            <div className="bg-white w-full max-w-lg rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] p-8 overflow-hidden animate-in fade-in zoom-in duration-300 border border-white/20">
+                <div className="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Unggah Dokumen</h2>
+                        <p className="text-sm text-slate-400 font-medium">Tambah koleksi berkas pribadi Anda</p>
+                    </div>
+                    <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all" disabled={uploading}>
+                        <i className="fa-solid fa-xmark text-lg"></i>
                     </button>
                 </div>
 
-                <div className="space-y-4">
-                    <div className="space-y-2">
-                        <label className="text-sm font-semibold text-slate-600">Pilih File (Bisa pilih banyak)</label>
+                <div className="space-y-6">
+                    <div className="space-y-3">
+                        <label className="text-sm font-bold text-slate-700 ml-1">Pilih Berkas</label>
                         <div className="relative group">
                             <input
                                 type="file"
@@ -183,26 +186,32 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
                             />
                             <label
                                 htmlFor="file-upload"
-                                className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-blue-900 transition-all"
+                                className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-slate-200 rounded-3xl cursor-pointer bg-slate-50/50 group-hover:bg-blue-50/50 group-hover:border-blue-400 transition-all duration-300"
                             >
-                                <i className="fa-solid fa-cloud-arrow-up text-2xl text-slate-400 mb-2"></i>
-                                <span className="text-sm text-slate-600 font-medium">Klik untuk memilih file</span>
-                                <span className="text-xs text-slate-400 mt-1">Maksimal 500 MB per file</span>
+                                <div className="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300">
+                                    <i className="fa-solid fa-cloud-arrow-up text-2xl text-blue-600"></i>
+                                </div>
+                                <span className="text-sm text-slate-600 font-bold">Tarik file atau klik untuk memilih</span>
+                                <span className="text-[10px] text-slate-400 mt-2 uppercase tracking-widest font-bold">Maksimal 500 MB per file</span>
                             </label>
                         </div>
                     </div>
 
                     {files.length > 0 && (
-                        <div className="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                        <div className="max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                             {files.map((f, i) => (
-                                <div key={i} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100">
-                                    <div className="flex items-center gap-3 overflow-hidden">
-                                        <i className="fa-solid fa-file text-blue-900"></i>
-                                        <span className="text-sm text-slate-700 truncate font-medium">{f.name}</span>
-                                        <span className="text-xs text-slate-400 whitespace-nowrap">({(f.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                                <div key={i} className="flex items-center justify-between p-3 bg-slate-50/80 rounded-2xl border border-slate-100 group/item hover:bg-white hover:shadow-sm transition-all">
+                                    <div className="flex items-center gap-4 overflow-hidden">
+                                        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                                            <i className="fa-solid fa-file text-blue-600"></i>
+                                        </div>
+                                        <div className="flex flex-col overflow-hidden">
+                                            <span className="text-sm text-slate-700 truncate font-bold">{f.name}</span>
+                                            <span className="text-[10px] text-slate-400 font-bold">{(f.size / (1024 * 1024)).toFixed(1)} MB</span>
+                                        </div>
                                     </div>
                                     {!uploading && (
-                                        <button onClick={() => removeFile(i)} className="text-red-400 hover:text-red-600 p-1">
+                                        <button onClick={() => removeFile(i)} className="w-8 h-8 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover/item:opacity-100">
                                             <i className="fa-solid fa-trash-can text-sm"></i>
                                         </button>
                                     )}
@@ -211,51 +220,54 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
                         </div>
                     )}
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-semibold text-slate-600">Simpan ke Folder</label>
+                    <div className="space-y-3">
+                        <label className="text-sm font-bold text-slate-700 ml-1">Simpan ke Folder</label>
                         <select
-                            className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900/10 focus:border-blue-900 transition-all outline-none"
+                            className="w-full h-12 px-4 bg-slate-50/80 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all outline-none font-semibold text-slate-700 appearance-none cursor-pointer"
                             value={selectedFolder}
                             onChange={(e) => setSelectedFolder(e.target.value)}
                             disabled={uploading}
                         >
-                            <option value="null">Akar (Tanpa Folder)</option>
+                            <option value="null">🏠 Akar (Tanpa Folder)</option>
                             {folders.map(f => (
-                                <option key={f.id} value={f.id}>{f.nama}</option>
+                                <option key={f.id} value={f.id}>📁 {f.nama}</option>
                             ))}
                         </select>
                     </div>
 
                     {uploading && (
-                        <div className="upload-progress-container !mt-6 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-                            <div className="flex justify-between text-xs font-bold text-blue-900 mb-2">
-                                <span>Mengunggah: {files[currentFileIndex]?.name}</span>
+                        <div className="bg-blue-600/5 p-5 rounded-3xl border border-blue-600/10 animate-pulse">
+                            <div className="flex justify-between text-[11px] font-black text-blue-700 mb-3 uppercase tracking-wider">
+                                <span className="truncate max-w-[70%]">📤 {files[currentFileIndex]?.name}</span>
                                 <span>{currentFileIndex + 1} / {files.length}</span>
                             </div>
-                            <div className="progress-bar-bg h-2">
-                                <div className="progress-bar-fill bg-blue-900" style={{ width: `${progress}%` }}></div>
+                            <div className="h-2.5 bg-blue-100 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-300 ease-out"
+                                    style={{ width: `${progress}%` }}
+                                ></div>
                             </div>
-                            <div className="flex justify-between text-[10px] text-blue-700 mt-2">
-                                <span>Mohon jangan tutup jendela ini</span>
+                            <div className="flex justify-between text-[10px] text-blue-500 mt-2 font-bold uppercase">
+                                <span>Mohon tunggu sebentar...</span>
                                 <span>{progress}%</span>
                             </div>
                         </div>
                     )}
 
-                    <div className="flex gap-3 pt-4 border-t border-slate-100 mt-6">
+                    <div className="flex gap-4 pt-6 mt-4">
                         <button
-                            className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-lg hover:bg-slate-50 transition-all disabled:opacity-50"
+                            className="flex-1 h-12 border-2 border-slate-100 text-slate-500 font-bold rounded-2xl hover:bg-slate-50 hover:text-slate-700 transition-all disabled:opacity-50"
                             onClick={onClose}
                             disabled={uploading}
                         >
                             Batal
                         </button>
                         <button
-                            className="flex-1 px-4 py-2.5 bg-blue-900 text-white font-semibold rounded-lg hover:bg-blue-800 transition-all disabled:opacity-50"
+                            className="flex-[2] h-12 bg-gradient-to-r from-blue-700 to-blue-500 text-white font-bold rounded-2xl shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-300 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:translate-y-0"
                             onClick={handleUpload}
                             disabled={uploading || files.length === 0}
                         >
-                            {uploading ? `Mengunggah (${currentFileIndex + 1}/${files.length})` : `Unggah ${files.length} File`}
+                            {uploading ? `Memproses Unggahan...` : `🚀 Unggah ${files.length} File`}
                         </button>
                     </div>
                 </div>
