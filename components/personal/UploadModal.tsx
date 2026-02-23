@@ -12,29 +12,53 @@ interface UploadModalProps {
 }
 
 export default function UploadModal({ isOpen, onClose, onSuccess, folders, currentFolderId }: UploadModalProps) {
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [selectedFolder, setSelectedFolder] = useState<string>(currentFolderId || 'null');
     const [uploading, setUploading] = useState(false);
+    const [currentFileIndex, setCurrentFileIndex] = useState(0);
     const [progress, setProgress] = useState(0);
 
     if (!isOpen) return null;
 
-    const handleUpload = async () => {
-        if (!file) {
-            Swal.fire('Peringatan', 'Silakan pilih file terlebih dahulu', 'warning');
-            return;
+    const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFiles = Array.from(e.target.files || []);
+        const validFiles: File[] = [];
+        const oversizedFiles: string[] = [];
+
+        selectedFiles.forEach(file => {
+            if (file.size <= MAX_FILE_SIZE) {
+                validFiles.push(file);
+            } else {
+                oversizedFiles.push(file.name);
+            }
+        });
+
+        if (oversizedFiles.length > 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'File Terlalu Besar',
+                text: `File berikut melebihi batas 500MB: ${oversizedFiles.join(', ')}`,
+            });
         }
 
-        setUploading(true);
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('folder_id', selectedFolder === 'null' ? '' : selectedFolder);
+        setFiles(prev => [...prev, ...validFiles]);
+    };
 
-        const folderName = folders.find(f => f.id === selectedFolder)?.nama || 'others';
-        formData.append('folder_name', folderName);
+    const removeFile = (index: number) => {
+        setFiles(prev => prev.filter((_, i) => i !== index));
+    };
 
-        try {
-            // Using XMLHttpRequest for progress tracking
+    const uploadFile = (file: File, index: number): Promise<void> => {
+        return new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('folder_id', selectedFolder === 'null' ? '' : selectedFolder);
+
+            const folderName = folders.find(f => f.id === selectedFolder)?.nama || 'others';
+            formData.append('folder_name', folderName);
+
             const xhr = new XMLHttpRequest();
             xhr.open('POST', '/api/personal/documents/upload', true);
 
@@ -48,79 +72,122 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
             xhr.onload = () => {
                 const response = JSON.parse(xhr.responseText);
                 if (xhr.status === 200 && response.ok) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil',
-                        text: 'File berhasil diunggah',
-                        timer: 1500,
-                        showConfirmButton: false
-                    });
-                    onSuccess();
-                    onClose();
+                    resolve();
                 } else {
-                    Swal.fire('Gagal', response.error || 'Terjadi kesalahan saat mengunggah', 'error');
+                    reject(response.error || `Gagal mengunggah ${file.name}`);
                 }
-                setUploading(false);
-                setProgress(0);
             };
 
-            xhr.onerror = () => {
-                Swal.fire('Error', 'Koneksi terputus atau terjadi kesalahan server', 'error');
-                setUploading(false);
-                setProgress(0);
-            };
-
+            xhr.onerror = () => reject(`Koneksi terputus saat mengunggah ${file.name}`);
             xhr.send(formData);
-        } catch (error) {
-            console.error('Upload error:', error);
-            setUploading(false);
-            setProgress(0);
+        });
+    };
+
+    const handleUpload = async () => {
+        if (files.length === 0) {
+            Swal.fire('Peringatan', 'Silakan pilih file terlebih dahulu', 'warning');
+            return;
         }
+
+        setUploading(true);
+        let successCount = 0;
+        let failCount = 0;
+
+        for (let i = 0; i < files.length; i++) {
+            setCurrentFileIndex(i);
+            setProgress(0);
+            try {
+                await uploadFile(files[i], i);
+                successCount++;
+            } catch (error) {
+                console.error(`Error uploading ${files[i].name}:`, error);
+                failCount++;
+            }
+        }
+
+        setUploading(false);
+        if (failCount === 0) {
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: `${successCount} file berhasil diunggah`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+            onSuccess();
+            onClose();
+        } else {
+            Swal.fire(
+                'Selesai dengan Masalah',
+                `${successCount} berhasil, ${failCount} gagal diunggah.`,
+                failCount > 0 ? 'warning' : 'success'
+            );
+            if (successCount > 0) onSuccess();
+        }
+        setFiles([]);
     };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold text-slate-800">Unggah Dokumen</h2>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600" disabled={uploading}>
                         <i className="fa-solid fa-xmark text-xl"></i>
                     </button>
                 </div>
 
                 <div className="space-y-4">
                     <div className="space-y-2">
-                        <label className="text-sm font-semibold text-slate-600">Pilih File</label>
+                        <label className="text-sm font-semibold text-slate-600">Pilih File (Bisa pilih banyak)</label>
                         <div className="relative group">
                             <input
                                 type="file"
                                 className="hidden"
                                 id="file-upload"
-                                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                multiple
+                                onChange={handleFileChange}
                                 disabled={uploading}
                             />
                             <label
                                 htmlFor="file-upload"
-                                className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-blue-900 transition-all"
+                                className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 hover:border-blue-900 transition-all"
                             >
-                                <i className="fa-solid fa-cloud-arrow-up text-3xl text-slate-400 mb-2"></i>
-                                <span className="text-sm text-slate-600 font-medium">
-                                    {file ? file.name : 'Klik untuk memilih file'}
-                                </span>
-                                <span className="text-xs text-slate-400 mt-1">Maksimal 500 MB</span>
+                                <i className="fa-solid fa-cloud-arrow-up text-2xl text-slate-400 mb-2"></i>
+                                <span className="text-sm text-slate-600 font-medium">Klik untuk memilih file</span>
+                                <span className="text-xs text-slate-400 mt-1">Maksimal 500 MB per file</span>
                             </label>
                         </div>
                     </div>
 
+                    {files.length > 0 && (
+                        <div className="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                            {files.map((f, i) => (
+                                <div key={i} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <i className="fa-solid fa-file text-blue-900"></i>
+                                        <span className="text-sm text-slate-700 truncate font-medium">{f.name}</span>
+                                        <span className="text-xs text-slate-400 whitespace-nowrap">({(f.size / (1024 * 1024)).toFixed(1)} MB)</span>
+                                    </div>
+                                    {!uploading && (
+                                        <button onClick={() => removeFile(i)} className="text-red-400 hover:text-red-600 p-1">
+                                            <i className="fa-solid fa-trash-can text-sm"></i>
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
                     <div className="space-y-2">
-                        <label className="text-sm font-semibold text-slate-600">Pilih Folder</label>
+                        <label className="text-sm font-semibold text-slate-600">Simpan ke Folder</label>
                         <select
                             className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900/10 focus:border-blue-900 transition-all outline-none"
                             value={selectedFolder}
                             onChange={(e) => setSelectedFolder(e.target.value)}
                             disabled={uploading}
                         >
-                            <option value="null">Tanpa Folder</option>
+                            <option value="null">Akar (Tanpa Folder)</option>
                             {folders.map(f => (
                                 <option key={f.id} value={f.id}>{f.nama}</option>
                             ))}
@@ -128,20 +195,24 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
                     </div>
 
                     {uploading && (
-                        <div className="upload-progress-container !mt-6">
-                            <div className="progress-bar-bg">
-                                <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
+                        <div className="upload-progress-container !mt-6 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+                            <div className="flex justify-between text-xs font-bold text-blue-900 mb-2">
+                                <span>Mengunggah: {files[currentFileIndex]?.name}</span>
+                                <span>{currentFileIndex + 1} / {files.length}</span>
                             </div>
-                            <div className="progress-text">
-                                <span>Mengunggah...</span>
+                            <div className="progress-bar-bg h-2">
+                                <div className="progress-bar-fill bg-blue-900" style={{ width: `${progress}%` }}></div>
+                            </div>
+                            <div className="flex justify-between text-[10px] text-blue-700 mt-2">
+                                <span>Mohon jangan tutup jendela ini</span>
                                 <span>{progress}%</span>
                             </div>
                         </div>
                     )}
 
-                    <div className="flex gap-3 pt-4">
+                    <div className="flex gap-3 pt-4 border-t border-slate-100 mt-6">
                         <button
-                            className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-lg hover:bg-slate-50 transition-all"
+                            className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-lg hover:bg-slate-50 transition-all disabled:opacity-50"
                             onClick={onClose}
                             disabled={uploading}
                         >
@@ -150,9 +221,9 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
                         <button
                             className="flex-1 px-4 py-2.5 bg-blue-900 text-white font-semibold rounded-lg hover:bg-blue-800 transition-all disabled:opacity-50"
                             onClick={handleUpload}
-                            disabled={uploading || !file}
+                            disabled={uploading || files.length === 0}
                         >
-                            {uploading ? 'Mengunggah...' : 'Unggah Sekarang'}
+                            {uploading ? `Mengunggah (${currentFileIndex + 1}/${files.length})` : `Unggah ${files.length} File`}
                         </button>
                     </div>
                 </div>
