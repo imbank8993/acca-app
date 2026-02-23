@@ -13,7 +13,7 @@ interface UploadModalProps {
 
 export default function UploadModal({ isOpen, onClose, onSuccess, folders, currentFolderId }: UploadModalProps) {
     const [files, setFiles] = useState<File[]>([]);
-    const [selectedFolder, setSelectedFolder] = useState<string>(currentFolderId || 'null');
+    const [selectedFolder, setSelectedFolder] = useState<string>(currentFolderId && currentFolderId !== '__root__' ? currentFolderId : (folders[0]?.id || ''));
     const [uploading, setUploading] = useState(false);
     const [currentFileIndex, setCurrentFileIndex] = useState(0);
     const [progress, setProgress] = useState(0);
@@ -104,7 +104,7 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
                 publicUrl: uploadResult.publicUrl,
                 fileName: file.name,
                 fileSize: file.size,
-                folder_id: selectedFolder === 'null' ? '' : selectedFolder
+                folder_id: selectedFolder || ''
             })
         });
 
@@ -117,6 +117,10 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
     const handleUpload = async () => {
         if (files.length === 0) {
             Swal.fire('Peringatan', 'Silakan pilih file terlebih dahulu', 'warning');
+            return;
+        }
+        if (!selectedFolder) {
+            Swal.fire('Peringatan', 'Silakan pilih folder tujuan terlebih dahulu', 'warning');
             return;
         }
 
@@ -228,7 +232,8 @@ export default function UploadModal({ isOpen, onClose, onSuccess, folders, curre
                             onChange={(e) => setSelectedFolder(e.target.value)}
                             disabled={uploading}
                         >
-                            <option value="null">🏠 Akar (Tanpa Folder)</option>
+                            {folders.length === 0 && <option value="">-- Belum ada folder --</option>}
+                            {folders.length > 0 && !selectedFolder && <option value="">-- Pilih folder --</option>}
                             {folders.map(f => (
                                 <option key={f.id} value={f.id}>📁 {f.nama}</option>
                             ))}
