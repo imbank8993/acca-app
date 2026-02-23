@@ -32,6 +32,7 @@ const getMenuIcon = (path: string) => {
   if (p.includes('status')) return 'fa-user-check'
   if (p.includes('monitoring')) return 'fa-desktop'
   if (p.includes('campione')) return 'fa-trophy'
+  if (p.includes('agenda')) return 'fa-calendar-check'
   return 'fa-folder'
 }
 
