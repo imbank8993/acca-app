@@ -15,26 +15,21 @@ interface Agenda {
     kategori: string;
     warna: string;
     is_publik: boolean;
+    skip_hari_libur: boolean;
     created_at: string;
 }
 
-const KATEGORI_OPTIONS = [
-    { label: 'Umum', value: 'Umum', color: '#0038A8', icon: 'bi-calendar-event' },
-    { label: 'Ujian', value: 'Ujian', color: '#EF4444', icon: 'bi-pencil-square' },
-    { label: 'Libur', value: 'Libur', color: '#22C55E', icon: 'bi-umbrella' },
-    { label: 'Rapat', value: 'Rapat', color: '#F59E0B', icon: 'bi-people' },
-    { label: 'Kegiatan', value: 'Kegiatan', color: '#8B5CF6', icon: 'bi-star' },
-    { label: 'Penerimaan', value: 'Penerimaan', color: '#06B6D4', icon: 'bi-person-plus' },
-    { label: 'Lainnya', value: 'Lainnya', color: '#64748B', icon: 'bi-three-dots' },
-];
+interface Category {
+    id: number;
+    nama: string;
+    color: string;
+    icon: string;
+}
 
-const COLOR_PRESETS = [
-    '#0038A8', '#EF4444', '#22C55E', '#F59E0B', '#8B5CF6',
-    '#06B6D4', '#EC4899', '#64748B', '#F97316', '#14B8A6'
-];
+const DEFAULT_CATEGORY: Category = { id: 0, nama: 'Umum', color: '#0038A8', icon: 'bi-calendar-event' };
 
-function getKategoriStyle(kategori: string) {
-    return KATEGORI_OPTIONS.find(k => k.value === kategori) || KATEGORI_OPTIONS[0];
+function getKategoriStyle(kategori: string, categories: Category[]) {
+    return categories.find(k => k.nama === kategori) || DEFAULT_CATEGORY;
 }
 
 function formatDate(dateStr: string | null) {
@@ -50,19 +45,35 @@ function formatWaktu(waktu: string | null) {
 const EMPTY_FORM = {
     judul: '', deskripsi: '', tanggal_mulai: '', tanggal_selesai: '',
     waktu_mulai: '', waktu_selesai: '', lokasi: '', kategori: 'Umum',
-    warna: '#0038A8', is_publik: true,
+    warna: '#0038A8', is_publik: true, skip_hari_libur: false,
 };
 
 export default function AgendaAkademikPage() {
     const [agendas, setAgendas] = useState<Agenda[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterKategori, setFilterKategori] = useState('');
     const [filterBulan, setFilterBulan] = useState('');
 
     const [showModal, setShowModal] = useState(false);
+    const [showCatModal, setShowCatModal] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [form, setForm] = useState({ ...EMPTY_FORM });
     const [saving, setSaving] = useState(false);
+
+    // Category Management State
+    const [catForm, setCatForm] = useState({ id: null as number | null, nama: '', color: '#0038A8', icon: 'bi-calendar-event' });
+    const [savingCat, setSavingCat] = useState(false);
+
+    const fetchCategories = async () => {
+        try {
+            const res = await fetch('/api/agenda-akademik/kategori');
+            const json = await res.json();
+            setCategories(json.data || []);
+        } catch {
+            console.error('Gagal memuat kategori');
+        }
+    };
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -79,7 +90,10 @@ export default function AgendaAkademikPage() {
         }
     }, [filterBulan]);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+    useEffect(() => {
+        fetchData();
+        fetchCategories();
+    }, [fetchData]);
 
     const openAdd = () => {
         setEditingId(null);
@@ -94,6 +108,7 @@ export default function AgendaAkademikPage() {
             tanggal_selesai: a.tanggal_selesai || '', waktu_mulai: a.waktu_mulai?.slice(0, 5) || '',
             waktu_selesai: a.waktu_selesai?.slice(0, 5) || '', lokasi: a.lokasi || '',
             kategori: a.kategori, warna: a.warna, is_publik: a.is_publik,
+            skip_hari_libur: a.skip_hari_libur || false,
         });
         setShowModal(true);
     };
@@ -101,6 +116,9 @@ export default function AgendaAkademikPage() {
     const handleSave = async () => {
         if (!form.judul || !form.tanggal_mulai) {
             return Swal.fire('Perhatian', 'Judul dan tanggal mulai wajib diisi', 'warning');
+        }
+        if (form.tanggal_selesai && form.tanggal_selesai < form.tanggal_mulai) {
+            return Swal.fire('Perhatian', 'Tanggal selesai tidak boleh sebelum tanggal mulai', 'warning');
         }
         setSaving(true);
         try {
@@ -138,6 +156,41 @@ export default function AgendaAkademikPage() {
         }
     };
 
+    const handleSaveCat = async () => {
+        if (!catForm.nama) return Swal.fire('Perhatian', 'Nama kategori wajib diisi', 'warning');
+        setSavingCat(true);
+        try {
+            const method = catForm.id ? 'PUT' : 'POST';
+            const res = await fetch('/api/agenda-akademik/kategori', {
+                method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(catForm),
+            });
+            if (!res.ok) throw new Error('Gagal menyimpan kategori');
+            fetchCategories();
+            setCatForm({ id: null, nama: '', color: '#0038A8', icon: 'bi-calendar-event' });
+            Swal.fire({ icon: 'success', title: 'Berhasil!', timer: 1000, showConfirmButton: false });
+        } catch (e: any) {
+            Swal.fire('Error', e.message, 'error');
+        } finally {
+            setSavingCat(false);
+        }
+    };
+
+    const handleDeleteCat = async (id: number, nama: string) => {
+        const result = await Swal.fire({
+            title: 'Hapus Kategori?',
+            text: `Kategori "${nama}" akan dihapus. Agenda dengan kategori ini mungkin perlu disesuaikan.`,
+            icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya, Hapus',
+        });
+        if (!result.isConfirmed) return;
+        try {
+            await fetch(`/api/agenda-akademik/kategori?id=${id}`, { method: 'DELETE' });
+            fetchCategories();
+            Swal.fire({ icon: 'success', title: 'Dihapus!', timer: 1000, showConfirmButton: false });
+        } catch {
+            Swal.fire('Error', 'Gagal menghapus kategori', 'error');
+        }
+    };
+
     const filteredAgendas = agendas.filter(a =>
         !filterKategori || a.kategori === filterKategori
     );
@@ -150,31 +203,21 @@ export default function AgendaAkademikPage() {
             <div className="page-header">
                 <div className="header-content">
                     <div>
-                        <div className="header-badge">
-                            <i className="bi bi-calendar-week"></i> Jadwal Sekolah
-                        </div>
                         <h1>Agenda Akademik</h1>
                         <p>Kelola dan publikasikan agenda kegiatan sekolah untuk seluruh civitas akademika.</p>
                     </div>
-                    <button className="btn-add" onClick={openAdd}>
-                        <i className="bi bi-plus-lg"></i>
-                        <span>Tambah Agenda</span>
-                    </button>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        <button className="btn-cat" onClick={() => setShowCatModal(true)}>
+                            <i className="bi bi-tags"></i>
+                            <span>Kelola Kategori</span>
+                        </button>
+                        <button className="btn-add" onClick={openAdd}>
+                            <i className="bi bi-plus-lg"></i>
+                            <span>Tambah Agenda</span>
+                        </button>
+                    </div>
                 </div>
 
-                {/* Stats bar */}
-                <div className="header-stats">
-                    {KATEGORI_OPTIONS.slice(0, 5).map(k => {
-                        const count = agendas.filter(a => a.kategori === k.value).length;
-                        return (
-                            <div key={k.value} className="stat-chip" style={{ borderLeft: `3px solid ${k.color}` }}>
-                                <i className={`bi ${k.icon}`} style={{ color: k.color }}></i>
-                                <span className="stat-label">{k.label}</span>
-                                <span className="stat-count">{count}</span>
-                            </div>
-                        );
-                    })}
-                </div>
             </div>
 
             {/* ── FILTERS ── */}
@@ -194,14 +237,14 @@ export default function AgendaAkademikPage() {
                         className={`pill ${!filterKategori ? 'pill-active' : ''}`}
                         onClick={() => setFilterKategori('')}
                     >Semua</button>
-                    {KATEGORI_OPTIONS.map(k => (
+                    {categories.map(k => (
                         <button
-                            key={k.value}
-                            className={`pill ${filterKategori === k.value ? 'pill-active' : ''}`}
-                            style={filterKategori === k.value ? { background: k.color, borderColor: k.color, color: 'white' } : { borderColor: k.color, color: k.color }}
-                            onClick={() => setFilterKategori(filterKategori === k.value ? '' : k.value)}
+                            key={k.nama}
+                            className={`pill ${filterKategori === k.nama ? 'pill-active' : ''}`}
+                            style={filterKategori === k.nama ? { background: k.color, borderColor: k.color, color: 'white' } : { borderColor: k.color, color: k.color }}
+                            onClick={() => setFilterKategori(filterKategori === k.nama ? '' : k.nama)}
                         >
-                            <i className={`bi ${k.icon}`}></i> {k.label}
+                            <i className={`bi ${k.icon}`}></i> {k.nama}
                         </button>
                     ))}
                 </div>
@@ -222,9 +265,11 @@ export default function AgendaAkademikPage() {
                     </div>
                 ) : (
                     filteredAgendas.map(a => {
-                        const kat = getKategoriStyle(a.kategori);
-                        const isPast = a.tanggal_mulai < today;
-                        const isToday = a.tanggal_mulai === today;
+                        const kat = getKategoriStyle(a.kategori, categories);
+                        const endDay = a.tanggal_selesai || a.tanggal_mulai;
+                        const isPast = endDay < today;
+                        const isToday = a.tanggal_mulai === today || (today > a.tanggal_mulai && today <= endDay);
+                        const isStarted = today >= a.tanggal_mulai && today <= endDay;
                         const daysLeft = Math.ceil((new Date(a.tanggal_mulai).getTime() - new Date(today).getTime()) / 86400000);
 
                         return (
@@ -241,10 +286,11 @@ export default function AgendaAkademikPage() {
                                                     <i className="bi bi-eye-slash"></i> Privat
                                                 </span>
                                             )}
-                                            {isToday && <span className="today-badge">Hari Ini</span>}
-                                            {!isPast && !isToday && daysLeft <= 7 && (
+                                            {isStarted && !isPast && <span className="today-badge" style={{ background: '#22C55E' }}>Berlangsung</span>}
+                                            {!isStarted && !isPast && daysLeft <= 7 && daysLeft > 0 && (
                                                 <span className="soon-badge">{daysLeft} hari lagi</span>
                                             )}
+                                            {!isStarted && !isPast && daysLeft === 0 && <span className="today-badge">Hari Ini</span>}
                                         </div>
                                         <div className="card-actions">
                                             <button className="action-btn edit" onClick={() => openEdit(a)} title="Edit">
@@ -290,118 +336,210 @@ export default function AgendaAkademikPage() {
             </div>
 
             {/* ── MODAL ── */}
-            {showModal && (
-                <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
-                    <div className="modal-box">
-                        <div className="modal-header" style={{ borderBottom: `3px solid ${form.warna}` }}>
-                            <h2>{editingId ? 'Edit Agenda' : 'Tambah Agenda Baru'}</h2>
-                            <button className="modal-close" onClick={() => setShowModal(false)}><i className="bi bi-x-lg"></i></button>
-                        </div>
-
-                        <div className="modal-body">
-                            <div className="form-row">
-                                <div className="form-col full">
-                                    <label>Judul Agenda <span className="required">*</span></label>
-                                    <input className="form-input" placeholder="Contoh: Ujian Tengah Semester Ganjil"
-                                        value={form.judul} onChange={e => setForm({ ...form, judul: e.target.value })} />
-                                </div>
+            {
+                showModal && (
+                    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+                        <div className="modal-box">
+                            <div className="modal-header" style={{ borderBottom: `3px solid ${form.warna}` }}>
+                                <h2>{editingId ? 'Edit Agenda' : 'Tambah Agenda Baru'}</h2>
+                                <button className="modal-close" onClick={() => setShowModal(false)}><i className="bi bi-x-lg"></i></button>
                             </div>
 
-                            <div className="form-row">
-                                <div className="form-col">
-                                    <label>Tanggal Mulai <span className="required">*</span></label>
-                                    <input type="date" className="form-input"
-                                        value={form.tanggal_mulai} onChange={e => setForm({ ...form, tanggal_mulai: e.target.value })} />
-                                </div>
-                                <div className="form-col">
-                                    <label>Tanggal Selesai</label>
-                                    <input type="date" className="form-input"
-                                        value={form.tanggal_selesai} onChange={e => setForm({ ...form, tanggal_selesai: e.target.value })} />
-                                </div>
-                            </div>
-
-                            <div className="form-row">
-                                <div className="form-col">
-                                    <label>Waktu Mulai</label>
-                                    <input type="time" className="form-input"
-                                        value={form.waktu_mulai} onChange={e => setForm({ ...form, waktu_mulai: e.target.value })} />
-                                </div>
-                                <div className="form-col">
-                                    <label>Waktu Selesai</label>
-                                    <input type="time" className="form-input"
-                                        value={form.waktu_selesai} onChange={e => setForm({ ...form, waktu_selesai: e.target.value })} />
-                                </div>
-                            </div>
-
-                            <div className="form-row">
-                                <div className="form-col">
-                                    <label>Kategori</label>
-                                    <div className="kategori-grid">
-                                        {KATEGORI_OPTIONS.map(k => (
-                                            <button key={k.value}
-                                                className={`kat-option ${form.kategori === k.value ? 'selected' : ''}`}
-                                                style={form.kategori === k.value ? { background: k.color, color: 'white', borderColor: k.color } : { borderColor: k.color + '40', color: k.color }}
-                                                onClick={() => setForm({ ...form, kategori: k.value, warna: k.color })}
-                                            >
-                                                <i className={`bi ${k.icon}`}></i> {k.label}
-                                            </button>
-                                        ))}
+                            <div className="modal-body">
+                                <div className="form-row">
+                                    <div className="form-col full">
+                                        <label>Judul Agenda <span className="required">*</span></label>
+                                        <input className="form-input" placeholder="Contoh: Ujian Tengah Semester Ganjil"
+                                            value={form.judul} onChange={e => setForm({ ...form, judul: e.target.value })} />
                                     </div>
                                 </div>
-                                <div className="form-col">
-                                    <label>Warna</label>
-                                    <div className="color-picker">
-                                        {COLOR_PRESETS.map(c => (
-                                            <button key={c} className={`color-dot ${form.warna === c ? 'selected' : ''}`}
-                                                style={{ background: c }} onClick={() => setForm({ ...form, warna: c })} />
-                                        ))}
-                                        <input type="color" className="color-input" value={form.warna}
-                                            onChange={e => setForm({ ...form, warna: e.target.value })} title="Warna kustom" />
-                                    </div>
 
-                                    <label style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                                        <div className={`toggle ${form.is_publik ? 'on' : ''}`}
-                                            onClick={() => setForm({ ...form, is_publik: !form.is_publik })}>
-                                            <div className="toggle-thumb"></div>
+                                <div className="form-row">
+                                    <div className="form-col">
+                                        <label>Tanggal Mulai <span className="required">*</span></label>
+                                        <input type="date" className="form-input"
+                                            value={form.tanggal_mulai} onChange={e => setForm({ ...form, tanggal_mulai: e.target.value })} />
+                                    </div>
+                                    <div className="form-col">
+                                        <label>Tanggal Selesai</label>
+                                        <input type="date" className="form-input"
+                                            value={form.tanggal_selesai} onChange={e => setForm({ ...form, tanggal_selesai: e.target.value })} />
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-col">
+                                        <label>Waktu Mulai</label>
+                                        <input type="time" className="form-input"
+                                            value={form.waktu_mulai} onChange={e => setForm({ ...form, waktu_mulai: e.target.value })} />
+                                    </div>
+                                    <div className="form-col">
+                                        <label>Waktu Selesai</label>
+                                        <input type="time" className="form-input"
+                                            value={form.waktu_selesai} onChange={e => setForm({ ...form, waktu_selesai: e.target.value })} />
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-col">
+                                        <label>Kategori</label>
+                                        <div className="kategori-grid">
+                                            {categories.map(k => (
+                                                <button key={k.nama}
+                                                    className={`kat-option ${form.kategori === k.nama ? 'selected' : ''}`}
+                                                    style={form.kategori === k.nama ? { background: k.color, color: 'white', borderColor: k.color } : { borderColor: k.color + '40', color: k.color }}
+                                                    onClick={() => setForm({ ...form, kategori: k.nama, warna: k.color })}
+                                                >
+                                                    <i className={`bi ${k.icon}`}></i> {k.nama}
+                                                </button>
+                                            ))}
                                         </div>
-                                        <span style={{ fontSize: '0.85rem' }}>
-                                            {form.is_publik ? '🌐 Tampil di website publik' : '🔒 Hanya internal'}
-                                        </span>
-                                    </label>
+                                    </div>
+                                    <div className="form-col">
+                                        <label>Warna</label>
+                                        <div className="color-picker">
+                                            {[
+                                                '#0038A8', '#EF4444', '#22C55E', '#F59E0B', '#8B5CF6',
+                                                '#06B6D4', '#EC4899', '#64748B', '#F97316', '#14B8A6'
+                                            ].map(c => (
+                                                <button key={c} className={`color-dot ${form.warna === c ? 'selected' : ''}`}
+                                                    style={{ background: c }} onClick={() => setForm({ ...form, warna: c })} />
+                                            ))}
+                                            <input type="color" className="color-input" value={form.warna}
+                                                onChange={e => setForm({ ...form, warna: e.target.value })} title="Warna kustom" />
+                                        </div>
+
+                                        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                                                <div className={`toggle ${form.is_publik ? 'on' : ''}`}
+                                                    onClick={() => setForm({ ...form, is_publik: !form.is_publik })}>
+                                                    <div className="toggle-thumb"></div>
+                                                </div>
+                                                <span style={{ fontSize: '0.85rem' }}>
+                                                    {form.is_publik ? '🌐 Tampil di website publik' : '🔒 Hanya internal'}
+                                                </span>
+                                            </label>
+
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                                                <div className={`toggle ${form.skip_hari_libur ? 'on' : ''}`}
+                                                    onClick={() => setForm({ ...form, skip_hari_libur: !form.skip_hari_libur })}>
+                                                    <div className="toggle-thumb"></div>
+                                                </div>
+                                                <span style={{ fontSize: '0.85rem' }}>
+                                                    <i className="bi bi-calendar2-x"></i> Lewati hari libur & akhir pekan
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-col full">
+                                        <label>Lokasi / Tempat</label>
+                                        <input className="form-input" placeholder="Contoh: Aula Utama, Lapangan, Kelas"
+                                            value={form.lokasi} onChange={e => setForm({ ...form, lokasi: e.target.value })} />
+                                    </div>
+                                </div>
+
+                                <div className="form-row">
+                                    <div className="form-col full">
+                                        <label>Deskripsi</label>
+                                        <textarea className="form-input" rows={3} placeholder="Keterangan tambahan tentang agenda ini..."
+                                            value={form.deskripsi} onChange={e => setForm({ ...form, deskripsi: e.target.value })} />
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="form-row">
-                                <div className="form-col full">
-                                    <label>Lokasi / Tempat</label>
-                                    <input className="form-input" placeholder="Contoh: Aula Utama, Lapangan, Kelas"
-                                        value={form.lokasi} onChange={e => setForm({ ...form, lokasi: e.target.value })} />
-                                </div>
+                            <div className="modal-footer">
+                                <button className="btn-cancel" onClick={() => setShowModal(false)}>Batal</button>
+                                <button className="btn-save" onClick={handleSave} disabled={saving}
+                                    style={{ background: form.warna }}>
+                                    {saving ? <><i className="bi bi-hourglass-split"></i> Menyimpan...</> : <><i className="bi bi-check-lg"></i> {editingId ? 'Simpan Perubahan' : 'Tambah Agenda'}</>}
+                                </button>
                             </div>
-
-                            <div className="form-row">
-                                <div className="form-col full">
-                                    <label>Deskripsi</label>
-                                    <textarea className="form-input" rows={3} placeholder="Keterangan tambahan tentang agenda ini..."
-                                        value={form.deskripsi} onChange={e => setForm({ ...form, deskripsi: e.target.value })} />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="modal-footer">
-                            <button className="btn-cancel" onClick={() => setShowModal(false)}>Batal</button>
-                            <button className="btn-save" onClick={handleSave} disabled={saving}
-                                style={{ background: form.warna }}>
-                                {saving ? <><i className="bi bi-hourglass-split"></i> Menyimpan...</> : <><i className="bi bi-check-lg"></i> {editingId ? 'Simpan Perubahan' : 'Tambah Agenda'}</>}
-                            </button>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
+
+            {/* ── MODAL KATEGORI ── */}
+            {
+                showCatModal && (
+                    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowCatModal(false)}>
+                        <div className="modal-box" style={{ maxWidth: '500px' }}>
+                            <div className="modal-header">
+                                <h2>Kelola Kategori</h2>
+                                <button className="modal-close" onClick={() => setShowCatModal(false)}><i className="bi bi-x-lg"></i></button>
+                            </div>
+                            <div className="modal-body">
+                                <div className="form-col full" style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b' }}>
+                                        {catForm.id ? 'Edit Kategori' : 'Tambah Kategori Baru'}
+                                    </label>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                                        <input className="form-input" placeholder="Nama kategori..."
+                                            value={catForm.nama} onChange={e => setCatForm({ ...catForm, nama: e.target.value })} />
+                                        <button className="btn-save" onClick={handleSaveCat} disabled={savingCat} style={{ whiteSpace: 'nowrap', padding: '0 15px', height: '42px', background: '#0038A8' }}>
+                                            {catForm.id ? 'Update' : 'Tambah'}
+                                        </button>
+                                    </div>
+                                    <div className="color-picker" style={{ marginTop: '10px' }}>
+                                        {['#0038A8', '#EF4444', '#22C55E', '#F59E0B', '#8B5CF6', '#06B6D4'].map(c => (
+                                            <button key={c} className={`color-dot ${catForm.color === c ? 'selected' : ''}`}
+                                                style={{ background: c }} onClick={() => setCatForm({ ...catForm, color: c })} />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="cat-list" style={{ marginTop: '20px' }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b' }}>
+                                        Daftar Kategori
+                                    </label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                                        {categories.map(k => (
+                                            <div key={k.id} className="cat-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderRadius: '10px', border: '1px solid var(--n-border)', alignItems: 'center' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: k.color }}></div>
+                                                    <span style={{ fontWeight: 600 }}>{k.nama}</span>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '5px' }}>
+                                                    <button className="action-btn edit" onClick={() => setCatForm({ id: k.id, nama: k.nama, color: k.color, icon: k.icon })}>
+                                                        <i className="bi bi-pencil"></i>
+                                                    </button>
+                                                    <button className="action-btn delete" onClick={() => handleDeleteCat(k.id, k.nama)}>
+                                                        <i className="bi bi-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
 
             <style jsx>{`
                 /* ── PAGE ── */
                 .page-wrapper { display: flex; flex-direction: column; gap: 20px; }
+
+                .btn-cat {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    background: rgba(255,255,255,0.15);
+                    color: white;
+                    border: 1px solid rgba(255,255,255,0.3);
+                    padding: 8px 16px;
+                    border-radius: 12px;
+                    font-weight: 600;
+                    font-size: 0.85rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    backdrop-filter: blur(10px);
+                }
+                .btn-cat:hover { background: rgba(255,255,255,0.25); }
 
                 /* ── HEADER ── */
                 .page-header {
@@ -437,19 +575,6 @@ export default function AgendaAkademikPage() {
                     position: relative;
                     z-index: 2;
                 }
-                .header-badge {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 6px;
-                    background: rgba(255,255,255,0.15);
-                    border: 1px solid rgba(255,255,255,0.25);
-                    padding: 4px 14px;
-                    border-radius: 999px;
-                    font-size: 0.78rem;
-                    font-weight: 600;
-                    margin-bottom: 12px;
-                    letter-spacing: 0.03em;
-                }
                 .page-header h1 {
                     font-size: 2.2rem;
                     font-weight: 800;
@@ -462,34 +587,6 @@ export default function AgendaAkademikPage() {
                     margin: 0;
                     max-width: 500px;
                 }
-                .header-stats {
-                    display: flex;
-                    gap: 10px;
-                    margin-top: 24px;
-                    flex-wrap: wrap;
-                    position: relative;
-                    z-index: 2;
-                }
-                .stat-chip {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    background: rgba(255,255,255,0.12);
-                    border: 1px solid rgba(255,255,255,0.2);
-                    padding: 6px 14px;
-                    border-radius: 10px;
-                    font-size: 0.82rem;
-                    backdrop-filter: blur(10px);
-                }
-                .stat-label { color: rgba(255,255,255,0.85); }
-                .stat-count {
-                    background: rgba(255,255,255,0.25);
-                    color: white;
-                    font-weight: 700;
-                    padding: 1px 8px;
-                    border-radius: 999px;
-                    font-size: 0.78rem;
-                }
 
                 /* ── BUTTONS ── */
                 .btn-add {
@@ -499,10 +596,10 @@ export default function AgendaAkademikPage() {
                     background: white;
                     color: #0038A8;
                     border: none;
-                    padding: 12px 24px;
-                    border-radius: 14px;
+                    padding: 8px 18px;
+                    border-radius: 12px;
                     font-weight: 700;
-                    font-size: 0.9rem;
+                    font-size: 0.85rem;
                     cursor: pointer;
                     white-space: nowrap;
                     box-shadow: 0 4px 15px rgba(255,255,255,0.2);
@@ -836,6 +933,7 @@ export default function AgendaAkademikPage() {
                     padding: 10px 28px;
                     border-radius: 12px;
                     border: none;
+                    background: #0038A8;
                     color: white;
                     font-size: 0.9rem;
                     font-weight: 700;

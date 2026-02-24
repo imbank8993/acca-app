@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
         let query = supabaseAdmin
             .from('agenda_akademik')
-            .select('id, judul, deskripsi, tanggal_mulai, tanggal_selesai, waktu_mulai, waktu_selesai, lokasi, kategori, warna')
+            .select('*')
             .eq('is_publik', true)
             .order('tanggal_mulai', { ascending: true })
             .limit(limit);
@@ -23,13 +23,28 @@ export async function GET(request: NextRequest) {
             const start = `${year}-${month}-01`;
             const last = new Date(Number(year), Number(month), 0).getDate();
             const end = `${year}-${month}-${last}`;
-            query = query.gte('tanggal_mulai', start).lte('tanggal_mulai', end);
+
+            // Intersection logic: starts before/during month AND (ends during/after month OR starts during/after month)
+            query = query
+                .lte('tanggal_mulai', end)
+                .or(`tanggal_selesai.gte.${start},tanggal_mulai.gte.${start}`);
         } else {
-            // Default: tampilkan agenda dari hari ini ke depan (3 bulan)
-            const today = new Date().toISOString().slice(0, 10);
-            const future = new Date();
-            future.setMonth(future.getMonth() + 3);
-            query = query.gte('tanggal_mulai', today).lte('tanggal_mulai', future.toISOString().slice(0, 10));
+            // Default: tampilkan agenda dari 1 bulan lalu hingga 3 bulan ke depan
+            // (Agar yang sedang berlangsung tetap terbawa)
+            const now = new Date();
+            const pastDate = new Date();
+            pastDate.setMonth(pastDate.getMonth() - 1);
+
+            const futureDate = new Date();
+            futureDate.setMonth(futureDate.getMonth() + 3);
+
+            const start = pastDate.toISOString().slice(0, 10);
+            const end = futureDate.toISOString().slice(0, 10);
+
+            // Intersection logic: starts before/during month AND (ends during/after month OR starts during/after month)
+            query = query
+                .lte('tanggal_mulai', end)
+                .or(`tanggal_selesai.gte.${start},tanggal_mulai.gte.${start}`);
         }
 
         const { data, error } = await query;

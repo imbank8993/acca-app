@@ -20,8 +20,6 @@
 
 /* PAGE */
 .pd-page {
-    min-height: 100vh;
-    background: var(--pd-bg);
     animation: pdFadeIn 0.4s ease-out;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
@@ -41,9 +39,12 @@
 /* ─── HEADER ─── */
 .pd-header {
     background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #312e81 100%);
-    padding: 2rem 2rem 0;
+    padding: 2rem 2rem;
     position: relative;
     overflow: hidden;
+    border-radius: 28px;
+    margin-bottom: var(--app-gap);
+    box-shadow: var(--n-shadow);
 }
 
 .pd-header::before {
@@ -102,7 +103,8 @@
 
 /* ─── TABS ─── */
 .pd-tabs {
-    display: flex;
+    display: none;
+    /* Hide old tabs if we use card layout */
     gap: .125rem;
     position: relative;
     z-index: 1;
@@ -129,14 +131,16 @@
 
 .pd-tab.active {
     color: #fff;
-    border-bottom-color: #818cf8;
+    border-bottom: 3px solid #818cf8;
     font-weight: 700;
 }
 
 /* ─── BODY ─── */
 .pd-body {
     display: flex;
+    gap: var(--app-gap);
     min-height: calc(100vh - 175px);
+    padding: 0;
 }
 
 /* ─── SIDEBAR ─── */
@@ -144,15 +148,18 @@
     width: var(--pd-sidebar-w);
     flex-shrink: 0;
     background: #fff;
-    border-right: 1px solid var(--pd-border);
+    border: 1px solid var(--pd-border);
+    border-radius: 24px;
     padding: 1.25rem .625rem;
     display: flex;
     flex-direction: column;
     gap: .2rem;
     position: sticky;
     top: 0;
-    height: calc(100vh - 175px);
+    height: fit-content;
+    max-height: calc(100vh - 180px);
     overflow-y: auto;
+    box-shadow: var(--n-shadow-soft);
 }
 
 .pd-sidebar::-webkit-scrollbar {
@@ -278,8 +285,12 @@
 /* ─── MAIN ─── */
 .pd-main {
     flex: 1;
-    padding: 1.375rem;
+    padding: 1.5rem;
+    background: #fff;
+    border: 1px solid var(--pd-border);
+    border-radius: 24px;
     min-width: 0;
+    box-shadow: var(--n-shadow-soft);
 }
 
 /* ─── TOOLBAR ─── */

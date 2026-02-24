@@ -4,11 +4,21 @@ import { corsResponse, handleOptions } from '@/lib/cors';
 
 export const dynamic = 'force-dynamic';
 
+// Helper to check if column exists (cached per request)
+async function getColumns() {
+    try {
+        const { data } = await supabaseAdmin.from('agenda_akademik').select('*').limit(1);
+        return data && data.length > 0 ? Object.keys(data[0]) : [];
+    } catch {
+        return [];
+    }
+}
+
 // GET — fetch semua agenda (admin)
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        const bulan = searchParams.get('bulan'); // format: "2026-03"
+        const bulan = searchParams.get('bulan');
 
         let query = supabaseAdmin
             .from('agenda_akademik')
@@ -20,7 +30,10 @@ export async function GET(request: NextRequest) {
             const start = `${year}-${month}-01`;
             const last = new Date(Number(year), Number(month), 0).getDate();
             const end = `${year}-${month}-${last}`;
-            query = query.gte('tanggal_mulai', start).lte('tanggal_mulai', end);
+
+            query = query
+                .lte('tanggal_mulai', end)
+                .or(`tanggal_selesai.gte.${start},tanggal_mulai.gte.${start}`);
         }
 
         const { data, error } = await query;
@@ -36,26 +49,33 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { judul, deskripsi, tanggal_mulai, tanggal_selesai, waktu_mulai, waktu_selesai, lokasi, kategori, warna, is_publik } = body;
+        const { judul, deskripsi, tanggal_mulai, tanggal_selesai, waktu_mulai, waktu_selesai, lokasi, kategori, warna, is_publik, skip_hari_libur } = body;
 
         if (!judul || !tanggal_mulai) {
             return corsResponse(NextResponse.json({ error: 'Judul dan tanggal mulai wajib diisi' }, { status: 400 }));
         }
 
+        const columns = await getColumns();
+        const payload: any = {
+            judul,
+            deskripsi: deskripsi || null,
+            tanggal_mulai,
+            tanggal_selesai: tanggal_selesai || null,
+            waktu_mulai: waktu_mulai || null,
+            waktu_selesai: waktu_selesai || null,
+            lokasi: lokasi || null,
+            kategori: kategori || 'Umum',
+            warna: warna || '#0038A8',
+            is_publik: is_publik !== false,
+        };
+
+        if (columns.includes('skip_hari_libur')) {
+            payload.skip_hari_libur = !!skip_hari_libur;
+        }
+
         const { data, error } = await supabaseAdmin
             .from('agenda_akademik')
-            .insert({
-                judul,
-                deskripsi: deskripsi || null,
-                tanggal_mulai,
-                tanggal_selesai: tanggal_selesai || null,
-                waktu_mulai: waktu_mulai || null,
-                waktu_selesai: waktu_selesai || null,
-                lokasi: lokasi || null,
-                kategori: kategori || 'Umum',
-                warna: warna || '#0038A8',
-                is_publik: is_publik !== false,
-            })
+            .insert(payload)
             .select()
             .single();
 
@@ -70,24 +90,31 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
     try {
         const body = await request.json();
-        const { id, judul, deskripsi, tanggal_mulai, tanggal_selesai, waktu_mulai, waktu_selesai, lokasi, kategori, warna, is_publik } = body;
+        const { id, judul, deskripsi, tanggal_mulai, tanggal_selesai, waktu_mulai, waktu_selesai, lokasi, kategori, warna, is_publik, skip_hari_libur } = body;
 
         if (!id) return corsResponse(NextResponse.json({ error: 'ID wajib diisi' }, { status: 400 }));
 
+        const columns = await getColumns();
+        const payload: any = {
+            judul,
+            deskripsi: deskripsi || null,
+            tanggal_mulai,
+            tanggal_selesai: tanggal_selesai || null,
+            waktu_mulai: waktu_mulai || null,
+            waktu_selesai: waktu_selesai || null,
+            lokasi: lokasi || null,
+            kategori: kategori || 'Umum',
+            warna: warna || '#0038A8',
+            is_publik: is_publik !== false,
+        };
+
+        if (columns.includes('skip_hari_libur')) {
+            payload.skip_hari_libur = !!skip_hari_libur;
+        }
+
         const { data, error } = await supabaseAdmin
             .from('agenda_akademik')
-            .update({
-                judul,
-                deskripsi: deskripsi || null,
-                tanggal_mulai,
-                tanggal_selesai: tanggal_selesai || null,
-                waktu_mulai: waktu_mulai || null,
-                waktu_selesai: waktu_selesai || null,
-                lokasi: lokasi || null,
-                kategori: kategori || 'Umum',
-                warna: warna || '#0038A8',
-                is_publik: is_publik !== false,
-            })
+            .update(payload)
             .eq('id', id)
             .select()
             .single();
