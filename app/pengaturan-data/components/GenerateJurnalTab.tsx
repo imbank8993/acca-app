@@ -3,8 +3,18 @@
 import { useState, useEffect } from 'react';
 import Select from 'react-select';
 import * as XLSX from 'xlsx';
+import { hasPermission } from '@/lib/permissions-client';
 
 export default function GenerateJurnalTab({ user }: { user?: any }) {
+    // Permission Check
+    const permissions = user?.permissions || []
+    const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
+    const canManage = hasPermission(permissions, 'pengaturan_data:generate_jurnal', 'manage', isAdmin) ||
+        hasPermission(permissions, 'pengaturan_data.generate_jurnal', '*', isAdmin)
+    const canImport = hasPermission(permissions, 'pengaturan_data:generate_jurnal', 'import', isAdmin) ||
+        hasPermission(permissions, 'pengaturan_data.generate_jurnal', 'import', isAdmin) ||
+        canManage
+
     const [settings, setSettings] = useState({
         is_auto_generate_enabled: false,
         generate_start_date: '',
@@ -76,6 +86,7 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
     };
 
     const handleSaveSettings = async () => {
+        if (!canManage) return
         setLoading(true);
         try {
             const res = await fetch('/api/jurnal/pengaturan', {
@@ -99,6 +110,7 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
     };
 
     const handleGenerateManual = async () => {
+        if (!canManage) return
         if (!manualDates.startDate) {
             showMessage('error', 'Tanggal mulai wajib diisi');
             return;
@@ -130,6 +142,7 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
     };
 
     const handleDeleteByDate = async () => {
+        if (!canManage) return
         if (!deleteDates.startDate) {
             showMessage('error', 'Tanggal mulai wajib diisi');
             return;
@@ -230,6 +243,7 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
     };
 
     const handleImportSubmit = async () => {
+        if (!canImport) return
         if (importData.length === 0) {
             showMessage('error', 'Tidak ada data valid untuk diimport');
             return;
@@ -359,9 +373,11 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                             />
                         </div>
 
-                        <button onClick={handleSaveSettings} disabled={loading} className="btn-primary">
-                            {loading ? 'Menyimpan...' : 'Simpan Pengaturan'}
-                        </button>
+                        {canManage && (
+                            <button onClick={handleSaveSettings} disabled={loading} className="btn-primary">
+                                {loading ? 'Menyimpan...' : 'Simpan Pengaturan'}
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -404,9 +420,11 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                             <p className="hint">Pilih spesifik atau kosongkan untuk semua jam.</p>
                         </div>
 
-                        <button onClick={handleGenerateManual} disabled={loading} className="btn-success">
-                            {loading ? 'Memproses...' : 'Generate Sekarang'}
-                        </button>
+                        {canManage && (
+                            <button onClick={handleGenerateManual} disabled={loading} className="btn-success">
+                                {loading ? 'Memproses...' : 'Generate Sekarang'}
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -439,13 +457,15 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                             </div>
                         )}
 
-                        <button
-                            onClick={handleImportSubmit}
-                            disabled={loading || !importData.length}
-                            className="btn-purple"
-                        >
-                            {loading ? 'Mengimport...' : 'Mulai Import'}
-                        </button>
+                        {canImport && (
+                            <button
+                                onClick={handleImportSubmit}
+                                disabled={loading || !importData.length}
+                                className="btn-purple"
+                            >
+                                {loading ? 'Mengimport...' : 'Mulai Import'}
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -492,9 +512,11 @@ export default function GenerateJurnalTab({ user }: { user?: any }) {
                             <p className="hint">Kosongkan untuk menghapus semua jam.</p>
                         </div>
 
-                        <button onClick={handleDeleteByDate} disabled={loading} className="btn-danger">
-                            {loading ? 'Menghapus...' : 'Hapus Permanen'}
-                        </button>
+                        {canManage && (
+                            <button onClick={handleDeleteByDate} disabled={loading} className="btn-danger">
+                                {loading ? 'Menghapus...' : 'Hapus Permanen'}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

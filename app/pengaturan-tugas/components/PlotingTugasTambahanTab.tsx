@@ -386,9 +386,11 @@ export default function PlotingTugasTambahanTab({ user }: PlotingTugasTambahanTa
                                 <button type="button" className="px-6 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors" onClick={() => setShowModal(false)}>
                                     Batal
                                 </button>
-                                <button type="submit" className="px-8 py-2.5 rounded-xl bg-navy-600 text-white text-sm font-bold shadow-lg shadow-navy-200 hover:bg-navy-700 active:scale-95 transition-all">
-                                    {editingTugas ? 'Simpan Perubahan' : 'Ploting Tugas'}
-                                </button>
+                                {(editingTugas ? canUpdate : canCreate) && (
+                                    <button type="submit" className="px-8 py-2.5 rounded-xl bg-navy-600 text-white text-sm font-bold shadow-lg shadow-navy-200 hover:bg-navy-700 active:scale-95 transition-all">
+                                        {editingTugas ? 'Simpan Perubahan' : 'Ploting Tugas'}
+                                    </button>
+                                )}
                             </div>
                         </form>
                     </div>

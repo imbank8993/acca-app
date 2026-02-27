@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useState } from 'react'
+import { hasPermission } from '@/lib/permissions-client'
 import { supabase } from '@/lib/supabase'
 import Swal from 'sweetalert2'
 import * as XLSX from 'xlsx'
@@ -30,7 +31,16 @@ const COLUMNS = [
     { key: 'tugas_tambahan', label: 'Tugas Tambahan' },
 ]
 
-export default function DropdownTab() {
+export default function DropdownTab({ user }: { user?: any }) {
+    // Permission Check
+    const permissions = user?.permissions || []
+    const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
+    const canManage = hasPermission(permissions, 'pengaturan_data:dropdown', 'manage', isAdmin) ||
+        hasPermission(permissions, 'pengaturan_data.dropdown', '*', isAdmin)
+    const canExport = hasPermission(permissions, 'pengaturan_data:dropdown', 'export', isAdmin) ||
+        hasPermission(permissions, 'pengaturan_data.dropdown', 'export', isAdmin) ||
+        canManage
+
     const [rawItems, setRawItems] = useState<DropdownItem[]>([])
     const [loading, setLoading] = useState(true)
     const [importing, setImporting] = useState(false)
@@ -72,6 +82,7 @@ export default function DropdownTab() {
     }
 
     const handleDelete = async (id: number, columnKey: string, value: string) => {
+        if (!canManage) return
         const result = await Swal.fire({
             title: 'Hapus Item?',
             text: `Anda yakin ingin menghapus "${value}" dari ${COLUMNS.find(c => c.key === columnKey)?.label}?`,
@@ -117,6 +128,7 @@ export default function DropdownTab() {
     }
 
     const openModal = (mode: 'create' | 'edit', columnKey: string, item?: { id: number, value: string }) => {
+        if (!canManage) return
         setModalMode(mode)
         setActiveColumn(columnKey)
         if (mode === 'edit' && item) {
@@ -129,6 +141,7 @@ export default function DropdownTab() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        if (!canManage) return
         if (!formData.value.trim()) return
 
         const payload: any = { [activeColumn]: formData.value.trim() }
@@ -173,6 +186,7 @@ export default function DropdownTab() {
     }
 
     const handleExport = () => {
+        if (!canExport) return
         const worksheet = XLSX.utils.json_to_sheet(rawItems.map(item => {
             const row: any = {};
             COLUMNS.forEach(col => {
@@ -188,6 +202,7 @@ export default function DropdownTab() {
     };
 
     const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!canManage) return
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -262,20 +277,24 @@ export default function DropdownTab() {
                     <p className="dd-subtitle">Kelola data pilihan untuk berbagai dropdown di aplikasi.</p>
                 </div>
                 <div className="dd-actions-top">
-                    <button onClick={handleExport} className="btn-action export">
-                        <i className="bi bi-file-earmark-excel"></i> Export
-                    </button>
-                    <label className={`btn-action import ${importing ? 'disabled' : ''}`}>
-                        <i className={importing ? "bi bi-hourglass-split" : "bi bi-upload"}></i>
-                        {importing ? ' Importing...' : ' Import'}
-                        <input
-                            type="file"
-                            accept=".xlsx, .xls"
-                            onChange={handleImport}
-                            disabled={importing}
-                            className="hidden-input"
-                        />
-                    </label>
+                    {canExport && (
+                        <button onClick={handleExport} className="btn-action export">
+                            <i className="bi bi-file-earmark-excel"></i> Export
+                        </button>
+                    )}
+                    {canManage && (
+                        <label className={`btn-action import ${importing ? 'disabled' : ''}`}>
+                            <i className={importing ? "bi bi-hourglass-split" : "bi bi-upload"}></i>
+                            {importing ? ' Importing...' : ' Import'}
+                            <input
+                                type="file"
+                                accept=".xlsx, .xls"
+                                onChange={handleImport}
+                                disabled={importing}
+                                className="hidden-input"
+                            />
+                        </label>
+                    )}
                 </div>
             </div>
 
@@ -289,13 +308,15 @@ export default function DropdownTab() {
                             <div key={col.key} className="dd-card">
                                 <div className="dd-card-header">
                                     <h3>{col.label}</h3>
-                                    <button
-                                        onClick={() => openModal('create', col.key)}
-                                        className="btn-add"
-                                        title="Tambah Item"
-                                    >
-                                        <i className="bi bi-plus-lg"></i>
-                                    </button>
+                                    {canManage && (
+                                        <button
+                                            onClick={() => openModal('create', col.key)}
+                                            className="btn-add"
+                                            title="Tambah Item"
+                                        >
+                                            <i className="bi bi-plus-lg"></i>
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="dd-list">
                                     {values.length === 0 ? (
@@ -305,20 +326,22 @@ export default function DropdownTab() {
                                             {values.map((v) => (
                                                 <li key={v.id}>
                                                     <span>{v.value}</span>
-                                                    <div className="dd-actions">
-                                                        <button
-                                                            onClick={() => openModal('edit', col.key, v)}
-                                                            className="btn-icon edit"
-                                                        >
-                                                            <i className="bi bi-pencil"></i>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDelete(v.id, col.key, v.value)}
-                                                            className="btn-icon delete"
-                                                        >
-                                                            <i className="bi bi-trash"></i>
-                                                        </button>
-                                                    </div>
+                                                    {canManage && (
+                                                        <div className="dd-actions">
+                                                            <button
+                                                                onClick={() => openModal('edit', col.key, v)}
+                                                                className="btn-icon edit"
+                                                            >
+                                                                <i className="bi bi-pencil"></i>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(v.id, col.key, v.value)}
+                                                                className="btn-icon delete"
+                                                            >
+                                                                <i className="bi bi-trash"></i>
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </li>
                                             ))}
                                         </ul>

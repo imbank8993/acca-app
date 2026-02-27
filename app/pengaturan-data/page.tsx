@@ -29,7 +29,10 @@ export default function DataSettingsPage({ user }: { user?: any }) {
   )
 
   const allowedTabs = tabs.filter(tab => {
-    return hasPermission(permissions, 'pengaturan_data', `tab:${tab.key}`, isAdmin)
+    // Check for pengaturan_data:tab:key OR pengaturan_data.key:view OR pengaturan_data:*
+    return hasPermission(permissions, 'pengaturan_data', `tab:${tab.key}`, isAdmin) ||
+      hasPermission(permissions, `pengaturan_data.${tab.key}`, 'view', isAdmin) ||
+      hasPermission(permissions, `pengaturan_data.${tab.key}`, '*', isAdmin);
   })
 
   const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]?.key as TabType || 'siswa_kelas')
@@ -63,9 +66,9 @@ export default function DataSettingsPage({ user }: { user?: any }) {
 
       <div className="ds-content" role="tabpanel">
         {activeTab === 'siswa_kelas' && <SiswaKelasTab user={user} />}
-        {activeTab === 'wali_kelas' && <WaliKelasTab />}
-        {activeTab === 'guru_asuh' && <GuruAsuhTab />}
-        {activeTab === 'dropdown' && <DropdownTab />}
+        {activeTab === 'wali_kelas' && <WaliKelasTab user={user} />}
+        {activeTab === 'guru_asuh' && <GuruAsuhTab user={user} />}
+        {activeTab === 'dropdown' && <DropdownTab user={user} />}
         {activeTab === 'libur' && <LiburTab user={user} />}
         {activeTab === 'generate_jurnal' && <GenerateJurnalTab user={user} />}
       </div>

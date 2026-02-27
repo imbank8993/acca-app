@@ -12,7 +12,7 @@ ADD COLUMN IF NOT EXISTS nip TEXT;
 
 -- 3. Relax FK constraint on nisn to allow NULL (since Guru uses NIP)
 ALTER TABLE public.dokumen_siswa 
-ALTER COLUMN nisn DROP NOT EXISTS; -- Some systems might need direct ALTER
+ALTER COLUMN nisn DROP NOT NULL; -- Some systems might need direct ALTER
 
 -- If there's a strict FK, we might need to drop and re-add or just leave it if it's not strictly enforced.
 -- Based on previous research, it references public.siswa(nisn).

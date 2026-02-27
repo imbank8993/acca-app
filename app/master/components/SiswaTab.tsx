@@ -687,13 +687,14 @@ export default function SiswaTab({ user }: { user?: any }) {
       <BulkDocsUploadModal
         isOpen={showBulkUploadModal}
         onClose={() => setShowBulkUploadModal(false)}
-        students={allData.map(s => ({ nisn: s.nisn, nama_lengkap: s.nama_lengkap }))}
+        targetRole="siswa"
+        data={allData.map(s => ({ nisn: s.nisn, nama_lengkap: s.nama_lengkap }))}
         onUploadSuccess={() => {
           console.log('Upload batch completed');
           // Optional: refresh or show notification
         }}
         initialMode={uploadMode}
-        preSelectedStudent={uploadTargetStudent ? { nisn: uploadTargetStudent.nisn, nama_lengkap: uploadTargetStudent.nama_lengkap } : null}
+        preSelectedPerson={uploadTargetStudent ? { nisn: uploadTargetStudent.nisn, nama_lengkap: uploadTargetStudent.nama_lengkap } : null}
       />
 
 
@@ -781,17 +782,19 @@ export default function SiswaTab({ user }: { user?: any }) {
               </div>
             </div>
             <div className="sk__modalFoot">
-              <button
-                type="button"
-                onClick={() => {
-                  handleDelete(selectedSiswa.nisn)
-                  setShowViewModal(false)
-                }}
-                className="sk__btn sk__btnDanger"
-                style={{ marginRight: 'auto' }}
-              >
-                <i className="bi bi-trash"></i> Hapus Siswa
-              </button>
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDelete(selectedSiswa.nisn)
+                    setShowViewModal(false)
+                  }}
+                  className="sk__btn sk__btnDanger"
+                  style={{ marginRight: 'auto' }}
+                >
+                  <i className="bi bi-trash"></i> Hapus Siswa
+                </button>
+              )}
               <button onClick={() => {
                 setShowViewModal(false)
                 handleEdit(selectedSiswa)

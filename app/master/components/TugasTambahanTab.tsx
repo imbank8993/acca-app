@@ -6,388 +6,419 @@ import { exportToExcel } from '@/lib/excel-utils';
 import ImportModal from '@/components/ui/ImportModal';
 
 interface MasterTugas {
-    id: number;
-    nama_tugas: string;
-    tahun_ajaran: string;
-    semester: string | number;
-    aktif: boolean;
+  id: number;
+  nama_tugas: string;
+  tahun_ajaran: string;
+  semester: string | number;
+  aktif: boolean;
 }
 
 export default function TugasTambahanTab({ user }: { user?: any }) {
-    const [dataList, setDataList] = useState<MasterTugas[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
-    const [showImportModal, setShowImportModal] = useState(false);
-    const [editingItem, setEditingItem] = useState<MasterTugas | null>(null);
+  const [dataList, setDataList] = useState<MasterTugas[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<MasterTugas | null>(null);
 
-    // Form inputs
-    const [namaTugas, setNamaTugas] = useState('');
-    const [tahunAjaran, setTahunAjaran] = useState('');
-    const [semester, setSemester] = useState<string | number>('Ganjil');
-    const [isActive, setIsActive] = useState(true);
-    const [academicYears, setAcademicYears] = useState<string[]>([]);
+  // Form inputs
+  const [namaTugas, setNamaTugas] = useState('');
+  const [tahunAjaran, setTahunAjaran] = useState('');
+  const [semester, setSemester] = useState<string | number>('Ganjil');
+  const [isActive, setIsActive] = useState(true);
+  const [academicYears, setAcademicYears] = useState<string[]>([]);
 
-    // Filter
-    const [searchTerm, setSearchTerm] = useState('');
+  // Filter
+  const [searchTerm, setSearchTerm] = useState('');
 
-    useEffect(() => {
+  useEffect(() => {
+    loadData();
+    fetchAcademicYears();
+  }, []);
+
+  const fetchAcademicYears = async () => {
+    try {
+      const { getActivePeriods, getActiveSettings } = await import('@/lib/settings-client');
+      const periods = await getActivePeriods();
+      const defaultSettings = await getActiveSettings();
+
+      if (periods.length > 0) {
+        const uniqueYears = Array.from(new Set(periods.map((p: any) => p.tahun_ajaran)));
+        setAcademicYears(uniqueYears as string[]);
+
+        if (!tahunAjaran) {
+          if (defaultSettings) {
+            setTahunAjaran(defaultSettings.tahun_ajaran);
+          } else {
+            setTahunAjaran(periods[0].tahun_ajaran);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching AY', err);
+    }
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/master/tugas-tambahan');
+      const json = await res.json();
+      if (json.ok) {
+        setDataList(json.data);
+      }
+    } catch (error) {
+      console.error('Failed load master tugas', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!namaTugas || !tahunAjaran || !semester) {
+      Swal.fire('Error', 'Mohon lengkapi semua field wajib', 'error');
+      return;
+    }
+
+    const payload = {
+      id: editingItem?.id,
+      nama_tugas: namaTugas,
+      tahun_ajaran: tahunAjaran,
+      semester,
+      aktif: isActive
+    };
+
+    try {
+      const res = await fetch('/api/master/tugas-tambahan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await res.json();
+
+      if (result.ok) {
+        Swal.fire('Sukses', 'Data berhasil disimpan', 'success');
+        setShowModal(false);
+        resetForm();
         loadData();
-        fetchAcademicYears();
-    }, []);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (err: any) {
+      Swal.fire('Error', err.message, 'error');
+    }
+  };
 
-    const fetchAcademicYears = async () => {
-        try {
-            const { getActivePeriods, getActiveSettings } = await import('@/lib/settings-client');
-            const periods = await getActivePeriods();
-            const defaultSettings = await getActiveSettings();
+  const handleDelete = async (id: number) => {
+    const confirm = await Swal.fire({
+      title: 'Hapus Data?',
+      text: 'Data tugas ini akan dihapus permanen.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      confirmButtonText: 'Ya, Hapus'
+    });
 
-            if (periods.length > 0) {
-                const uniqueYears = Array.from(new Set(periods.map((p: any) => p.tahun_ajaran)));
-                setAcademicYears(uniqueYears as string[]);
+    if (confirm.isConfirmed) {
+      try {
+        await fetch(`/api/master/tugas-tambahan?id=${id}`, { method: 'DELETE' });
+        loadData();
+        Swal.fire('Terhapus', 'Data telah dihapus', 'success');
+      } catch (err) {
+        Swal.fire('Error', 'Gagal menghapus data', 'error');
+      }
+    }
+  };
 
-                if (!tahunAjaran) {
-                    if (defaultSettings) {
-                        setTahunAjaran(defaultSettings.tahun_ajaran);
-                    } else {
-                        setTahunAjaran(periods[0].tahun_ajaran);
-                    }
-                }
-            }
-        } catch (err) {
-            console.error('Error fetching AY', err);
-        }
+  const resetForm = () => {
+    setEditingItem(null);
+    setNamaTugas('');
+    setIsActive(true);
+  };
+
+  const openEdit = (item: MasterTugas) => {
+    setEditingItem(item);
+    setNamaTugas(item.nama_tugas);
+    setTahunAjaran(item.tahun_ajaran);
+    setSemester(item.semester);
+    setIsActive(item.aktif);
+    setShowModal(true);
+  };
+
+  const filtered = dataList.filter(x =>
+    x.nama_tugas.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleExport = () => {
+    const dataToExport = filtered.map((item, index) => ({
+      'No': index + 1,
+      'Nama Tugas': item.nama_tugas,
+      'Tahun Ajaran': item.tahun_ajaran,
+      'Semester': item.semester,
+      'Status': item.aktif ? 'Aktif' : 'Non-Aktif'
+    }));
+    exportToExcel(dataToExport, 'Master_Tugas_Tambahan', 'MasterTugas');
+  };
+
+  const mapImportRow = (row: any) => {
+    const getVal = (targetKeys: string[]) => {
+      const normalizedTargets = targetKeys.map(k => k.toLowerCase().trim());
+      const foundKey = Object.keys(row).find(k =>
+        normalizedTargets.includes(k.toLowerCase().trim())
+      );
+      if (foundKey) return row[foundKey];
+      return undefined;
     };
 
-    const loadData = async () => {
-        setLoading(true);
-        try {
-            const res = await fetch('/api/master/tugas-tambahan');
-            const json = await res.json();
-            if (json.ok) {
-                setDataList(json.data);
-            }
-        } catch (error) {
-            console.error('Failed load master tugas', error);
-        } finally {
-            setLoading(false);
-        }
+    const nama = getVal(['Nama Tugas', 'nama', 'Nama']);
+    const ta = getVal(['Tahun Ajaran', 'tahun ajaran', 'ta']);
+    const sem = getVal(['Semester', 'sem']);
+    const status = getVal(['Status', 'aktif']);
+
+    if (!nama || !ta || !sem) return null;
+
+    return {
+      nama_tugas: String(nama).trim(),
+      tahun_ajaran: String(ta).trim(),
+      semester: String(sem).trim(),
+      aktif: String(status).toLowerCase() === 'aktif' || String(status).toLowerCase() === 'true'
     };
+  };
 
-    const handleSave = async (e: React.FormEvent) => {
-        e.preventDefault();
+  // Permissions Check
+  const { hasPermission } = require('@/lib/permissions-client')
+  const permissions = user?.permissions || []
+  const isAdmin = user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false
 
-        if (!namaTugas || !tahunAjaran || !semester) {
-            Swal.fire('Error', 'Mohon lengkapi semua field wajib', 'error');
-            return;
-        }
+  const canView = hasPermission(permissions, 'master.tugas_tambahan', 'view', isAdmin)
+  const canManage = hasPermission(permissions, 'master.tugas_tambahan', 'manage', isAdmin)
+  const canExport = hasPermission(permissions, 'master.tugas_tambahan', 'export', isAdmin)
 
-        const payload = {
-            id: editingItem?.id,
-            nama_tugas: namaTugas,
-            tahun_ajaran: tahunAjaran,
-            semester,
-            aktif: isActive
-        };
-
-        try {
-            const res = await fetch('/api/master/tugas-tambahan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const result = await res.json();
-
-            if (result.ok) {
-                Swal.fire('Sukses', 'Data berhasil disimpan', 'success');
-                setShowModal(false);
-                resetForm();
-                loadData();
-            } else {
-                throw new Error(result.error);
-            }
-        } catch (err: any) {
-            Swal.fire('Error', err.message, 'error');
-        }
-    };
-
-    const handleDelete = async (id: number) => {
-        const confirm = await Swal.fire({
-            title: 'Hapus Data?',
-            text: 'Data tugas ini akan dihapus permanen.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            confirmButtonText: 'Ya, Hapus'
-        });
-
-        if (confirm.isConfirmed) {
-            try {
-                await fetch(`/api/master/tugas-tambahan?id=${id}`, { method: 'DELETE' });
-                loadData();
-                Swal.fire('Terhapus', 'Data telah dihapus', 'success');
-            } catch (err) {
-                Swal.fire('Error', 'Gagal menghapus data', 'error');
-            }
-        }
-    };
-
-    const resetForm = () => {
-        setEditingItem(null);
-        setNamaTugas('');
-        setIsActive(true);
-    };
-
-    const openEdit = (item: MasterTugas) => {
-        setEditingItem(item);
-        setNamaTugas(item.nama_tugas);
-        setTahunAjaran(item.tahun_ajaran);
-        setSemester(item.semester);
-        setIsActive(item.aktif);
-        setShowModal(true);
-    };
-
-    const filtered = dataList.filter(x =>
-        x.nama_tugas.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const handleExport = () => {
-        const dataToExport = filtered.map((item, index) => ({
-            'No': index + 1,
-            'Nama Tugas': item.nama_tugas,
-            'Tahun Ajaran': item.tahun_ajaran,
-            'Semester': item.semester,
-            'Status': item.aktif ? 'Aktif' : 'Non-Aktif'
-        }));
-        exportToExcel(dataToExport, 'Master_Tugas_Tambahan', 'MasterTugas');
-    };
-
-    const mapImportRow = (row: any) => {
-        const getVal = (targetKeys: string[]) => {
-            const normalizedTargets = targetKeys.map(k => k.toLowerCase().trim());
-            const foundKey = Object.keys(row).find(k =>
-                normalizedTargets.includes(k.toLowerCase().trim())
-            );
-            if (foundKey) return row[foundKey];
-            return undefined;
-        };
-
-        const nama = getVal(['Nama Tugas', 'nama', 'Nama']);
-        const ta = getVal(['Tahun Ajaran', 'tahun ajaran', 'ta']);
-        const sem = getVal(['Semester', 'sem']);
-        const status = getVal(['Status', 'aktif']);
-
-        if (!nama || !ta || !sem) return null;
-
-        return {
-            nama_tugas: String(nama).trim(),
-            tahun_ajaran: String(ta).trim(),
-            semester: String(sem).trim(),
-            aktif: String(status).toLowerCase() === 'aktif' || String(status).toLowerCase() === 'true'
-        };
-    };
-
+  if (!canView) {
     return (
-        <div className="sk">
-            {/* Toolbar */}
-            <div className="sk__bar">
-                <div className="sk__filters">
-                    <div className="sk__search">
-                        <i className="bi bi-search" aria-hidden="true" />
-                        <input
-                            type="text"
-                            placeholder="Cari master tugas..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                </div>
+      <div className="sk">
+        <div className="sk__tableWrap">
+          <div className="sk__empty sk__muted p-20">
+            Anda tidak memiliki akses untuk melihat data ini.
+          </div>
+        </div>
+      </div>
+    )
+  }
 
-                <div className="sk__actions">
-                    <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)}>
-                        <i className="bi bi-upload"></i> <span>Import</span>
-                    </button>
-
-                    <button className="sk__btn sk__btnExport" onClick={handleExport}>
-                        <i className="bi bi-download"></i> <span>Export</span>
-                    </button>
-
-                    <button className="sk__btn sk__btnPrimary" onClick={() => { resetForm(); setShowModal(true); }}>
-                        <i className="bi bi-plus-lg"></i> <span>Tambah</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Table */}
-            <div className="sk__tableWrap">
-                <table className="sk__table">
-                    <thead>
-                        <tr>
-                            <th className="cNo">No</th>
-                            <th>Nama Tugas Tambahan</th>
-                            <th>Periode Berlaku</th>
-                            <th className="cStatus">Status</th>
-                            <th className="cAksi">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading ? (
-                            <tr><td colSpan={5} className="sk__empty">Memuat data...</td></tr>
-                        ) : filtered.length === 0 ? (
-                            <tr><td colSpan={5} className="sk__empty sk__muted">Belum ada data master tugas.</td></tr>
-                        ) : (
-                            filtered.map((item, idx) => (
-                                <tr key={item.id}>
-                                    <td className="tCenter">{idx + 1}</td>
-                                    <td className="tPlain font-medium">{item.nama_tugas}</td>
-                                    <td className="text-slate-600">
-                                        <span className="sk__kelompokBadge">
-                                            {item.tahun_ajaran}
-                                        </span>
-                                        <span className={`ml-2 text-xs font-semibold ${String(item.semester).toLowerCase().includes('1') || String(item.semester).toLowerCase() === 'ganjil' ? 'text-emerald-600' : 'text-indigo-600'}`}>
-                                            {String(item.semester)}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span className={`sk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
-                                            {item.aktif ? 'Aktif' : 'Non-Aktif'}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div className="sk__rowActions" style={{ justifyContent: 'flex-end', display: 'flex', gap: '6px' }}>
-                                            <button
-                                                onClick={() => openEdit(item)}
-                                                className="sk__iconBtn"
-                                                title="Edit"
-                                            >
-                                                <i className="bi bi-pencil"></i>
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(item.id)}
-                                                className="sk__iconBtn danger"
-                                                title="Hapus"
-                                            >
-                                                <i className="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Mobile Cards (Optional structure for better mobile view) */}
-            <div className="sk__cards">
-                {filtered.map((item, idx) => (
-                    <div className="sk__card" key={item.id}>
-                        <div className="sk__cardHead">
-                            <div className="sk__cardTitle">
-                                <div className="sk__cardName">{item.nama_tugas}</div>
-                                <div className="sk__cardSub">{item.tahun_ajaran} - {item.semester}</div>
-                            </div>
-                        </div>
-                        <div className="sk__cardBody">
-                            <div className="sk__statusRow" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span className={`sk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
-                                    {item.aktif ? 'Aktif' : 'Non-Aktif'}
-                                </span>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button onClick={() => openEdit(item)} className="sk__iconBtn"><i className="bi bi-pencil"></i></button>
-                                    <button onClick={() => handleDelete(item.id)} className="sk__iconBtn danger"><i className="bi bi-trash"></i></button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Modal */}
-            {showModal && (
-                <div className="sk__modalOverlay">
-                    <div className="sk__modal">
-                        <div className="sk__modalHead">
-                            <div className="sk__modalTitle">
-                                <h2>{editingItem ? 'Edit Master Tugas' : 'Tambah Master Tugas'}</h2>
-                            </div>
-                            <button onClick={() => setShowModal(false)} className="sk__close">
-                                <i className="bi bi-x-lg"></i>
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSave}>
-                            <div className="sk__modalBody">
-                                <div className="sk__field">
-                                    <label>Nama Tugas Tambahan <span className="required">*</span></label>
-                                    <input
-                                        type="text"
-                                        placeholder="Contoh: Wali Kelas"
-                                        value={namaTugas}
-                                        onChange={e => setNamaTugas(e.target.value)}
-                                        required
-                                    />
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                                    <div className="sk__field">
-                                        <label>Tahun Ajaran</label>
-                                        <select
-                                            value={tahunAjaran}
-                                            onChange={e => setTahunAjaran(e.target.value)}
-                                        >
-                                            {academicYears.map(y => (
-                                                <option key={y} value={y}>{y}</option>
-                                            ))}
-                                            {!academicYears.includes(tahunAjaran) && <option value={tahunAjaran}>{tahunAjaran}</option>}
-                                        </select>
-                                    </div>
-                                    <div className="sk__field">
-                                        <label>Semester</label>
-                                        <select
-                                            value={semester}
-                                            onChange={e => setSemester(e.target.value)}
-                                        >
-                                            <option value="Semua">Semua</option>
-                                            <option value="Ganjil">Ganjil</option>
-                                            <option value="Genap">Genap</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="sk__field" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
-                                    <label style={{ margin: 0 }}>Status Aktif</label>
-                                    <input
-                                        type="checkbox"
-                                        checked={isActive}
-                                        onChange={e => setIsActive(e.target.checked)}
-                                        style={{ width: 'auto', margin: 0 }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="sk__modalFoot">
-                                <button type="button" className="sk__btn sk__btnGhost" onClick={() => setShowModal(false)}>Batal</button>
-                                <button type="submit" className="sk__btn sk__btnPrimary">Simpan</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            <ImportModal
-                isOpen={showImportModal}
-                onClose={() => setShowImportModal(false)}
-                onImportSuccess={() => {
-                    loadData();
-                    setShowImportModal(false);
-                }}
-                templateColumns={['Nama Tugas', 'Tahun Ajaran', 'Semester', 'Status']}
-                templateName="Template_Master_Tugas"
-                apiEndpoint="/api/master/tugas-tambahan"
-                mapRowData={mapImportRow}
+  return (
+    <div className="sk">
+      {/* Toolbar */}
+      <div className="sk__bar">
+        <div className="sk__filters">
+          <div className="sk__search">
+            <i className="bi bi-search" aria-hidden="true" />
+            <input
+              type="text"
+              placeholder="Cari master tugas..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
+          </div>
+        </div>
 
-            <style jsx>{`
+        <div className="sk__actions">
+          {canManage && (
+            <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)}>
+              <i className="bi bi-upload"></i> <span>Import</span>
+            </button>
+          )}
+
+          {canExport && (
+            <button className="sk__btn sk__btnExport" onClick={handleExport}>
+              <i className="bi bi-download"></i> <span>Export</span>
+            </button>
+          )}
+
+          {canManage && (
+            <button className="sk__btn sk__btnPrimary" onClick={() => { resetForm(); setShowModal(true); }}>
+              <i className="bi bi-plus-lg"></i> <span>Tambah</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="sk__tableWrap">
+        <table className="sk__table">
+          <thead>
+            <tr>
+              <th className="cNo">No</th>
+              <th>Nama Tugas Tambahan</th>
+              <th>Periode Berlaku</th>
+              <th className="cStatus">Status</th>
+              {canManage && <th className="cAksi">Aksi</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={canManage ? 5 : 4} className="sk__empty">Memuat data...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={canManage ? 5 : 4} className="sk__empty sk__muted">Belum ada data master tugas.</td></tr>
+            ) : (
+              filtered.map((item, idx) => (
+                <tr key={item.id}>
+                  <td className="tCenter">{idx + 1}</td>
+                  <td className="tPlain font-medium">{item.nama_tugas}</td>
+                  <td className="text-slate-600">
+                    <span className="sk__kelompokBadge">
+                      {item.tahun_ajaran}
+                    </span>
+                    <span className={`ml-2 text-xs font-semibold ${String(item.semester).toLowerCase().includes('1') || String(item.semester).toLowerCase() === 'ganjil' ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                      {String(item.semester)}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`sk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
+                      {item.aktif ? 'Aktif' : 'Non-Aktif'}
+                    </span>
+                  </td>
+                  {canManage && (
+                    <td>
+                      <div className="sk__rowActions" style={{ justifyContent: 'flex-end', display: 'flex', gap: '6px' }}>
+                        <button
+                          onClick={() => openEdit(item)}
+                          className="sk__iconBtn"
+                          title="Edit"
+                        >
+                          <i className="bi bi-pencil"></i>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="sk__iconBtn danger"
+                          title="Hapus"
+                        >
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile Cards (Optional structure for better mobile view) */}
+      <div className="sk__cards">
+        {filtered.map((item, idx) => (
+          <div className="sk__card" key={item.id}>
+            <div className="sk__cardHead">
+              <div className="sk__cardTitle">
+                <div className="sk__cardName">{item.nama_tugas}</div>
+                <div className="sk__cardSub">{item.tahun_ajaran} - {item.semester}</div>
+              </div>
+            </div>
+            <div className="sk__cardBody">
+              <div className="sk__statusRow" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className={`sk__status ${item.aktif ? 'isOn' : 'isOff'}`}>
+                  {item.aktif ? 'Aktif' : 'Non-Aktif'}
+                </span>
+                {canManage && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => openEdit(item)} className="sk__iconBtn"><i className="bi bi-pencil"></i></button>
+                    <button onClick={() => handleDelete(item.id)} className="sk__iconBtn danger"><i className="bi bi-trash"></i></button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="sk__modalOverlay">
+          <div className="sk__modal">
+            <div className="sk__modalHead">
+              <div className="sk__modalTitle">
+                <h2>{editingItem ? 'Edit Master Tugas' : 'Tambah Master Tugas'}</h2>
+              </div>
+              <button onClick={() => setShowModal(false)} className="sk__close">
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+
+            <form onSubmit={handleSave}>
+              <div className="sk__modalBody">
+                <div className="sk__field">
+                  <label>Nama Tugas Tambahan <span className="required">*</span></label>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Wali Kelas"
+                    value={namaTugas}
+                    onChange={e => setNamaTugas(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div className="sk__field">
+                    <label>Tahun Ajaran</label>
+                    <select
+                      value={tahunAjaran}
+                      onChange={e => setTahunAjaran(e.target.value)}
+                    >
+                      {academicYears.map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                      {!academicYears.includes(tahunAjaran) && <option value={tahunAjaran}>{tahunAjaran}</option>}
+                    </select>
+                  </div>
+                  <div className="sk__field">
+                    <label>Semester</label>
+                    <select
+                      value={semester}
+                      onChange={e => setSemester(e.target.value)}
+                    >
+                      <option value="Semua">Semua</option>
+                      <option value="Ganjil">Ganjil</option>
+                      <option value="Genap">Genap</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="sk__field" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+                  <label style={{ margin: 0 }}>Status Aktif</label>
+                  <input
+                    type="checkbox"
+                    checked={isActive}
+                    onChange={e => setIsActive(e.target.checked)}
+                    style={{ width: 'auto', margin: 0 }}
+                  />
+                </div>
+              </div>
+
+              <div className="sk__modalFoot">
+                <button type="button" className="sk__btn sk__btnGhost" onClick={() => setShowModal(false)}>Batal</button>
+                <button type="submit" className="sk__btn sk__btnPrimary">Simpan</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={() => {
+          loadData();
+          setShowImportModal(false);
+        }}
+        templateColumns={['Nama Tugas', 'Tahun Ajaran', 'Semester', 'Status']}
+        templateName="Template_Master_Tugas"
+        apiEndpoint="/api/master/tugas-tambahan"
+        mapRowData={mapImportRow}
+      />
+
+      <style jsx>{`
             :global(:root) {
               --sk-line: rgba(148, 163, 184, 0.22);
               --sk-card: rgba(255, 255, 255, 0.92);
@@ -909,6 +940,6 @@ export default function TugasTambahanTab({ user }: { user?: any }) {
               }
             }
             `}</style>
-        </div>
-    );
+    </div>
+  );
 }

@@ -29,8 +29,15 @@ export function useJurnal(user: any) {
     const isAdmin = roles.includes('ADMIN');
     const isOPJurnal = roles.includes('OP_JURNAL');
     const isKepala = roles.includes('KEPALA MADRASAH') || roles.includes('KAMAD');
+    const isWali = roles.includes('WALI KELAS') || roles.includes('WALI_KELAS');
 
     const canDo = useCallback((action: string) => {
+        if (action === 'export') {
+            return hasPermission(permissions, 'jurnal', 'export', isAdmin) ||
+                hasPermission(permissions, 'jurnal', 'export_personal', isAdmin) ||
+                hasPermission(permissions, 'jurnal', 'export_class', isAdmin) ||
+                hasPermission(permissions, 'jurnal', 'export_admin', isAdmin);
+        }
         return hasPermission(permissions, 'jurnal', action, isAdmin);
     }, [permissions, isAdmin]);
 
@@ -245,6 +252,7 @@ export function useJurnal(user: any) {
         isAdmin,
         isGuru,
         isKepala,
+        isWali,
         fetchJournals,
         handleDelete,
         checkNameMatch,

@@ -77,7 +77,7 @@ function JurnalContent({ user }: { user?: any }) {
         currentPage, setCurrentPage,
         itemsPerPage, setItemsPerPage,
         finalDisplayData, filteredJournals,
-        canDo, isAdmin, isGuru, isKepala,
+        canDo, isAdmin, isGuru, isKepala, isWali,
         fetchJournals, handleDelete,
         checkNameMatch, isJournalRelated, displayGroups,
         masterDataState, setMasterDataState
@@ -169,7 +169,7 @@ function JurnalContent({ user }: { user?: any }) {
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}
                 canDo={canDo}
-                showExportOptions={() => showExportOptions(canDo, isKepala, (mode) => handleExport(mode, user, journals, selectedTeacher, selectedSubject, selectedClass, searchTerm, isJournalRelated, checkNameMatch, displayGroups, allWaktu))}
+                showExportOptions={() => showExportOptions(canDo, isKepala, isWali, (mode) => handleExport(mode, user, journals, selectedTeacher, selectedSubject, selectedClass, searchTerm, isJournalRelated, checkNameMatch, displayGroups, allWaktu))}
                 setShowAddModal={setShowAddModal}
                 guruOptions={guruOptions}
                 mapelOptions={mapelOptions}
@@ -178,6 +178,8 @@ function JurnalContent({ user }: { user?: any }) {
                 setSelectedSubject={setSelectedSubject}
                 setSelectedClass={setSelectedClass}
                 customSelectStyles={customSelectStyles}
+                isKepala={isKepala}
+                isWali={isWali}
             />
 
             <JurnalTable

@@ -134,10 +134,15 @@ export async function buildUserObject(dbUser: any): Promise<User> {
     // Fetch permissions for the roles
     let permissions: any[] = [];
     try {
+        // Normalize role names (space to underscore) for permission matching
+        // e.g. "WALI KELAS" -> "WALI_KELAS"
+        const normalizedRoles = roles.map(r => r.replace(/\s+/g, '_'));
+        const rolesToQuery = [...new Set([...roles, ...normalizedRoles])];
+
         const { data: permsData } = await supabase
             .from('role_permissions')
             .select('*')
-            .in('role_name', roles);
+            .in('role_name', rolesToQuery);
 
         if (permsData) {
             permissions = permsData;
@@ -225,4 +230,20 @@ export function userHasAnyRole(user: User, roles: string[]): boolean {
  */
 export function userHasPageAccess(user: User, page: string): boolean {
     return user.pagesArray.includes(page);
+}
+
+/**
+ * Standardize page path/slug to resource name
+ */
+export function pagePathToResource(path: string): string {
+    const slug = path.startsWith('/') ? path.slice(1) : path;
+    const resource = slug.split('/')[0] // Get first segment
+        .replace(/-/g, '_')
+        .toLowerCase();
+
+    // Custom mappings if any
+    if (resource === 'informasi') return 'informasi_akademik';
+    if (resource === 'dokumen_siswa') return 'dokumen_siswa';
+
+    return resource;
 }

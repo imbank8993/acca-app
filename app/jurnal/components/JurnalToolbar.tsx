@@ -16,6 +16,8 @@ interface JurnalToolbarProps {
     setSelectedSubject: (val: string | null) => void;
     setSelectedClass: (val: string | null) => void;
     customSelectStyles: any;
+    isKepala?: boolean;
+    isWali?: boolean;
 }
 
 export default function JurnalToolbar({
@@ -30,7 +32,9 @@ export default function JurnalToolbar({
     setSelectedTeacher,
     setSelectedSubject,
     setSelectedClass,
-    customSelectStyles
+    customSelectStyles,
+    isKepala,
+    isWali
 }: JurnalToolbarProps) {
     return (
         <div className="jt__toolbar">
@@ -51,7 +55,7 @@ export default function JurnalToolbar({
                     <button
                         className="jt__btn jt__btnExport"
                         onClick={() => showExportOptions()}
-                        disabled={!canDo('export')}
+                        disabled={!canDo('export') && !isKepala && !isWali}
                         title="Export Data"
                     >
                         <i className="bi bi-file-earmark-excel" />

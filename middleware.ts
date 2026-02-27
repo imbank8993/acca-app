@@ -31,36 +31,71 @@ export async function middleware(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     const url = request.nextUrl.clone()
+    const path = url.pathname
 
-    // Protected Routes Pattern
-    const protectedPrefixes = ['/dashboard', '/reset-data', '/settings', '/master']
-    const isProtected = protectedPrefixes.some(prefix => url.pathname.startsWith(prefix))
-
-    // Auth Routes
-    const isAuthRoute = url.pathname === '/login' || url.pathname === '/register'
-
-    // 1. If at login but have user -> Go Dashboard
+    // 1. Auth Routes handling
+    const isAuthRoute = path === '/login' || path === '/register'
     if (user && isAuthRoute) {
-        url.pathname = '/dashboard'
+        url.pathname = '/'
         return NextResponse.redirect(url)
     }
 
-    // 2. If at protected route but no user -> Go Login
-    if (!user && isProtected) {
+    // 2. Public paths that don't need RBAC
+    const publicPaths = ['/login', '/register', '/api', '/_next', '/favicon.ico', '/logo', '/auth/callback']
+    const isPublic = publicPaths.some(p => path.startsWith(p)) || path === '/'
+
+    if (isPublic) {
+        return response
+    }
+
+    // 3. Protected Route Requirement: Must be logged in
+    if (!user) {
         url.pathname = '/login'
         return NextResponse.redirect(url)
     }
 
-    // 3. Root Handling / SPA Normalization
-    // Allow '/' to pass through (it handles its own auth state)
-    if (url.pathname === '/') {
-        return response
-    }
+    // 4. Dynamic RBAC Check
+    try {
+        // Fetch user roles and permissions
+        // We use supabaseAdmin-like access or just regular supabase if we have access to these tables
+        const { data: dbUser } = await supabase
+            .from('users')
+            .select('role')
+            .eq('auth_id', user.id)
+            .single();
 
-    // Redirect legacy routes to root to maintain "One URL"
-    if (url.pathname === '/login' || url.pathname === '/dashboard') {
-        url.pathname = '/'
-        return NextResponse.redirect(url)
+        const roles = (dbUser?.role || '').split(/[,|]/).map((r: string) => r.trim().toUpperCase());
+        const isAdmin = roles.includes('ADMIN');
+
+        if (!isAdmin) {
+            // Check permissions for non-admins
+            const { data: permissions } = await supabase
+                .from('role_permissions')
+                .select('resource, action, is_allowed')
+                .in('role_name', roles);
+
+            if (permissions) {
+                // Determine resource from path
+                const slug = path.split('/')[1] || ''; // First segment after /
+                if (slug) {
+                    const resource = slug.replace(/-/g, '_').toLowerCase();
+
+                    // Standard hasPermission logic
+                    const hasAccess = permissions.some(p => {
+                        const matchRes = p.resource === '*' || p.resource === resource || path.startsWith('/' + p.resource.replace(/_/g, '-'));
+                        return matchRes && (p.action === '*' || p.action === 'view') && p.is_allowed;
+                    });
+
+                    if (!hasAccess && path !== '/dashboard') {
+                        // Redirect to dashboard or unauthorized if no access to this specific page
+                        url.pathname = '/dashboard'
+                        return NextResponse.redirect(url)
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Middleware RBAC Error:', err);
     }
 
     return response

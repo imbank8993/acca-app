@@ -6,6 +6,7 @@ import ImportModal from '@/components/ui/ImportModal'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import Pagination from '@/components/ui/Pagination'
 import { getCurrentAcademicYear } from '@/lib/date-utils'
+import { hasPermission } from '@/lib/permissions-client'
 
 interface GuruAsuh {
   id?: number
@@ -18,7 +19,16 @@ interface GuruAsuh {
   aktif: boolean
 }
 
-export default function GuruAsuhTab() {
+export default function GuruAsuhTab({ user }: { user?: any }) {
+  // Permission Check
+  const permissions = user?.permissions || []
+  const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
+  const canCreate = hasPermission(permissions, 'pengaturan_data.guru_asuh', 'create', isAdmin)
+  const canUpdate = hasPermission(permissions, 'pengaturan_data.guru_asuh', 'update', isAdmin)
+  const canDelete = hasPermission(permissions, 'pengaturan_data.guru_asuh', 'delete', isAdmin)
+  const canImport = hasPermission(permissions, 'pengaturan_data.guru_asuh', 'import', isAdmin)
+  const canExport = hasPermission(permissions, 'pengaturan_data.guru_asuh', 'export', isAdmin)
+
   // Local Filter State
   const [tahunAjaran, setTahunAjaran] = useState(getCurrentAcademicYear())
 
@@ -176,6 +186,7 @@ export default function GuruAsuhTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (editId ? !canUpdate : !canCreate) return
     if (!selectedNip || selectedStudents.length === 0) {
       alert('Pilih guru dan minimal satu siswa!')
       return
@@ -251,6 +262,7 @@ export default function GuruAsuhTab() {
   }
 
   const handleEdit = (item: GuruAsuh) => {
+    if (!canUpdate) return
     setEditId(item.id!)
     setSelectedNip(item.nip)
     setSelectedClass(item.kelas)
@@ -398,15 +410,21 @@ export default function GuruAsuhTab() {
         </div>
 
         <div className="ga__actions" aria-label="Aksi">
-          <button className="ga__btn ga__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
-            <i className="bi bi-upload" /> <span>Import</span>
-          </button>
-          <button className="ga__btn ga__btnExport" onClick={handleExport} title="Export Excel">
-            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
-          </button>
-          <button className="ga__btn ga__btnPrimary" onClick={openAdd}>
-            <i className="bi bi-plus-lg" /> <span>Tambah</span>
-          </button>
+          {canImport && (
+            <button className="ga__btn ga__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+              <i className="bi bi-upload" /> <span>Import</span>
+            </button>
+          )}
+          {canExport && (
+            <button className="ga__btn ga__btnExport" onClick={handleExport} title="Export Excel">
+              <i className="bi bi-file-earmark-excel" /> <span>Export</span>
+            </button>
+          )}
+          {canCreate && (
+            <button className="ga__btn ga__btnPrimary" onClick={openAdd}>
+              <i className="bi bi-plus-lg" /> <span>Tambah</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -457,16 +475,20 @@ export default function GuruAsuhTab() {
                   </td>
                   <td>
                     <div className="ga__rowActions">
-                      <button className="ga__iconBtn" onClick={() => handleEdit(item)} title="Edit">
-                        <i className="bi bi-pencil" />
-                      </button>
-                      <button
-                        className="ga__iconBtn danger"
-                        onClick={() => item.id && handleDelete(item.id)}
-                        title="Hapus"
-                      >
-                        <i className="bi bi-trash" />
-                      </button>
+                      {canUpdate && (
+                        <button className="ga__iconBtn" onClick={() => handleEdit(item)} title="Edit">
+                          <i className="bi bi-pencil" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          className="ga__iconBtn danger"
+                          onClick={() => item.id && handleDelete(item.id)}
+                          title="Hapus"
+                        >
+                          <i className="bi bi-trash" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -525,17 +547,21 @@ export default function GuruAsuhTab() {
                           </span>
                         </div>
                         <div className="ga__cardActionsLeft">
-                          <button className="ga__iconBtn" onClick={() => handleEdit(item)} title="Edit" aria-label="Edit">
-                            <i className="bi bi-pencil" />
-                          </button>
-                          <button
-                            className="ga__iconBtn danger"
-                            onClick={() => item.id && handleDelete(item.id)}
-                            title="Hapus"
-                            aria-label="Hapus"
-                          >
-                            <i className="bi bi-trash" />
-                          </button>
+                          {canUpdate && (
+                            <button className="ga__iconBtn" onClick={() => handleEdit(item)} title="Edit" aria-label="Edit">
+                              <i className="bi bi-pencil" />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              className="ga__iconBtn danger"
+                              onClick={() => item.id && handleDelete(item.id)}
+                              title="Hapus"
+                              aria-label="Hapus"
+                            >
+                              <i className="bi bi-trash" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

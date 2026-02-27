@@ -389,14 +389,15 @@ export default function LckhPage() {
                     {/* Left Sidebar: List */}
                     <aside className="lckh-sidebar">
                         <div className="sidebar-header">
-                            <h2>DAFTAR LCKH</h2>
+                            <h2>Daftar Laporan LCKH</h2>
                             {canDo('create') && (
                                 <button onClick={handleCreateNew} className="btn-create">
-                                    <i className="bi bi-plus-lg"></i> <span>Buat</span>
+                                    <i className="bi bi-plus-circle-fill"></i>
+                                    <span>Buat Baru</span>
                                 </button>
                             )}
                         </div>
-                        <div className="flex-1 overflow-y-auto p-2">
+                        <div className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar">
                             {submissionsList.map(sub => {
                                 const pName = periods.find(p => p.periode_kode === sub.periode_kode)?.periode_nama || sub.periode_kode;
                                 const isActive = sub.periode_kode === selectedPeriod;
@@ -407,16 +408,16 @@ export default function LckhPage() {
                                         onClick={() => setSelectedPeriod(sub.periode_kode)}
                                         className={`submission-item ${isActive ? 'active' : ''}`}
                                     >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className="font-bold text-sm text-gray-800">{pName}</span>
-                                            <span className={`status-badge ${sub.status === 'Revisi' ? 'status-revisi' :
-                                                sub.status === 'Submitted' ? 'status-diajukan' :
-                                                    sub.status === 'Draft' ? 'status-draft' : 'status-disetujui'}`}>
+                                        <div className="flex justify-between items-start mb-3">
+                                            <span className="font-extrabold text-sm text-slate-800 tracking-tight">{pName}</span>
+                                            <span className={`badge ${sub.status === 'Revisi' ? 'badge-danger' :
+                                                sub.status === 'Submitted' ? 'badge-info' :
+                                                    sub.status === 'Draft' ? 'badge-warning' : 'badge-success'}`}>
                                                 {sub.status === 'Approved_Waka' || sub.status === 'Approved_Kamad' ? 'DISETUJUI' : sub.status}
                                             </span>
                                         </div>
-                                        <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-medium">
-                                            <i className="bi bi-clock"></i>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                            <i className="bi bi-calendar-event"></i>
                                             {new Date(sub.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
                                         </div>
                                     </div>
@@ -425,11 +426,13 @@ export default function LckhPage() {
 
                             {/* Placeholder for new draft */}
                             {selectedPeriod && !submissionsList.find(s => s.periode_kode === selectedPeriod) && (
-                                <div className="submission-item active">
-                                    <div className="font-bold text-sm text-gray-800">{periods.find(p => p.periode_kode === selectedPeriod)?.periode_nama}</div>
-                                    <div className="text-[10px] text-blue-500 font-bold mt-2 uppercase flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
-                                        Draft Baru (Belum Simpan)
+                                <div className="submission-item active animate-pulse">
+                                    <div className="font-extrabold text-sm text-[#0038A8] mb-2">
+                                        {periods.find(p => p.periode_kode === selectedPeriod)?.periode_nama}
+                                    </div>
+                                    <div className="text-[10px] text-blue-600 font-black uppercase tracking-widest flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                                        Draft Baru Terdeteksi
                                     </div>
                                 </div>
                             )}
@@ -440,27 +443,29 @@ export default function LckhPage() {
                     <main className="lckh-content">
                         {selectedPeriod ? (
                             <>
-                                {/* Header */}
-                                {/* Header: Period & Status */}
-                                <header className="content-header bg-white border-b border-gray-100">
-                                    <div className="flex justify-between items-center px-6 py-4">
-                                        <div className="flex flex-col gap-1">
-                                            <h2 className="!text-[#0038A8] !font-black !text-sm uppercase tracking-[0.2em] flex items-center gap-2">
-                                                <i className="bi bi-calendar3 text-base"></i>
-                                                PERIODE: {currentPeriodObj?.periode_nama || selectedPeriod}
-                                            </h2>
-                                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1.5 ml-6">
-                                                <span className="w-1 h-1 bg-blue-500 rounded-full animate-pulse shadow-sm shadow-blue-500/50"></span>
-                                                {currentPeriodObj ? `${currentPeriodObj.tgl_awal} — ${currentPeriodObj.tgl_akhir}` : '-'}
+                                <header className="content-header shadow-sm sticky top-0 z-40">
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-[#0038A8]">
+                                                    <i className="bi bi-calendar-check-fill text-xl"></i>
+                                                </div>
+                                                <h2 className="!text-[#0f172a] !font-black !text-2xl tracking-tight">
+                                                    Periode: {currentPeriodObj?.periode_nama || selectedPeriod}
+                                                </h2>
+                                            </div>
+                                            <p className="text-[11px] text-slate-400 font-extrabold uppercase tracking-widest flex items-center gap-2 ml-[52px]">
+                                                <i className="bi bi-clock-history"></i>
+                                                Rentang: {currentPeriodObj ? `${currentPeriodObj.tgl_awal} s/d ${currentPeriodObj.tgl_akhir}` : '-'}
                                             </p>
                                         </div>
                                         {submission?.status && (
                                             <div className="no-print">
-                                                <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border shadow-sm ${submission.status === 'Draft' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                <span className={`px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${submission.status === 'Draft' ? 'bg-amber-50 text-amber-600 border-amber-100' :
                                                     submission.status === 'Submitted' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                                                        'bg-green-50 text-green-600 border-green-100'
+                                                        'bg-emerald-50 text-emerald-600 border-emerald-100'
                                                     }`}>
-                                                    Status: {submission.status}
+                                                    {submission.status} Account
                                                 </span>
                                             </div>
                                         )}
@@ -571,24 +576,49 @@ export default function LckhPage() {
                                 </div>
 
                                 {/* Scrollable Body */}
-                                <div className="scroll-body">
+                                <div className="scroll-body custom-scrollbar">
+                                    {/* Crystal Stats Dashboard */}
+                                    <section className="stats-container animate-slide-up">
+                                        <div className="stats-grid">
+                                            <div className="flex flex-col gap-2">
+                                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Total Jam Efektif</span>
+                                                <div className="stat-value">{summary?.total_jam_mengajar || 0}</div>
+                                                <div className="text-[11px] font-bold text-white/50">Jam mengajar terverifikasi</div>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Jurnal & Agenda</span>
+                                                <div className="stat-value">{summary?.total_jurnal_isi || 0}</div>
+                                                <div className="text-[11px] font-bold text-white/50">Potensi LCKH terdeteksi</div>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Tugas Tambahan</span>
+                                                <div className="stat-value">{summary?.total_tugas || 0}</div>
+                                                <div className="text-[11px] font-bold text-white/50">Capaian kinerja luar KBM</div>
+                                            </div>
+                                        </div>
+                                    </section>
+
                                     {/* Modules Selection */}
-                                    <section className="mb-6">
+                                    <section className="mb-12">
                                         <div className="module-card-list">
                                             {modules.map(m => (
-                                                <div key={m.id} className="module-item flex flex-col justify-between h-full group">
-                                                    <div className="module-info">
-                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${m.checked ? 'bg-blue-50 text-[#0038A8]' : 'bg-gray-50 text-gray-300'} transition-all duration-300 group-hover:scale-105`}>
-                                                            <i className={`bi ${m.icon} text-xl`}></i>
+                                                <div key={m.id} className="module-item group relative overflow-hidden">
+                                                    <div className="flex justify-between items-start mb-6">
+                                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${m.checked ? 'bg-blue-50 text-[#0038A8]' : 'bg-slate-50 text-slate-300'} transition-all duration-500 group-hover:scale-110 shadow-sm`}>
+                                                            <i className={`bi ${m.icon} text-2xl`}></i>
                                                         </div>
-                                                        <div>
-                                                            <div className="module-name text-sm mb-0.5">{m.label}</div>
-                                                            <div className="text-[9px] text-gray-400 font-bold uppercase tracking-[0.1em]">
-                                                                {m.count} Entry Terdeteksi
-                                                            </div>
+                                                        <div className="flex flex-col items-end">
+                                                            <div className="text-[20px] font-black text-slate-900 leading-none mb-1">{m.count}</div>
+                                                            <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Entries</div>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center justify-between pt-3 border-t border-gray-50">
+
+                                                    <div className="mb-6">
+                                                        <div className="text-base font-extrabold text-slate-800 mb-1">{m.label}</div>
+                                                        <div className="text-[10px] text-slate-400 font-medium">Sertakan modul ini dalam kompilasi laporan akhir Anda.</div>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between pt-5 border-t border-slate-50">
                                                         <label className="relative inline-flex items-center cursor-pointer">
                                                             <input
                                                                 type="checkbox"
@@ -596,21 +626,17 @@ export default function LckhPage() {
                                                                 checked={m.checked}
                                                                 onChange={(e) => setModules(prev => prev.map(mm => mm.id === m.id ? { ...mm, checked: e.target.checked } : mm))}
                                                             />
-                                                            <div className="w-10 h-5.5 bg-gray-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-200 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-[#0038A8] shadow-inner"></div>
+                                                            <div className="w-12 h-6.5 bg-slate-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-slate-200 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0038A8] shadow-inner"></div>
                                                         </label>
                                                         <button
                                                             onClick={() => setPreviewModule(m.id)}
-                                                            className="px-4 py-1.5 rounded-lg bg-gray-50 text-[#0038A8] text-[9px] font-black uppercase tracking-widest hover:bg-[#0038A8] hover:text-white transition-all duration-300 flex items-center gap-1.5"
+                                                            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-slate-50 text-[#0038A8] text-[10px] font-black uppercase tracking-widest hover:bg-[#0038A8] hover:text-white transition-all shadow-sm"
                                                         >
-                                                            <i className="bi bi-eye-fill"></i> Detail
+                                                            <i className="bi bi-eye-fill"></i> Detail Data
                                                         </button>
                                                     </div>
                                                 </div>
                                             ))}
-                                        </div>
-                                        <div className="mt-3 px-1 flex items-center gap-2 text-[10px] text-gray-400 font-medium">
-                                            <i className="bi bi-info-circle-fill text-blue-400"></i>
-                                            Pilih modul yang akan dikompilasi ke dalam dokumen LCKH resmi Anda.
                                         </div>
                                     </section>
 
@@ -937,116 +963,65 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
         }
     }, [data, moduleCode]);
 
-    if (!data) return null;
+    if (!data || !moduleCode) return null;
 
     let title = '';
     let content = null;
+    let iconHeader = 'bi-layers-fill';
 
     if (moduleCode === 'JURNAL') {
-        title = 'Ringkasan Jurnal Mengajar';
-
-        // Filter entries with and without content
+        title = 'Detail Jurnal & Agenda';
+        iconHeader = 'bi-journal-richtext';
         const allEntries = data.detail_jurnal || [];
-        const entriesWithContent = allEntries.filter((j: any) => j.materi && j.materi.trim() !== '');
-        const entriesEmpty = allEntries.length - entriesWithContent.length;
-
         content = (
-            <div className="p-6 md:p-8 max-w-5xl mx-auto w-full">
-                {/* Professional Stats Row */}
-                <div className="flex items-center gap-8 mb-6 pb-5 border-b border-gray-200">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                            <i className="bi bi-journal-text text-blue-600 text-lg"></i>
-                        </div>
-                        <div>
-                            <div className="text-xs text-gray-500 mb-0.5">Total Agenda</div>
-                            <div className="text-xl font-bold text-gray-900">{data.total_jurnal_isi || 0}</div>
-                        </div>
-                    </div>
-                    <div className="w-px h-10 bg-gray-200"></div>
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-                            <i className="bi bi-clock text-emerald-600 text-lg"></i>
-                        </div>
-                        <div>
-                            <div className="text-xs text-gray-500 mb-0.5">Jam Efektif</div>
-                            <div className="text-xl font-bold text-gray-900">{data.total_jam_mengajar}</div>
+            <div className="p-8 md:p-12 animate-fade-in custom-scrollbar">
+                <div className="mb-8 flex items-center justify-between">
+                    <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Data Terintegrasi</h4>
+                        <div className="flex items-center gap-3">
+                            <div className="w-1.5 h-10 bg-[#0038A8] rounded-full"></div>
+                            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Log Aktivitas Pengajaran</h2>
                         </div>
                     </div>
                 </div>
 
-                {/* Enhanced Professional Table */}
-                <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
-                    <table className="w-full text-sm border-separate" style={{ borderSpacing: '0 1px' }}>
-                        <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                <div className="overflow-hidden rounded-[28px] border border-slate-100 shadow-xl shadow-slate-200/40">
+                    <table className="table-premium">
+                        <thead>
                             <tr>
-                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider w-24 first:rounded-tl-lg">Tanggal</th>
-                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider w-28">Kelas</th>
-                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider w-40">Mapel</th>
-                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider w-32">Jam</th>
-                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider">Materi</th>
-                                <th className="px-6 py-6 text-center text-xs font-bold uppercase tracking-wider w-32 last:rounded-tr-lg">Kehadiran</th>
+                                <th>Tanggal & Kelas</th>
+                                <th>Mata Pelajaran</th>
+                                <th>Materi & Agenda</th>
+                                <th className="text-center">Status</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-gray-50">
+                        <tbody>
                             {allEntries.length > 0 ? (
-                                allEntries.map((j: any, idx: number) => {
-                                    const kategori = j.kategori_kehadiran || j.kehadiran || '-';
-                                    let badgeClass = 'bg-gray-100 text-gray-600';
-                                    if (kategori.toLowerCase().includes('hadir') || kategori === 'H') {
-                                        badgeClass = 'bg-emerald-100 text-emerald-700';
-                                    } else if (kategori.toLowerCase().includes('izin') || kategori === 'I') {
-                                        badgeClass = 'bg-blue-100 text-blue-700';
-                                    } else if (kategori.toLowerCase().includes('sakit') || kategori === 'S') {
-                                        badgeClass = 'bg-amber-100 text-amber-700';
-                                    } else if (kategori.toLowerCase().includes('alpa') || kategori === 'A') {
-                                        badgeClass = 'bg-rose-100 text-rose-700';
-                                    }
-                                    return (
-                                        <tr key={idx} className="bg-white hover:bg-blue-50/40 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap rounded-l-md">
-                                                <div className="text-sm font-semibold text-gray-900">
-                                                    {new Date(j.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                                                </div>
-                                                <div className="text-xs text-gray-600">{j.hari}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm font-semibold text-gray-900">{j.kelas}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm font-medium text-gray-900">{j.mata_pelajaran || j.mapel}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm font-medium text-gray-900">{j.jam_ke || '-'}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm text-gray-900 leading-relaxed line-clamp-2">
-                                                    {j.materi || <span className="text-gray-400 italic text-xs">Belum diisi</span>}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-center rounded-r-md">
-                                                <span className={`inline-block px-3 py-1.5 text-xs font-bold rounded-lg ${badgeClass} shadow-sm`}>
-                                                    {kategori}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
+                                allEntries.map((j: any, idx: number) => (
+                                    <tr key={idx}>
+                                        <td className="!py-6">
+                                            <div className="font-extrabold text-slate-900 text-sm">{new Date(j.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })}</div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Kelas {j.kelas || '-'}</div>
+                                        </td>
+                                        <td>
+                                            <div className="font-bold text-slate-700">{j.mata_pelajaran || j.mapel}</div>
+                                            <div className="text-[10px] text-blue-500 font-black uppercase tracking-widest mt-1">Jam Ke-{j.jam_ke || '-'}</div>
+                                        </td>
+                                        <td>
+                                            <div className="text-slate-600 font-medium leading-relaxed max-w-sm line-clamp-3">
+                                                {j.materi || <span className="opacity-30 italic">Belum diisi</span>}
+                                            </div>
+                                        </td>
+                                        <td className="text-center">
+                                            <span className={`badge ${j.materi ? 'badge-success' : 'badge-warning'}`}>
+                                                {j.materi ? 'Verified' : 'Pending'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
                             ) : (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-16 text-center bg-white rounded-b-lg">
-                                        <div className="flex flex-col items-center">
-                                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center">
-                                                <i className="bi bi-journal-x text-3xl text-gray-400"></i>
-                                            </div>
-                                            <p className="text-sm font-semibold text-gray-600 mb-1">
-                                                {allEntries.length > 0 ? 'Semua agenda belum terisi' : 'Belum ada agenda'}
-                                            </p>
-                                            {allEntries.length > 0 && (
-                                                <p className="text-xs text-gray-400">Isi materi di menu Jurnal</p>
-                                            )}
-                                        </div>
-                                    </td>
+                                    <td colSpan={4} className="text-center py-24 text-slate-300 italic font-medium">Data entry tidak ditemukan.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -1056,515 +1031,293 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
         );
     } else if (moduleCode === 'ABSENSI') {
         title = 'Rekap Absensi Siswa';
+        iconHeader = 'bi-people-fill';
 
-        // Get all unique classes from both rekap and journals
         const rekapClasses = (data.rekap_absensi_siswa?.map((i: any) => i.kelas) || []);
-        const journalClasses = (data.detail_jurnal?.filter((s: any) => s.kelas).map((s: any) => s.kelas) || []);
-        const classes: string[] = Array.from(new Set([...rekapClasses, ...journalClasses])).sort();
-
-        // Matrix processing
-        const matrixData: any = {};
-        if (data.detail_jurnal) {
-            data.detail_jurnal.forEach((s: any) => {
-                const cls = s.kelas || 'N/A';
-                if (!matrixData[cls]) matrixData[cls] = {};
-
-                if (s.student_details && Array.isArray(s.student_details)) {
-                    s.student_details.forEach((d: any) => {
-                        const nisn = d.nisn || d.id || 'N/A';
-                        if (!matrixData[cls][nisn]) {
-                            matrixData[cls][nisn] = { name: d.nama || d.nama_snapshot || 'Unknown', data: {} };
-                        }
-                        const date = new Date(s.tanggal);
-                        if (!isNaN(date.getTime())) {
-                            const day = date.getDate();
-                            matrixData[cls][nisn].data[day] = d.status?.[0] || 'H'; // Default to H if joined session exists
-                        }
-                    });
-                }
-            });
-        }
-
-        // Auto-select class: Prefer classes that have rekap data first
-        const currentClass = selectedClass || (rekapClasses.length > 0 ? rekapClasses[0] : (classes.length > 0 ? classes[0] : ''));
-
-        const renderMatrix = (cls: string) => {
-            const students = Object.values(matrixData[cls] || {}).sort((a: any, b: any) => a.name.localeCompare(b.name));
-            return (
-                <div key={cls} className="animate-fade-in group/matrix">
-                    <div className="overflow-x-auto rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/30 bg-white">
-                        <table className="w-full text-[9px] border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50/80 text-gray-400 font-bold uppercase tracking-widest text-[8px]">
-                                    <th className="p-4 text-left min-w-[200px] sticky left-0 bg-gray-50 z-10 border-r border-gray-100">Nama Lengkap Peserta Didik</th>
-                                    {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                                        <th key={d} className="p-1 min-w-[28px] text-center border-l border-gray-100/50">{d}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                                {students.map((stu: any, idx) => (
-                                    <tr key={idx} className="hover:bg-blue-50/20 group/row">
-                                        <td className="p-3 font-bold text-gray-700 sticky left-0 bg-white z-10 border-r border-gray-100 transition-colors group-hover/row:bg-blue-50/20 whitespace-nowrap">{stu.name}</td>
-                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => {
-                                            const st = stu.data[d];
-                                            let badgeClass = 'text-gray-100';
-                                            let displaySign = '•';
-
-                                            if (st === 'H') { badgeClass = 'text-emerald-500 font-black'; displaySign = 'H'; }
-                                            else if (st === 'S') { badgeClass = 'text-amber-500 font-black'; displaySign = 'S'; }
-                                            else if (st === 'I') { badgeClass = 'text-blue-500 font-black'; displaySign = 'I'; }
-                                            else if (st === 'A') { badgeClass = 'text-rose-500 font-black'; displaySign = 'A'; }
-
-                                            return (
-                                                <td key={d} className={`p-1 text-center transition-all ${badgeClass} border-l border-gray-50/50 ${st ? 'bg-blue-50/30' : ''}`}>
-                                                    {displaySign}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        {students.length === 0 && (
-                            <div className="p-24 text-center">
-                                <i className="bi bi-people text-6xl text-gray-100 mb-4 block"></i>
-                                <div className="text-gray-300 font-bold tracking-[0.2em] uppercase text-xs">Data Matriks Kosong</div>
-                                <p className="text-[10px] text-gray-400 mt-2">Pastikan input absensi sudah dilakukan pada menu Jurnal/Absensi.</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        };
-
+        const currentClass = selectedClass || (rekapClasses.length > 0 ? rekapClasses[0] : '');
         const filteredRecap = data.rekap_absensi_siswa?.filter((item: any) => item.kelas === currentClass) || [];
 
         content = (
-            <div className="flex flex-col h-full bg-white">
-                <div className="px-6 py-5 md:px-12 md:py-8 flex flex-col md:flex-row justify-between items-center gap-6 border-b border-gray-50 bg-gray-50/30 sticky top-0 z-40 backdrop-blur-sm">
-                    <div className="flex bg-gray-100 p-1 rounded-2xl border border-gray-200/50 shadow-inner">
-                        <button
-                            onClick={() => setTabLocal('RECAP')}
-                            className={`flex items-center gap-2.5 px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all uppercase ${tabLocal === 'RECAP' ? 'bg-[#0038A8] text-white shadow-lg' : 'text-gray-400 hover:text-gray-600'}`}>
-                            <i className="bi bi-pie-chart-fill text-sm"></i> Ringkasan Kolom
-                        </button>
-                        <button
-                            onClick={() => setTabLocal('GRID')}
-                            className={`flex items-center gap-2.5 px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all uppercase ${tabLocal === 'GRID' ? 'bg-[#0038A8] text-white shadow-lg' : 'text-gray-400 hover:text-gray-600'}`}>
-                            <i className="bi bi-table text-sm"></i> Matriks Harian
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-4 bg-white p-1 rounded-2xl shadow-sm border border-gray-100 w-full md:w-auto overflow-hidden">
-                        <div className="pl-4 pr-1 text-[10px] font-black text-gray-300 uppercase tracking-widest border-r border-gray-50">Filter Kelas</div>
+            <div className="flex flex-col h-full">
+                <div className="px-10 py-6 border-b border-slate-100/50 flex justify-between items-center bg-white/30 backdrop-blur-md sticky top-0 z-10">
+                    <div className="flex items-center gap-4 bg-white/50 p-1.5 rounded-2xl border border-white shadow-sm">
+                        <div className="pl-4 pr-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Filter Kelas</div>
                         <select
                             value={currentClass}
                             onChange={(e) => setSelectedClass(e.target.value)}
-                            className="bg-transparent border-none px-6 py-1.5 text-xs font-black text-[#0038A8] focus:ring-0 cursor-pointer outline-none min-w-[180px]">
-                            {classes.length > 0 ? classes.map((cls: string) => (
+                            className="bg-white border-none px-6 py-2 rounded-xl text-xs font-black text-[#0038A8] focus:ring-2 focus:ring-blue-100 cursor-pointer outline-none min-w-[200px] shadow-sm">
+                            {rekapClasses.map((cls: string) => (
                                 <option key={cls} value={cls}>KELAS {cls}</option>
-                            )) : <option value="">TIDAK ADA KELAS</option>}
+                            ))}
                         </select>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 md:p-12">
-                    {tabLocal === 'RECAP' && (
-                        <div className="space-y-8 max-w-6xl mx-auto w-full">
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                {[
-                                    { l: 'Hadir', v: filteredRecap.reduce((a: any, b: any) => a + b.H, 0) || 0, c: 'emerald', icon: 'check-circle' },
-                                    { l: 'Sakit', v: filteredRecap.reduce((a: any, b: any) => a + b.S, 0) || 0, c: 'amber', icon: 'bandaid' },
-                                    { l: 'Izin', v: filteredRecap.reduce((a: any, b: any) => a + b.I, 0) || 0, c: 'blue', icon: 'file-text' },
-                                    { l: 'Alpa', v: filteredRecap.reduce((a: any, b: any) => a + b.A, 0) || 0, c: 'rose', icon: 'x-circle' }
-                                ].map((stat, i) => (
-                                    <div key={i} className="bg-white border border-gray-200 rounded-lg p-5 flex items-center gap-3 shadow-sm">
-                                        <div className={`w-10 h-10 rounded-lg bg-${stat.c}-50 flex items-center justify-center`}>
-                                            <i className={`bi bi-${stat.icon} text-${stat.c}-600`}></i>
-                                        </div>
-                                        <div>
-                                            <div className="text-xs text-gray-500 mb-0.5">{stat.l}</div>
-                                            <div className="text-xl font-bold text-gray-900">{stat.v}</div>
-                                        </div>
-                                    </div>
+                <div className="p-10">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                        {[
+                            { l: 'Hadir', v: filteredRecap.reduce((a: any, b: any) => a + b.H, 0) || 0, c: 'bg-emerald-50 text-emerald-600', icon: 'bi-check-all' },
+                            { l: 'Sakit', v: filteredRecap.reduce((a: any, b: any) => a + b.S, 0) || 0, c: 'bg-amber-50 text-amber-600', icon: 'bi-bandaid' },
+                            { l: 'Izin', v: filteredRecap.reduce((a: any, b: any) => a + b.I, 0) || 0, c: 'bg-blue-50 text-blue-600', icon: 'bi-envelope-paper' },
+                            { l: 'Alpa', v: filteredRecap.reduce((a: any, b: any) => a + b.A, 0) || 0, c: 'bg-rose-50 text-rose-600', icon: 'bi-x-circle' }
+                        ].map((stat, i) => (
+                            <div key={i} className="bg-white/80 p-6 rounded-3xl border border-white shadow-xl shadow-slate-200/40 flex items-center gap-5">
+                                <div className={`w-12 h-12 rounded-2xl ${stat.c} flex items-center justify-center text-xl shadow-inner`}>
+                                    <i className={`bi ${stat.icon}`}></i>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{stat.l}</div>
+                                    <div className="text-2xl font-black text-slate-900">{stat.v}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="overflow-hidden rounded-[28px] border border-slate-100 shadow-xl shadow-slate-200/40 bg-white">
+                        <table className="table-premium">
+                            <thead>
+                                <tr>
+                                    <th>Identitas Siswa</th>
+                                    <th className="text-center">Sesi</th>
+                                    <th className="text-center">H</th>
+                                    <th className="text-center">S</th>
+                                    <th className="text-center">I</th>
+                                    <th className="text-center">A</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredRecap.map((item: any, idx: number) => (
+                                    <tr key={idx}>
+                                        <td className="!py-5">
+                                            <div className="font-extrabold text-slate-800">{item.nama_lengkap || item.nama}</div>
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{item.nisn || 'NISN N/A'}</div>
+                                        </td>
+                                        <td className="text-center font-bold text-slate-500">{item.meetings || 0}</td>
+                                        <td className="text-center font-black text-emerald-600">{item.H}</td>
+                                        <td className="text-center font-black text-amber-600">{item.S}</td>
+                                        <td className="text-center font-black text-blue-600">{item.I}</td>
+                                        <td className="text-center font-black text-rose-600">{item.A}</td>
+                                    </tr>
                                 ))}
-                            </div>
-
-                            <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm bg-white">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-                                        <tr>
-                                            <th className="px-4 py-3.5 text-xs font-semibold uppercase tracking-wide">Kelas & Mata Pelajaran</th>
-                                            <th className="px-4 py-3.5 text-xs font-semibold uppercase tracking-wide text-center w-20">Sesi</th>
-                                            <th className="px-3 py-3.5 text-xs font-semibold uppercase tracking-wide text-center w-16">H</th>
-                                            <th className="px-3 py-3.5 text-xs font-semibold uppercase tracking-wide text-center w-16">S</th>
-                                            <th className="px-3 py-3.5 text-xs font-semibold uppercase tracking-wide text-center w-16">I</th>
-                                            <th className="px-3 py-3.5 text-xs font-semibold uppercase tracking-wide text-center w-16">A</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {filteredRecap.map((item: any, idx: number) => (
-                                            <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
-                                                <td className="px-4 py-3">
-                                                    <div className="text-sm font-semibold text-gray-900">{item.kelas}</div>
-                                                    <div className="text-xs text-gray-500">{item.mapel}</div>
-                                                </td>
-                                                <td className="px-4 py-3 text-center font-semibold text-gray-700">{item.meetings}</td>
-                                                <td className="px-3 py-3 text-center font-semibold text-emerald-600">{item.H}</td>
-                                                <td className="px-3 py-3 text-center font-semibold text-amber-600">{item.S}</td>
-                                                <td className="px-3 py-3 text-center font-semibold text-blue-600">{item.I}</td>
-                                                <td className="px-3 py-3 text-center font-semibold text-rose-600">{item.A}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                                {filteredRecap.length === 0 && <p className="text-center py-20 text-gray-300 font-bold italic uppercase tracking-widest opacity-40">Pilih kelas di dropdown</p>}
-                            </div>
-                        </div>
-                    )}
-
-                    {tabLocal === 'GRID' && (
-                        <div className="max-w-6xl mx-auto w-full">
-                            {currentClass ? renderMatrix(currentClass) : <p className="text-center py-20 text-gray-300 font-bold uppercase tracking-widest opacity-40">Pilih kelas untuk melihat matriks</p>}
-                        </div>
-                    )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         );
     } else if (moduleCode === 'TUGAS') {
         title = 'Analisis Tugas Tambahan';
+        iconHeader = 'bi-rocket-takeoff-fill';
+        const tugasEntries = data.detail_tugas || [];
         content = (
-            <div className="p-6 md:p-8 max-w-5xl mx-auto w-full">
-                {/* Professional Stats Row */}
-                <div className="flex items-center gap-8 mb-6 pb-5 border-b border-gray-200">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                            <i className="bi bi-briefcase text-blue-600 text-lg"></i>
-                        </div>
-                        <div>
-                            <div className="text-xs text-gray-500 mb-0.5">Total Tugas</div>
-                            <div className="text-xl font-bold text-gray-900">{data.detail_tugas?.length || 0}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="space-y-10 pl-4 md:pl-6">
-                    {data.detail_tugas?.map((t: any, idx: number) => (
-                        <div key={idx} className="relative group pl-12 md:pl-16 pb-2">
-                            <div className="absolute left-[23px] md:left-[31px] top-4 bottom-[-40px] w-1 bg-gray-100 group-last:bg-transparent rounded-full"></div>
-                            <div className="absolute left-0 top-6 w-12 h-12 md:w-16 md:h-16 rounded-2xl md:rounded-3xl bg-white border-4 md:border-8 border-gray-50 shadow-lg z-20 flex flex-col items-center justify-center group-hover:scale-105 transition-transform group-hover:border-blue-50">
-                                <div className="text-base md:text-lg font-black text-[#0038A8]">{new Date(t.tanggal).getDate()}</div>
-                                <div className="text-[8px] md:text-[9px] font-bold text-gray-400 -mt-0.5 md:-mt-1 uppercase">{new Date(t.tanggal).toLocaleDateString('id-ID', { month: 'short' })}</div>
-                            </div>
-
-                            <div className="bg-white rounded-3xl border border-gray-100 shadow-lg shadow-gray-200/50 p-6 md:p-10 hover:shadow-blue-50 transition-all border-l-8 md:border-l-[12px] border-l-[#0038A8]">
-                                <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-6 md:mb-8">
-                                    <div>
-                                        <div className="text-[9px] md:text-[10px] text-[#0038A8] font-bold uppercase tracking-wider mb-2 px-3 py-1 bg-blue-50 inline-block rounded-lg border border-blue-100 shadow-sm">{t.tugas?.jabatan || 'TUGAS'}</div>
-                                        <div className="text-xl md:text-2xl font-black text-gray-800 tracking-tight">{new Date(t.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                                    </div>
-                                    {t.foto_url && (
-                                        <a href={t.foto_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0038A8] text-[10px] font-bold text-white hover:bg-blue-700 hover:-translate-y-0.5 transition-all shadow-lg shadow-blue-200">
-                                            <i className="bi bi-eye-fill text-lg"></i> LAMPIRAN
-                                        </a>
-                                    )}
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 pt-6 md:pt-10 border-t border-gray-100">
-                                    <div>
-                                        <div className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
-                                            <span className="w-1 h-3 bg-gray-200 rounded-full"></span> Kegiatan
+            <div className="p-8 md:p-12 animate-fade-in custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    {tugasEntries.length > 0 ? (
+                        tugasEntries.map((t: any, idx: number) => (
+                            <div key={idx} className="attachment-card group animate-slide-up shadow-2xl shadow-slate-200/30">
+                                <div className="flex justify-between items-start mb-8">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-[#0038A8] shadow-sm transform group-hover:rotate-12 transition-transform">
+                                            <i className="bi bi-briefcase-fill text-xl"></i>
                                         </div>
-                                        <p className="text-gray-700 font-bold leading-relaxed text-base">{t.kegiatan}</p>
+                                        <div>
+                                            <div className="font-black text-slate-900 text-xl tracking-tight leading-none mb-1.5">{t.tugas?.jabatan || 'Penugasan'}</div>
+                                            <div className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">{new Date(t.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                                        </div>
+                                    </div>
+                                    <span className="badge badge-info">Verified</span>
+                                </div>
+                                <div className="space-y-6">
+                                    <div className="p-5 bg-slate-50/50 rounded-2xl border border-slate-100">
+                                        <div className="text-[9px] text-[#0038A8] font-black uppercase tracking-widest mb-2">Kegiatan Utama</div>
+                                        <p className="text-slate-600 font-bold text-sm leading-relaxed">{t.kegiatan}</p>
                                     </div>
                                     {t.hasil && (
-                                        <div className="bg-blue-50/40 p-6 md:p-8 rounded-2xl md:rounded-[2rem] border border-blue-100/50 relative">
-                                            <div className="text-[9px] text-[#0038A8] font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
-                                                <span className="w-1 h-3 bg-blue-300 rounded-full"></span> Hasil
+                                        <div className="p-5 bg-emerald-50/30 rounded-2xl border border-emerald-100/50">
+                                            <div className="text-[9px] text-emerald-600 font-black uppercase tracking-widest mb-2">Output / Hasil</div>
+                                            <p className="text-emerald-700 font-medium italic text-sm">"{t.hasil}"</p>
+                                        </div>
+                                    )}
+                                    {t.foto_url ? (
+                                        <div className="preview-container shadow-2xl shadow-blue-500/10 border-4 border-white">
+                                            <img src={t.foto_url} alt={t.kegiatan} className="preview-image" />
+                                            <div className="preview-overlay backdrop-blur-sm">
+                                                <a href={t.foto_url} target="_blank" rel="noreferrer" className="px-8 py-3 bg-white rounded-full text-[11px] font-black text-[#0038A8] uppercase tracking-widest shadow-2xl transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 flex items-center gap-3">
+                                                    <i className="bi bi-fullscreen"></i> Perbesar Lampiran
+                                                </a>
                                             </div>
-                                            <p className="text-[#0038A8] font-bold leading-relaxed italic text-base opacity-80">"{t.hasil}"</p>
+                                        </div>
+                                    ) : (
+                                        <div className="aspect-[16/9] bg-slate-50 border-2 border-dashed border-slate-200 rounded-[32px] flex flex-col items-center justify-center text-slate-300">
+                                            <i className="bi bi-camera-video-off text-4xl mb-3 opacity-20"></i>
+                                            <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Dokumentasi Tidak Tersedia</span>
                                         </div>
                                     )}
                                 </div>
                             </div>
-                        </div>
-                    ))}
-                    {!data.detail_tugas?.length && (
-                        <div className="text-center py-16">
-                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center">
-                                <i className="bi bi-briefcase text-3xl text-gray-400"></i>
-                            </div>
-                            <div className="text-sm font-semibold text-gray-900 mb-1">Belum ada tugas tambahan</div>
-                            <p className="text-xs text-gray-500">Data tugas tambahan akan muncul di sini</p>
-                        </div>
+                        ))
+                    ) : (
+                        <div className="col-span-2 text-center py-32 text-slate-300 italic font-medium">Laporan tugas tambahan belum dientri.</div>
                     )}
                 </div>
             </div>
         );
     } else if (moduleCode === 'NILAI') {
         title = 'Dashboard Capaian Akademik';
+        iconHeader = 'bi-award-fill';
         content = (
-            <div className="p-6 md:p-8 max-w-5xl mx-auto w-full">
-                {/* Professional Stats Row */}
-                <div className="flex items-center gap-8 mb-6 pb-5 border-b border-gray-200">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
-                            <i className="bi bi-bar-chart-fill text-indigo-600 text-lg"></i>
+            <div className="p-8 md:p-12 animate-fade-in custom-scrollbar">
+                <div className="mb-8 flex items-center justify-between">
+                    <div className="flex items-center gap-5">
+                        <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
+                            <i className="bi bi-bar-chart-fill text-xl"></i>
                         </div>
                         <div>
-                            <div className="text-xs text-gray-500 mb-0.5">Kolom Terinput</div>
-                            <div className="text-xl font-bold text-gray-900">{data.total_nilai_input}</div>
+                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Entry Summary</h4>
+                            <div className="text-2xl font-black text-slate-900 tracking-tight">{data.total_nilai_input || 0} Kolom Terinput</div>
                         </div>
                     </div>
                 </div>
 
-                {/* Enhanced Professional Table */}
-                <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
-                    <table className="w-full text-sm border-separate" style={{ borderSpacing: '0 1px' }}>
-                        <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                <div className="overflow-hidden rounded-[28px] border border-slate-100 shadow-xl shadow-slate-200/40 bg-white">
+                    <table className="table-premium">
+                        <thead>
                             <tr>
-                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider w-48 first:rounded-tl-lg">Kelas & Mapel</th>
-                                <th className="px-6 py-6 text-center text-xs font-bold uppercase tracking-wider w-32">Jenis Tes</th>
-                                <th className="px-6 py-6 text-left text-xs font-bold uppercase tracking-wider">Materi</th>
-                                <th className="px-6 py-6 text-right text-xs font-bold uppercase tracking-wider w-40">Update</th>
-                                <th className="px-6 py-6 text-center text-xs font-bold uppercase tracking-wider w-24 last:rounded-tr-lg">Aksi</th>
+                                <th>Kelas & Mapel</th>
+                                <th className="text-center">Jenis Tes</th>
+                                <th>Keterangan Materi</th>
+                                <th className="text-right">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-gray-50">
+                        <tbody>
                             {data.detail_nilai?.map((n: any, idx: number) => (
-                                <tr key={idx} className="bg-white hover:bg-blue-50/40 transition-colors">
-                                    <td className="px-6 py-4 rounded-l-md">
-                                        <div className="text-sm font-semibold text-gray-900">{n.kelas}</div>
-                                        <div className="text-xs text-gray-600 mt-0.5">{n.mapel}</div>
+                                <tr key={idx}>
+                                    <td className="!py-6">
+                                        <div className="font-extrabold text-slate-900">{n.kelas}</div>
+                                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{n.mapel}</div>
                                     </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <span className={`inline-block px-3 py-1.5 text-xs font-semibold rounded-md ${n.jenis === 'Sum' ? 'bg-purple-100 text-purple-700' :
-                                            n.jenis === 'Pas' ? 'bg-orange-100 text-orange-700' :
-                                                'bg-blue-100 text-blue-700'
+                                    <td className="text-center">
+                                        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${n.jenis === 'Sum' ? 'bg-purple-50 text-purple-600' :
+                                            n.jenis === 'Pas' ? 'bg-orange-50 text-orange-600' :
+                                                'bg-blue-50 text-blue-600'
                                             }`}>
-                                            {n.jenis === 'Sum' ? 'SUMATIF' : n.jenis === 'Pas' ? 'SAS / PAS' : 'FORMATIF'}
+                                            {n.jenis === 'Sum' ? 'Sumatif' : n.jenis === 'Pas' ? 'SAS / PAS' : 'Formatif'}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-sm text-gray-900 mb-1">{n.materi}</div>
-                                        <div className="text-xs text-gray-500">{n.tagihan || 'Kolom Utama'}</div>
+                                    <td>
+                                        <div className="text-slate-600 font-medium text-sm line-clamp-2 max-w-xs">{n.materi}</div>
+                                        <div className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{n.tagihan || 'Utama'}</div>
                                     </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="text-xs text-gray-900">
-                                            {n.last_update ? new Date(n.last_update).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                                        </div>
-                                        <div className="text-xs text-gray-500 mt-0.5">
-                                            {n.last_update ? new Date(n.last_update).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : ''}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-center rounded-r-md">
+                                    <td className="text-right">
                                         <button
                                             onClick={async () => {
                                                 setNilaiDetailModal({ open: true, loading: true, data: null, error: null });
-
                                                 try {
-                                                    // Pass kolom_id AND metadata as fallback for older saved data
                                                     const params = new URLSearchParams();
                                                     if (n.kolom_id) params.append('kolom_id', n.kolom_id);
                                                     params.append('kelas', n.kelas || '');
                                                     params.append('mapel', n.mapel || '');
-                                                    params.append('jenis', n.jenis || '');
-                                                    params.append('materi', n.materi || '');
-                                                    params.append('tagihan', n.tagihan || '');
-
                                                     const res = await fetch(`/api/lckh/nilai-detail?${params.toString()}`);
                                                     const result = await res.json();
-
-                                                    if (!res.ok || !result.ok) {
-                                                        throw new Error(result.error || 'Gagal memuat data');
-                                                    }
-
-                                                    setNilaiDetailModal({
-                                                        open: true,
-                                                        loading: false,
-                                                        data: result,
-                                                        error: null
-                                                    });
-                                                } catch (error: any) {
-                                                    setNilaiDetailModal({
-                                                        open: true,
-                                                        loading: false,
-                                                        data: null,
-                                                        error: error.message || 'Terjadi kesalahan'
-                                                    });
+                                                    if (!res.ok) throw new Error(result.error || 'Server error');
+                                                    setNilaiDetailModal({ open: true, loading: false, data: result, error: null });
+                                                } catch (err: any) {
+                                                    setNilaiDetailModal({ open: true, loading: false, data: null, error: err.message });
                                                 }
                                             }}
-                                            disabled={nilaiDetailModal.loading}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="px-5 py-2 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-[#0038A8] rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
                                         >
-                                            {nilaiDetailModal.loading ? (
-                                                <>
-                                                    <i className="bi bi-arrow-repeat animate-spin text-sm"></i>
-                                                    <span>Loading...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <i className="bi bi-eye text-sm"></i>
-                                                    <span>View</span>
-                                                </>
-                                            )}
+                                            View List
                                         </button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                    {(!data.detail_nilai || data.detail_nilai.length === 0) && (
-                        <div className="px-6 py-16 text-center bg-white rounded-b-lg">
-                            <div className="flex flex-col items-center">
-                                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center">
-                                    <i className="bi bi-bar-chart text-3xl text-gray-400"></i>
-                                </div>
-                                <div className="text-sm font-semibold text-gray-900 mb-1">Belum ada data nilai</div>
-                                <p className="text-xs text-gray-500">Data nilai yang diinput akan muncul di sini</p>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-8 animate-fade-in outline-none overflow-hidden font-sans">
-            {/* Ultra-Immersive Backdrop */}
-            <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-[80px]" onClick={onClose}></div>
-
-            <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-[0_32px_128px_-16px_rgba(0,0,0,0.6)] overflow-hidden border border-white/20 relative z-10">
-
-                {/* Professional Header */}
-                <div className="flex justify-between items-center px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-                            <i className="bi bi-eye text-white text-sm"></i>
+        <div className="modal-overlay animate-fade-in custom-scrollbar no-print">
+            <div className="modal-container-glass animate-slide-up">
+                <header className="px-10 py-8 border-b border-slate-100/50 flex justify-between items-center relative overflow-hidden bg-white/40 shadow-sm">
+                    <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-transparent via-[#0038A8] to-transparent"></div>
+                    <div className="flex items-center gap-5">
+                        <div className="w-14 h-14 rounded-2xl bg-[#0038A8] flex items-center justify-center text-white shadow-2xl shadow-blue-500/30 transform -rotate-3 group-hover:rotate-0 transition-all">
+                            <i className={`bi ${iconHeader} text-2xl`}></i>
                         </div>
-                        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+                        <div>
+                            <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none mb-2">{title}</h3>
+                            <div className="flex items-center gap-3">
+                                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                                    Operational Insights
+                                </span>
+                                <div className="h-3 w-[1px] bg-slate-200"></div>
+                                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Periode Aktif Terdeteksi</span>
+                            </div>
+                        </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="w-12 h-12 rounded-2xl border border-slate-100 hover:bg-white hover:text-red-500 transition-all flex items-center justify-center text-slate-300 group shadow-sm bg-white/20"
                     >
-                        <i className="bi bi-x-lg text-lg"></i>
+                        <i className="bi bi-x-lg text-lg group-hover:scale-110 transition-transform"></i>
                     </button>
-                </div>
+                </header>
 
-                {/* Immersive Content */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar-premium bg-white">
+                <div className="flex-1 overflow-y-auto custom-scrollbar bg-white/60 backdrop-blur-3xl">
                     {content}
                 </div>
 
+                <footer className="px-10 py-6 border-t border-slate-100/50 bg-slate-50/50 backdrop-blur-xl flex justify-between items-center">
+                    <div className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest flex items-center gap-2">
+                        <i className="bi bi-shield-lock-fill text-blue-400"></i> Secured Verification Mode
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="px-8 py-3 bg-[#0038A8] text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-[#00287a] transition-all shadow-2xl shadow-blue-500/20"
+                    >
+                        Selesai Meninjau
+                    </button>
+                </footer>
             </div>
 
-            {/* Nilai Detail Modal */}
+            {/* Nested Detail Nilai Modal */}
             {nilaiDetailModal.open && (
-                <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 animate-fade-in" onClick={() => setNilaiDetailModal({ open: false, loading: false, data: null, error: null })}>
-                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
-
-                    <div className="bg-white rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl relative z-10" onClick={(e) => e.stopPropagation()}>
-                        {/* Header */}
-                        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900">Detail Daftar Nilai</h3>
-                                {nilaiDetailModal.data?.kolom_info && (
-                                    <div className="text-xs text-gray-600 mt-1">
-                                        {nilaiDetailModal.data.kolom_info.kelas} • {nilaiDetailModal.data.kolom_info.mapel} • {nilaiDetailModal.data.kolom_info.jenis}
-                                    </div>
-                                )}
-                            </div>
-                            <button
-                                onClick={() => setNilaiDetailModal({ open: false, loading: false, data: null, error: null })}
-                                className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                                <i className="bi bi-x-lg text-lg"></i>
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center p-8 animate-fade-in">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setNilaiDetailModal({ open: false, loading: false, data: null, error: null })}></div>
+                    <div className="bg-white rounded-[32px] w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl relative z-10 overflow-hidden border border-white">
+                        <header className="px-8 py-6 border-b border-slate-100 flex justify-between items-center">
+                            <h3 className="text-xl font-black text-slate-900 tracking-tight">Detail Daftar Nilai</h3>
+                            <button onClick={() => setNilaiDetailModal({ open: false, loading: false, data: null, error: null })} className="w-10 h-10 flex items-center justify-center text-slate-300 hover:text-red-500">
+                                <i className="bi bi-x-lg"></i>
                             </button>
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 overflow-y-auto p-6">
-                            {nilaiDetailModal.loading && (
-                                <div className="flex flex-col items-center justify-center py-16">
-                                    <i className="bi bi-arrow-repeat animate-spin text-4xl text-blue-600 mb-4"></i>
-                                    <p className="text-sm font-semibold text-gray-600">Memuat data nilai...</p>
-                                </div>
-                            )}
-
-                            {nilaiDetailModal.error && (
-                                <div className="flex flex-col items-center justify-center py-16">
-                                    <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
-                                        <i className="bi bi-exclamation-triangle text-3xl text-red-600"></i>
-                                    </div>
-                                    <p className="text-sm font-semibold text-gray-900 mb-1">Gagal memuat data</p>
-                                    <p className="text-xs text-gray-500">{nilaiDetailModal.error}</p>
-                                </div>
-                            )}
-
-                            {nilaiDetailModal.data && !nilaiDetailModal.loading && !nilaiDetailModal.error && (
-                                <div>
-                                    {/* Info Section */}
-                                    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                                        <div className="grid grid-cols-2 gap-3 text-sm">
-                                            <div>
-                                                <span className="text-gray-600">Materi:</span>
-                                                <span className="ml-2 font-semibold text-gray-900">{nilaiDetailModal.data.kolom_info.materi}</span>
-                                            </div>
-                                            <div>
-                                                <span className="text-gray-600">Tagihan:</span>
-                                                <span className="ml-2 font-semibold text-gray-900">{nilaiDetailModal.data.kolom_info.tagihan}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Table */}
-                                    <div className="overflow-hidden rounded-lg border border-gray-200">
-                                        <table className="w-full text-sm">
-                                            <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-                                                <tr>
-                                                    <th className="px-4 py-4 text-left text-xs font-bold uppercase w-24">NISN</th>
-                                                    <th className="px-4 py-4 text-left text-xs font-bold uppercase">Nama Siswa</th>
-                                                    <th className="px-4 py-4 text-center text-xs font-bold uppercase w-24">Nilai</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-gray-50">
-                                                {nilaiDetailModal.data.students?.map((student: any, idx: number) => (
-                                                    <tr key={idx} className="bg-white hover:bg-blue-50/40 transition-colors border-t border-gray-100">
-                                                        <td className="px-4 py-3 text-gray-600 font-mono text-xs">{student.nisn}</td>
-                                                        <td className="px-4 py-3 text-gray-900 font-semibold">{student.nama}</td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            {student.nilai !== null && student.nilai !== undefined ? (
-                                                                <span className="inline-block px-3 py-1 rounded-md bg-emerald-100 text-emerald-700 font-bold">
-                                                                    {student.nilai}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-gray-400 text-xs">Belum dinilai</span>
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                                {(!nilaiDetailModal.data.students || nilaiDetailModal.data.students.length === 0) && (
-                                                    <tr>
-                                                        <td colSpan={3} className="px-4 py-12 text-center bg-white">
-                                                            <div className="text-sm text-gray-500">Tidak ada data siswa</div>
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    {/* Summary */}
-                                    {nilaiDetailModal.data.students && nilaiDetailModal.data.students.length > 0 && (
-                                        <div className="mt-4 flex items-center justify-between text-xs text-gray-600 px-2">
-                                            <span>Total Siswa: <strong>{nilaiDetailModal.data.students.length}</strong></span>
-                                            <span>Sudah Dinilai: <strong>{nilaiDetailModal.data.students.filter((s: any) => s.nilai !== null && s.nilai !== undefined).length}</strong></span>
-                                        </div>
-                                    )}
-                                </div>
+                        </header>
+                        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                            {nilaiDetailModal.loading && <div className="text-center py-20"><i className="bi bi-arrow-repeat animate-spin text-4xl text-[#0038A8]"></i></div>}
+                            {nilaiDetailModal.error && <div className="text-center py-20 text-red-500 font-bold">{nilaiDetailModal.error}</div>}
+                            {nilaiDetailModal.data && (
+                                <table className="table-premium">
+                                    <thead>
+                                        <tr>
+                                            <th>Siswa</th>
+                                            <th className="text-center">Nilai</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {nilaiDetailModal.data.students?.map((s: any, i: number) => (
+                                            <tr key={i}>
+                                                <td className="font-bold text-slate-700">{s.nama}</td>
+                                                <td className="text-center">
+                                                    <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg font-black">{s.nilai !== null ? s.nilai : '-'}</span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             )}
                         </div>
                     </div>
@@ -1586,6 +1339,6 @@ function ModulePreviewModal({ moduleCode, data, onClose }: any) {
     );
 }
 
-function StepItem({ label, done, current, date, icon }: any) {
+function StepItem(_props: any) {
     return null;
 }

@@ -286,9 +286,11 @@ export default function KodeGuruTab({ user }: { user?: any }) {
         </div>
 
         <div className="sk__actions">
-          <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
-            <i className="bi bi-upload" /> <span>Import</span>
-          </button>
+          {canManage && (
+            <button className="sk__btn sk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+              <i className="bi bi-upload" /> <span>Import</span>
+            </button>
+          )}
 
           {canExport && (
             <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">

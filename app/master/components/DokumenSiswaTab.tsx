@@ -1,12 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import Swal from 'sweetalert2'
+import { hasPermission } from '@/lib/permissions-client'
 
 export default function DokumenSiswaTab({ user }: { user?: any }) {
+    const isAdmin = useMemo(() => user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false, [user]);
+    const canManage = useMemo(() => hasPermission(user?.permissions || [], 'dokumen_siswa', 'manage', isAdmin), [user, isAdmin]);
     const [categories, setCategories] = useState<any[]>([])
     const [documents, setDocuments] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
@@ -224,8 +227,9 @@ export default function DokumenSiswaTab({ user }: { user?: any }) {
                             placeholder="Nama Folder Baru (Misal: Ijazah, Raport, dll)"
                             value={newCategory}
                             onChange={(e) => setNewCategory(e.target.value)}
+                            disabled={!canManage}
                         />
-                        <button type="submit" disabled={!newCategory.trim()}>
+                        <button type="submit" disabled={!newCategory.trim() || !canManage} title={!canManage ? "Tidak ada izin" : "Tambah"} style={!canManage ? { opacity: 0.5, cursor: 'not-allowed' } : {}}>
                             <i className="bi bi-plus-lg"></i> Tambah
                         </button>
                     </div>
@@ -239,10 +243,10 @@ export default function DokumenSiswaTab({ user }: { user?: any }) {
                                 <span>{cat.name}</span>
                             </div>
                             <div className="folder-actions">
-                                <button onClick={() => handleEditCategory(cat)} className="btn-edit-mini" title="Edit Folder">
+                                <button onClick={() => handleEditCategory(cat)} className="btn-edit-mini" title={!canManage ? "Tidak ada izin" : "Edit Folder"} disabled={!canManage} style={!canManage ? { opacity: 0.5, cursor: 'not-allowed' } : {}}>
                                     <i className="bi bi-pencil-square"></i>
                                 </button>
-                                <button onClick={() => handleDeleteCategory(cat.id)} className="btn-del-mini" title="Hapus Folder">
+                                <button onClick={() => handleDeleteCategory(cat.id)} className="btn-del-mini" title={!canManage ? "Tidak ada izin" : "Hapus Folder"} disabled={!canManage} style={!canManage ? { opacity: 0.5, cursor: 'not-allowed' } : {}}>
                                     <i className="bi bi-x"></i>
                                 </button>
                             </div>
@@ -351,7 +355,9 @@ export default function DokumenSiswaTab({ user }: { user?: any }) {
                                             <button
                                                 className="btn-del"
                                                 onClick={() => handleDeleteDocument(doc.id, doc.file_name)}
-                                                title="Hapus Dokumen"
+                                                title={!canManage ? "Anda tidak memiliki izin" : "Hapus Dokumen"}
+                                                disabled={!canManage}
+                                                style={!canManage ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                                             >
                                                 <i className="bi bi-trash"></i>
                                             </button>

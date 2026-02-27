@@ -251,6 +251,7 @@ export default function GuruTab({ user }: { user?: any }) {
   }
 
   const handleExport = () => {
+    if (!canDo('export')) return;
     const dataToExport = allData.map((g, index) => {
       const base: any = {
         'No': index + 1,
@@ -383,9 +384,11 @@ export default function GuruTab({ user }: { user?: any }) {
             </button>
           )}
 
-          <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
-            <i className="bi bi-download" /> <span>Export</span>
-          </button>
+          {canDo('export') && (
+            <button className="sk__btn sk__btnExport" onClick={handleExport} title="Export Data">
+              <i className="bi bi-download" /> <span>Export</span>
+            </button>
+          )}
 
           {canDo('create') && (
             <button className="sk__btn sk__btnPrimary" onClick={handleAddNew}>

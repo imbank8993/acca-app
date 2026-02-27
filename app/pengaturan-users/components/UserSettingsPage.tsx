@@ -63,7 +63,7 @@ export default function UserSettingsPage({ initialTab, user }: { initialTab?: st
       <div className="us-header">
         <div className="us-titleArea">
           <h1>Pusat Pengaturan Sistem</h1>
-          <p>Konfigurasi akses, role, dan pemeliharaan data pengguna.</p>
+          <p>Konfigurasi akses, role, dan pemeliharaan data pengguna secara terpadu.</p>
         </div>
       </div>
 
@@ -93,12 +93,12 @@ export default function UserSettingsPage({ initialTab, user }: { initialTab?: st
 
       <style jsx>{`
         /* =====================================================
-           USER SETTINGS PAGE — BLUE THEME ENHANCEMENT
+           USER SETTINGS PAGE — ADMINISTRATIVE UI ALIGNMENT
         ====================================================== */
 
         /* HEADER */
         .us-header {
-          background: var(--n-primary);
+          background: #0038A8;
           padding: 32px 40px;
           border-radius: 24px;
           box-shadow: 0 10px 30px rgba(0, 56, 168, 0.15);
@@ -107,7 +107,6 @@ export default function UserSettingsPage({ initialTab, user }: { initialTab?: st
           justify-content: space-between;
           border: 1px solid rgba(255, 255, 255, 0.1);
           margin-bottom: 24px;
-          transition: background 0.3s ease;
         }
 
         :global(.dark) .us-header {
@@ -149,25 +148,26 @@ export default function UserSettingsPage({ initialTab, user }: { initialTab?: st
           align-items: center;
           gap: 8px;
           padding: 10px 16px;
-          background: var(--n-soft);
-          border: 1px solid var(--n-border);
+          background: rgba(0, 56, 168, 0.05);
+          border: 1px solid rgba(0, 56, 168, 0.1);
           border-radius: 16px;
           font-size: 0.9rem;
           font-weight: 600;
-          color: var(--n-primary);
+          color: #0038A8;
           cursor: pointer;
           transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
           white-space: nowrap;
         }
 
         .us-tab:hover {
-          background: var(--n-border);
+          background: rgba(0, 56, 168, 0.1);
+          border-color: rgba(0, 56, 168, 0.2);
           transform: translateY(-2px);
         }
 
         .us-tab.isActive {
-          background: var(--n-primary);
-          border-color: var(--n-primary);
+          background: #0038A8;
+          border-color: #0038A8;
           color: white;
           box-shadow: 0 8px 16px rgba(0, 56, 168, 0.25);
         }

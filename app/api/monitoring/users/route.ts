@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     try {
         const { data: users, error } = await supabaseAdmin
             .from('users')
-            .select('id, nama, role, last_seen, foto_profil')
+            .select('id, nama, role, last_seen, foto_profil, last_location')
             .order('last_seen', { ascending: false, nullsFirst: false });
 
         if (error) throw error;

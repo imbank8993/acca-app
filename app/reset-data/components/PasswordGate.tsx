@@ -25,11 +25,12 @@ export default function PasswordGate({ onSuccess }: PasswordGateProps) {
             <style jsx>{`
                 .password-gate-container {
                     display: flex;
-                    align-items: flex-start;
+                    align-items: center;
                     justify-content: center;
                     min-height: 100vh;
                     background: linear-gradient(135deg, rgba(254, 242, 242, 0.4), rgba(255, 251, 235, 0.3));
-                    padding: 4rem 2rem 2rem 2rem;
+                    padding: 2rem;
+                    box-sizing: border-box;
                 }
 
                 .password-gate-card {
@@ -268,7 +269,7 @@ export default function PasswordGate({ onSuccess }: PasswordGateProps) {
                         className="submit-button"
                     >
                         <i className="bi bi-box-arrow-in-right mr-2"></i>
-                         Masuk
+                        Masuk
                     </button>
                 </form>
             </div>

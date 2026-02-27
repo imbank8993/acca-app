@@ -246,11 +246,12 @@ export const handleExport = async (
 export const showExportOptions = (
     canDo: (action: string) => boolean,
     isKepala: boolean,
+    isWali: boolean,
     onExport: (mode: 'GURU' | 'WALI' | 'ADMIN' | 'KEPALA') => void
 ) => {
     const items: any[] = [];
-    if (canDo('export_personal')) items.push({ id: 'GURU', label: 'Mode GURU', desc: 'Eksport jurnal personal & pengganti saya' });
-    if (canDo('export_class')) items.push({ id: 'WALI', label: 'Mode WALI KELAS', desc: 'Eksport semua jurnal untuk kelas bimbingan' });
+    if (canDo('export_personal') || canDo('export')) items.push({ id: 'GURU', label: 'Mode GURU', desc: 'Eksport jurnal personal & pengganti saya' });
+    if (canDo('export_class') || isWali) items.push({ id: 'WALI', label: 'Mode WALI KELAS', desc: 'Eksport semua jurnal untuk kelas bimbingan' });
     if (canDo('export_admin')) items.push({ id: 'ADMIN', label: 'Mode ADMIN', desc: 'Eksport seluruh data jurnal sistem' });
     if (isKepala) items.push({ id: 'KEPALA', label: 'Mode KEPALA MADRASAH', desc: 'Eksport laporan jurnal untuk pimpinan' });
 
@@ -270,8 +271,15 @@ export const showExportOptions = (
     };
 
     Swal.fire({
-        title: 'Pilih Mode Eksport',
+        title: '',
         html: `
+        <div class="swal-export-header" style="margin-bottom: 25px; text-align: center;">
+            <div style="width: 56px; height: 56px; background: var(--n-soft); border-radius: 18px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: var(--n-primary);">
+                <i class="bi bi-file-earmark-spreadsheet-fill" style="font-size: 1.75rem;"></i>
+            </div>
+            <h2 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: var(--n-ink); letter-spacing: -0.01em;">Pilih Mode Eksport</h2>
+            <p style="margin: 4px 0 0; color: var(--n-muted); font-size: 0.88rem; font-weight: 500;">Silakan pilih mode laporan yang ingin Anda unduh</p>
+        </div>
         <div class="swal-export-grid">
             ${items.map(it => `
                 <div id="exp-${it.id}" class="swal-export-card">
@@ -292,6 +300,11 @@ export const showExportOptions = (
         showConfirmButton: false,
         showCancelButton: true,
         cancelButtonText: 'Batal',
+        customClass: {
+            container: 'swal-export-container',
+            popup: 'swal-export-popup',
+            cancelButton: 'swal-export-cancel'
+        },
         didOpen: () => {
             items.forEach(it => {
                 const btn = document.getElementById(`exp-${it.id}`);

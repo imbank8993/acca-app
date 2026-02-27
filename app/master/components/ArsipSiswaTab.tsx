@@ -1,15 +1,20 @@
 'use client'
 
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import Swal from 'sweetalert2'
 import BulkDocsUploadModal from '@/components/ui/BulkDocsUploadModal'
+import Pagination from '@/components/ui/Pagination'
+import { hasPermission } from '@/lib/permissions-client'
 
 export default function ArsipSiswaTab({ user }: { user?: any }) {
     const [activeMainTab, setActiveMainTab] = useState<'all' | 'siswa' | 'guru'>('all')
+
+    const isAdmin = React.useMemo(() => user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false, [user]);
+    const canManage = React.useMemo(() => hasPermission(user?.permissions || [], 'dokumen_siswa', 'manage', isAdmin), [user, isAdmin]);
 
     const [categories, setCategories] = useState<any[]>([])
     const [documents, setDocuments] = useState<any[]>([])
@@ -29,6 +34,18 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
     const [showUploadModal, setShowUploadModal] = useState(false)
     const [teachers, setTeachers] = useState<any[]>([])
 
+    // Selection & Export State
+    const [selectedDocs, setSelectedDocs] = useState<string[]>([])
+    const [showExportModal, setShowExportModal] = useState(false)
+    const [exportCategory, setExportCategory] = useState('')
+    const [exportShowLanding, setExportShowLanding] = useState(true)
+    const [isExporting, setIsExporting] = useState(false)
+    const [infCategories, setInfCategories] = useState<string[]>([])
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1)
+    const [itemsPerPage, setItemsPerPage] = useState(20)
+
 
 
     useEffect(() => {
@@ -43,6 +60,7 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
 
     useEffect(() => {
         fetchDocuments()
+        fetchInformasiCategories()
     }, [filterCategory, activeMainTab, filterUploader, selectedClass])
 
     useEffect(() => {
@@ -105,32 +123,80 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
     }
 
     const fetchCategories = async () => {
+        let query = supabase.from('upload_categories').select('*').order('target_role', { ascending: false }).order('name')
+        if (activeMainTab !== 'all') {
+            query = query.eq('target_role', activeMainTab)
+        }
+        const { data } = await query
+        if (data) setCategories(data)
+    }
+
+    const fetchInformasiCategories = async () => {
+        const { data } = await supabase.from('informasi_akademik').select('category')
+        if (data) {
+            const unique = Array.from(new Set(data.map((d: any) => d.category)))
+            setInfCategories(unique)
+            if (unique.length > 0) setExportCategory(unique[0])
+            else setExportCategory('Informasi Utama')
+        }
+    }
+
+    const toggleSelect = (id: string) => {
+        setSelectedDocs(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        )
+    }
+
+    const toggleSelectAll = () => {
+        if (selectedDocs.length === documents.length) {
+            setSelectedDocs([])
+        } else {
+            setSelectedDocs(documents.map(d => d.id))
+        }
+    }
+
+    const handleExportToInformasi = async () => {
+        if (selectedDocs.length === 0) return
+        setIsExporting(true)
+
         try {
-            let query = supabase.from('upload_categories').select('*')
+            const docsToExport = documents.filter(d => selectedDocs.includes(d.id))
+            let successCount = 0
 
-            // If tab is 'siswa', show target_role = 'siswa' OR target_role is NULL (legacy)
-            if (activeMainTab === 'siswa') {
-                query = query.or('target_role.eq.siswa,target_role.is.null')
-            } else if (activeMainTab === 'guru') {
-                query = query.eq('target_role', 'guru')
-            }
-            // For 'all', we don't filter, so it shows everything.
-
-            const { data, error } = await query.order('target_role', { ascending: false, nullsFirst: false }).order('name')
-
-            if (error) {
-                console.error('Error fetching categories detail:', {
-                    message: error.message,
-                    details: error.details,
-                    hint: error.hint,
-                    code: error.code
+            for (const doc of docsToExport) {
+                const res = await fetch('/api/informasi-akademik', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: doc.file_name,
+                        category: exportCategory,
+                        file_url: doc.file_url,
+                        file_name: doc.file_name,
+                        file_type: doc.file_name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg',
+                        file_size: 0, // Fallback if size not available
+                        user_id: user?.auth_id || user?.id,
+                        show_on_landing: exportShowLanding
+                    })
                 })
-                return
+
+                if (res.ok) successCount++
             }
 
-            if (data) setCategories(data)
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                text: `${successCount} dokumen berhasil dikirim ke Informasi Akademik.`,
+                timer: 2000,
+                showConfirmButton: false
+            })
+
+            setSelectedDocs([])
+            setShowExportModal(false)
         } catch (err) {
-            console.error('Unexpected error in fetchCategories:', err)
+            console.error(err)
+            Swal.fire('Error', 'Gagal mengekspor dokumen', 'error')
+        } finally {
+            setIsExporting(false)
         }
     }
 
@@ -145,11 +211,20 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
             supabase.from('uploaded_documents').select('*').order('created_at', { ascending: false })
         ])
 
-        if (resmiRes.error || kirimanRes.error) {
-            console.error('Error fetching docs:', resmiRes.error || kirimanRes.error)
-            setDocuments([])
-            setLoading(false)
-            return
+        if (resmiRes.error) {
+            console.error('Error fetching dokumen_siswa:', {
+                message: resmiRes.error.message,
+                details: resmiRes.error.details,
+                code: resmiRes.error.code
+            })
+        }
+
+        if (kirimanRes.error) {
+            console.error('Error fetching uploaded_documents:', {
+                message: kirimanRes.error.message,
+                details: kirimanRes.error.details,
+                code: kirimanRes.error.code
+            })
         }
 
         // Map Resmi
@@ -213,8 +288,17 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
         }
 
         setDocuments(combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
+        setCurrentPage(1) // Reset to first page on new fetch/filter
         setLoading(false)
     }
+
+    // Pagination Logic
+    const indexOfLastItem = currentPage * itemsPerPage
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage
+    const currentDocuments = documents.slice(indexOfFirstItem, indexOfLastItem)
+    const totalPages = Math.ceil(documents.length / itemsPerPage)
+
+    const paginate = (pageNumber: number) => setCurrentPage(pageNumber)
 
 
 
@@ -496,8 +580,9 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                     value={newCategory === 'New' ? '' : newCategory}
                                     onChange={(e) => setNewCategory(e.target.value)}
                                     onBlur={() => !newCategory && setNewCategory('')}
+                                    disabled={!canManage}
                                 />
-                                <button type="submit"><i className="bi bi-check-lg"></i></button>
+                                <button type="submit" disabled={!canManage}><i className="bi bi-check-lg"></i></button>
                             </form>
                         )}
 
@@ -536,8 +621,8 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                                 </div>
                                             </div>
                                             <div className="folder-actions">
-                                                <button onClick={() => handleEditCategory(cat)}><i className="bi bi-pencil"></i></button>
-                                                <button onClick={() => handleDeleteCategory(cat.id)} className="del"><i className="bi bi-x"></i></button>
+                                                <button onClick={() => handleEditCategory(cat)} disabled={!canManage} title={!canManage ? "Tidak ada izin" : "Edit Folder"}><i className="bi bi-pencil"></i></button>
+                                                <button onClick={() => handleDeleteCategory(cat.id)} className="del" disabled={!canManage} title={!canManage ? "Tidak ada izin" : "Hapus Folder"}><i className="bi bi-x"></i></button>
                                             </div>
                                         </div>
                                     </div>
@@ -596,6 +681,9 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                 <button
                                     onClick={() => setShowUploadModal(true)}
                                     className="btn-primary-action"
+                                    disabled={!canManage}
+                                    title={!canManage ? "Anda tidak memiliki izin upload" : "Upload Dokumen"}
+                                    style={!canManage ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                                 >
                                     <i className="bi bi-cloud-arrow-up-fill"></i> Upload
                                 </button>
@@ -617,15 +705,22 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                             <table className="ds-table">
                                 <thead>
                                     <tr>
-                                        <th>Dokumen {activeMainTab === 'all' ? '' : (activeMainTab === 'siswa' ? 'Siswa' : 'Guru')}</th>
-                                        <th>Kategori</th>
-                                        <th>Tanggal</th>
-                                        <th className="text-center">Aksi</th>
+                                        <th style={{ width: '64px', textAlign: 'center', paddingLeft: '16px', paddingRight: '8px' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={documents.length > 0 && selectedDocs.length === documents.length}
+                                                onChange={toggleSelectAll}
+                                                className="ds-checkbox"
+                                            />
+                                        </th>
+                                        <th className="col-header-file">Dokumen</th>
+                                        <th className="col-header-date">Tanggal</th>
+                                        <th className="col-header-action text-center">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {loading ? (
-                                        <tr><td colSpan={3} className="state-cell">
+                                        <tr><td colSpan={4} className="state-cell">
                                             <div className="loading-state">
                                                 <div className="spinner-large"></div>
                                                 <p>Sedang memuat dokumen...</p>
@@ -638,26 +733,33 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                                 <p>Belum ada dokumen di tab ini.</p>
                                             </div>
                                         </td></tr>
-                                    ) : documents.map(doc => (
-                                        <tr key={doc.id}>
+                                    ) : currentDocuments.map(doc => (
+                                        <tr key={doc.id} className={selectedDocs.includes(doc.id) ? 'selected-row' : ''}>
+                                            <td style={{ textAlign: 'center', paddingLeft: '16px', paddingRight: '8px' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedDocs.includes(doc.id)}
+                                                    onChange={() => toggleSelect(doc.id)}
+                                                    className="ds-checkbox"
+                                                />
+                                            </td>
                                             <td className="col-file">
                                                 <div className="file-wrap">
                                                     <div className={`file-icon ${doc.file_name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'img'}`}>
                                                         <i className={`bi ${doc.file_name.toLowerCase().endsWith('.pdf') ? 'bi-file-pdf-fill' : 'bi-file-image-fill'}`}></i>
                                                     </div>
-                                                    <div className="file-meta">
-                                                        <span className="file-name" title={doc.uploader_name}>
+                                                    <div className="file-meta" style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span className="file-name" title={doc.file_name} style={{ fontWeight: 600, color: '#1e293b' }}>
+                                                            {doc.file_name}
+                                                        </span>
+                                                        <span className="uploader-name" style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
                                                             {doc.target_role === 'siswa'
                                                                 ? (students.find(s => s.nisn === doc.nisn)?.nama_lengkap || doc.uploader_name || '?')
                                                                 : (teachers.find((g: any) => g.nip === doc.nip)?.nama_lengkap || doc.uploader_name || '?')
                                                             }
                                                         </span>
-                                                        <span className="file-folder hidden-md"><i className="bi bi-folder"></i> {doc.category_name}</span>
                                                     </div>
                                                 </div>
-                                            </td>
-                                            <td className="col-category">
-                                                <span className="badge-category">{doc.category_name}</span>
                                             </td>
                                             <td className="col-date">
                                                 {new Date(doc.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -670,7 +772,7 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                                     <a href={doc.file_url} download={doc.file_name} className="btn-act dl" title="Download">
                                                         <i className="bi bi-download"></i>
                                                     </a>
-                                                    <button onClick={() => handleDeleteDocument(doc.id, doc.file_name, doc.file_url, doc.nisn, doc.nip)} className="btn-act del" title="Hapus">
+                                                    <button onClick={() => handleDeleteDocument(doc.id, doc.file_name, doc.file_url, doc.nisn, doc.nip)} className="btn-act del" title={!canManage ? "Anda tidak memiliki izin" : "Hapus"} disabled={!canManage} style={!canManage ? { opacity: 0.5, cursor: 'not-allowed' } : {}}>
                                                         <i className="bi bi-trash-fill"></i>
                                                     </button>
                                                 </div>
@@ -680,6 +782,21 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination Controls */}
+                        {!loading && documents.length > 0 && (
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                limit={itemsPerPage}
+                                totalItems={documents.length}
+                                onPageChange={paginate}
+                                onLimitChange={(newLimit) => {
+                                    setItemsPerPage(newLimit)
+                                    setCurrentPage(1)
+                                }}
+                            />
+                        )}
                     </div>
                 </div>
             </div>
@@ -696,6 +813,91 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                     setShowUploadModal(false)
                 }}
             />
+
+            {/* Sticky Batch Action Bar */}
+            {
+                selectedDocs.length > 0 && (
+                    <div className="batch-action-bar">
+                        <div className="batch-info">
+                            <strong>{selectedDocs.length}</strong> item terpilih
+                        </div>
+                        <div className="batch-buttons">
+                            <button className="btn-batch-informasi" onClick={() => setShowExportModal(true)}>
+                                <i className="bi bi-send-fill"></i> Kirim ke Informasi Akademik
+                            </button>
+                            <button className="btn-batch-cancel" onClick={() => setSelectedDocs([])}>Batal</button>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Export Modal */}
+            {
+                showExportModal && (
+                    <div className="ds-modal-overlay">
+                        <div className="ds-modal">
+                            <div className="ds-modal-head">
+                                <h3><i className="bi bi-send-fill"></i> Kirim ke Informasi Akademik</h3>
+                                <button onClick={() => setShowExportModal(false)}><i className="bi bi-x"></i></button>
+                            </div>
+                            <div className="ds-modal-body">
+                                <p className="modal-intro">Anda akan mengirim <strong>{selectedDocs.length}</strong> dokumen ke halaman Informasi Akademik.</p>
+
+                                <div className="modal-field">
+                                    <label>Pilih Kategori / Folder Tujuan</label>
+                                    <select
+                                        value={exportCategory}
+                                        onChange={(e) => setExportCategory(e.target.value)}
+                                    >
+                                        {infCategories.map(cat => (
+                                            <option key={cat} value={cat}>{cat}</option>
+                                        ))}
+                                        <option value="TAMBAH_BARU">+ Kategori Baru...</option>
+                                    </select>
+                                </div>
+
+                                {exportCategory === 'TAMBAH_BARU' && (
+                                    <div className="modal-field mt-3">
+                                        <input
+                                            type="text"
+                                            placeholder="Nama kategori baru..."
+                                            onChange={(e) => setExportCategory(e.target.value)}
+                                            autoFocus
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="modal-field mt-4">
+                                    <label className="flex-toggle">
+                                        <div className="toggle-info">
+                                            <strong>Tampilkan di Landing Page</strong>
+                                            <span>Aktifkan agar muncul di akademik-app/halaman depan.</span>
+                                        </div>
+                                        <label className="toggle-switch-mini">
+                                            <input
+                                                type="checkbox"
+                                                checked={exportShowLanding}
+                                                onChange={(e) => setExportShowLanding(e.target.checked)}
+                                            />
+                                            <span className="toggle-slider-mini"></span>
+                                        </label>
+                                    </label>
+                                </div>
+                            </div>
+                            <div className="ds-modal-foot">
+                                <button className="btn-cancel" onClick={() => setShowExportModal(false)}>Batal</button>
+                                <button
+                                    className="btn-confirm"
+                                    disabled={isExporting || !exportCategory || exportCategory === 'TAMBAH_BARU'}
+                                    onClick={handleExportToInformasi}
+                                >
+                                    {isExporting ? 'Mengirim...' : 'Kirim Sekarang'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
 
 
             <style jsx>{`
@@ -744,11 +946,11 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                 .tab-btn i { font-size: 1.1rem; }
 
                 /* Grid Layout */
-                .ds-content-grid { display: grid; grid-template-columns: 280px 1fr; gap: 24px; }
+                .ds-content-grid { display: grid; grid-template-columns: 260px 1fr; gap: 24px; }
                 @media (max-width: 1024px) { .ds-content-grid { grid-template-columns: 1fr; } }
                 
                 /* Cards Generic */
-                .ds-card { background: white; border-radius: 20px; border: 1px solid var(--border); box-shadow: 0 4px 6px -2px rgba(0,0,0,0.03); overflow: hidden; height: 100%; display: flex; flex-direction: column; }
+                .ds-card { background: white; border-radius: 20px; border: 1px solid var(--border); box-shadow: 0 4px 6px -2px rgba(0,0,0,0.03); overflow: visible; height: auto; display: flex; flex-direction: column; }
                 
                 /* Sidebar: Folder Manager */
                 .card-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #fcfcfc; }
@@ -808,86 +1010,149 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                     font-size: 1.1rem;
                 }
                 .btn-secondary-action:hover, .btn-refresh:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+
+                /* Selection & Batch Bar */
+                .ds-checkbox { width: 18px; height: 18px; margin: 0 auto; cursor: pointer; accent-color: var(--primary); border: 2px solid var(--border); border-radius: 6px; display: block; }
+                .selected-row td { background: var(--primary-light) !important; border-bottom-color: rgba(0, 56, 168, 0.1); }
+                
+                .batch-action-bar {
+                    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+                    background: #1e293b; color: white; padding: 12px 24px; border-radius: 16px;
+                    display: flex; align-items: center; gap: 32px; z-index: 1000;
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+                    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                }
+                @keyframes slideUp { from { transform: translate(-50%, 100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+                
+                .batch-info { font-size: 0.9rem; font-weight: 600; }
+                .batch-buttons { display: flex; gap: 12px; }
+                .btn-batch-informasi { background: var(--primary); border: none; padding: 10px 20px; border-radius: 12px; color: white; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.85rem; transition: transform 0.2s; }
+                .btn-batch-informasi:hover { transform: translateY(-2px); }
+                .btn-batch-cancel { background: rgba(255,255,255,0.1); border: none; padding: 10px 20px; border-radius: 12px; color: white; cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+
+                /* Modal Styles */
+                .ds-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+                .ds-modal { background: white; width: 450px; border-radius: 28px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); animation: zoomIn 0.3s ease-out; }
+                @keyframes zoomIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+                
+                .ds-modal-head { padding: 24px 28px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #fcfcfc; }
+                .ds-modal-head h3 { margin: 0; font-size: 1.15rem; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 10px; }
+                .ds-modal-head h3 i { color: var(--primary); }
+                .ds-modal-head button { background: none; border: none; font-size: 1.5rem; color: #94a3b8; cursor: pointer; transition: color 0.2s; }
+                .ds-modal-head button:hover { color: var(--danger); }
+                
+                .ds-modal-body { padding: 28px; }
+                .modal-intro { font-size: 0.9rem; color: #64748b; margin-bottom: 24px; line-height: 1.6; }
+                .modal-field { display: flex; flex-direction: column; gap: 10px; }
+                .modal-field label { font-size: 0.7rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+                .modal-field select, .modal-field input[type="text"] { padding: 14px; border: 1px solid var(--border); border-radius: 14px; font-size: 0.95rem; outline: none; transition: 0.2s; background: #f8fafc; font-weight: 500; }
+                .modal-field select:focus, .modal-field input:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 4px var(--primary-light); }
+                
+                .flex-toggle { display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 18px; border-radius: 18px; border: 1px solid var(--border); cursor: pointer; transition: 0.2s; }
+                .flex-toggle:hover { border-color: var(--primary); background: white; }
+                .toggle-info { display: flex; flex-direction: column; gap: 2px; }
+                .toggle-info strong { font-size: 0.9rem; color: #1e293b; }
+                .toggle-info span { font-size: 0.75rem; color: #64748b; }
+
+                .ds-modal-foot { padding: 24px 28px; background: #fcfcfc; border-top: 1px solid var(--border); display: flex; gap: 12px; }
+                .btn-cancel { flex: 1; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: white; font-weight: 700; color: #64748b; cursor: pointer; transition: 0.2s; }
+                .btn-cancel:hover { background: #f1f5f9; color: var(--text-main); }
+                .btn-confirm { flex: 2; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(0, 56, 168, 0.2); }
+                .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0, 56, 168, 0.3); }
+                .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+                /* Toggle Switch Mini */
+                .toggle-switch-mini { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+                .toggle-switch-mini input { opacity: 0; width: 0; height: 0; }
+                .toggle-slider-mini { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 34px; }
+                .toggle-slider-mini:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+                input:checked + .toggle-slider-mini { background-color: #10b981; }
+                input:checked + .toggle-slider-mini:before { transform: translateX(20px); }
                 
                 /* Table Styles */
                 .ds-table-container { 
-                    border-radius: 12px; 
-                    overflow: hidden; 
+                    border-radius: 16px 16px 0 0; 
+                    overflow: visible; 
                     border: 1px solid var(--border);
+                    border-bottom: none;
+                    background: white;
                 }
                 .ds-table { 
                     width: 100%; 
                     border-collapse: collapse; 
-                    table-layout: fixed; /* FIXED LAYOUT for proportionality */
+                    table-layout: fixed;
                 }
                 .ds-table th { 
                     background: #f8fafc; 
-                    padding: 16px 20px; 
+                    padding: 18px 20px; 
                     text-align: left; 
-                    font-size: 0.75rem; 
-                    font-weight: 700; 
-                    color: var(--text-sub); 
+                    font-size: 0.7rem; 
+                    font-weight: 800; 
+                    color: #94a3b8; 
                     text-transform: uppercase; 
-                    letter-spacing: 0.05em; 
-                    border-bottom: 1px solid var(--border); 
+                    letter-spacing: 0.1em; 
+                    border-bottom: 2px solid #f1f5f9; 
                 }
                 
-                /* Define Column Widths explicitly */
-                .ds-table th:nth-child(1) { width: 45%; } /* Dokumen */
-                .ds-table th:nth-child(2) { width: 20%; } /* Kategori */
-                .ds-table th:nth-child(3) { width: 15%; } /* Tanggal */
-                .ds-table th:nth-child(4) { width: 20%; text-align: center; } /* Aksi */
+                /* Proportional Column Widths */
+                .col-header-file { width: 60%; }
+                .col-header-date { width: 20%; }
+                .col-header-action { width: 20%; text-align: center; }
 
                 .ds-table td { 
-                    padding: 16px 20px; 
+                    padding: 8px 16px; 
                     border-bottom: 1px solid #f1f5f9; 
                     vertical-align: middle; 
-                    transition: background 0.2s;
-                    white-space: nowrap;
+                    transition: all 0.2s ease;
+                    color: var(--text-main);
+                    font-size: 0.82rem;
                     overflow: hidden;
                     text-overflow: ellipsis;
+                    white-space: nowrap;
                 }
-                .ds-table tr:hover td { background: #fcfdfe; }
+                .ds-table tr:hover td { background: #f8fbff; }
+                .ds-table tr.selected-row td { background: #f0f7ff; }
                 .ds-table tr:last-child td { border-bottom: none; }
 
                 /* Cell: File */
                 .file-wrap { display: flex; align-items: center; gap: 16px; width: 100%; }
                 .file-icon { 
-                    width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; 
-                    font-size: 1.4rem; flex-shrink: 0;
+                    width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; 
+                    font-size: 1.2rem; flex-shrink: 0;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
                 }
-                .file-icon.pdf { background: #fee2e2; color: #ef4444; }
-                .file-icon.img { background: #e0e7ff; color: #4f46e5; }
+                .file-icon.pdf { background: #fff1f2; color: #e11d48; }
+                .file-icon.img { background: #eef2ff; color: #4f46e5; }
                 
-                .file-meta { display: flex; flex-direction: column; gap: 2px; overflow: hidden; min-width: 0; }
+                .file-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
                 .file-name { 
-                    font-weight: 600; color: var(--text-main); font-size: 0.9rem; 
-                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-                    width: 100%;
+                    font-weight: 600; color: #1e293b; font-size: 0.85rem; 
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                    display: block;
+                    line-height: 1.4;
+                    letter-spacing: -0.01em;
                 }
-                .file-folder { font-size: 0.75rem; color: var(--text-sub); display: flex; align-items: center; gap: 4px; }
                 
-                /* Cell: Category */
-                .col-category { font-size: 0.85rem; font-weight: 500; color: var(--text-main); }
-                .badge-category {
-                    background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 6px;
-                    font-size: 0.75rem; font-weight: 600; text-transform: capitalize;
-                }
-
                 /* Cell: Date */
-                .col-date { color: var(--text-sub); font-size: 0.85rem; font-weight: 500; }
+                .col-date { color: #64748b; font-size: 0.85rem; font-weight: 600; white-space: nowrap; letter-spacing: -0.01em; }
 
                 /* Cell: Action */
-                .col-action { text-align: center; }
-                .action-group { display: flex; justify-content: center; gap: 6px; }
+                .action-group { display: flex; justify-content: center; gap: 8px; }
                 .btn-act { 
-                    width: 32px; height: 32px; border-radius: 8px; border: none; cursor: pointer; 
-                    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
-                    font-size: 0.9rem;
+                    width: 36px; height: 36px; border-radius: 10px; border: 1px solid transparent; cursor: pointer; 
+                    display: flex; align-items: center; justify-content: center; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    font-size: 0.95rem;
                 }
-                .btn-act.view { background: #eff6ff; color: #3b82f6; } .btn-act.view:hover { background: #3b82f6; color: white; }
-                .btn-act.dl { background: #ecfdf5; color: #10b981; } .btn-act.dl:hover { background: #10b981; color: white; }
-                .btn-act.del { background: #fef2f2; color: #ef4444; } .btn-act.del:hover { background: #ef4444; color: white; }
+                .btn-act.view { background: #f0f7ff; color: #0284c7; } 
+                .btn-act.view:hover { background: #0284c7; color: white; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(2, 132, 199, 0.2); }
+                
+                .btn-act.dl { background: #f0fdf4; color: #16a34a; } 
+                .btn-act.dl:hover { background: #16a34a; color: white; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(22, 163, 74, 0.2); }
+                
+                .btn-act.del { background: #fff1f2; color: #e11d48; } 
+                .btn-act.del:hover { background: #e11d48; color: white; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(225, 29, 72, 0.2); }
+
+                /* Removed internal pagination UI styles as we use shared Pagination component */
 
                 /* States */
                 .state-cell { text-align: center; padding: 60px 0; }
@@ -907,6 +1172,6 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                     .hidden-md { display: none; }
                 }
             `}</style>
-        </div>
+        </div >
     )
 }

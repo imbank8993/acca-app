@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react'
 import type { User, PageNode } from '@/lib/types'
+import { hasPermission } from '@/lib/permissions-client'
+import { pagePathToResource } from '@/lib/auth'
 import './sidebar.css'
 
 interface SidebarProps {
@@ -111,10 +113,27 @@ export default function Sidebar({
         </div>
 
         <nav className="sidebar-nav">
-          {user.pagesTree?.map((item, index) => {
+          {user.pagesTree?.filter(item => {
+            const isAdmin = user.roles.includes('ADMIN');
+            if (item.children && item.children.length > 0) {
+              return item.children.some(child => {
+                const resource = pagePathToResource(child.page || '');
+                return hasPermission(user.permissions || [], resource, 'view', isAdmin);
+              });
+            }
+            const resource = pagePathToResource(item.page || '');
+            return hasPermission(user.permissions || [], resource, 'view', isAdmin);
+          }).map((item, index) => {
             const { title, page, children } = item
-            const hasSubmenu = children && children.length > 0
-            const isActive = page === currentPage || (children?.some(c => c.page === currentPage))
+
+            const allowedChildren = children?.filter(child => {
+              const isAdmin = user.roles.includes('ADMIN');
+              const resource = pagePathToResource(child.page || '');
+              return hasPermission(user.permissions || [], resource, 'view', isAdmin);
+            }) || [];
+
+            const hasSubmenu = allowedChildren.length > 0
+            const isActive = page === currentPage || (allowedChildren.some(c => c.page === currentPage))
             const isExpanded = isMenuExpanded(title)
 
             return (
@@ -139,9 +158,9 @@ export default function Sidebar({
                 </button>
 
                 {/* Submenu (Visible normally) */}
-                {!isCollapsed && hasSubmenu && (
+                {!isCollapsed && hasSubmenu && allowedChildren.length > 0 && (
                   <div className={`submenu ${isExpanded ? 'open' : ''}`}>
-                    {children.map((child, subIndex) => {
+                    {allowedChildren.map((child, subIndex) => {
                       const childActive = child.page === currentPage
                       return (
                         <button
@@ -179,7 +198,7 @@ export default function Sidebar({
                       </button>
                     ) : (
                       <div className="tooltip-submenu">
-                        {children.map((child, subIndex) => (
+                        {allowedChildren.map((child, subIndex) => (
                           <button
                             key={subIndex}
                             onClick={() => {

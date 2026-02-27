@@ -3,56 +3,31 @@
 
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-
 import Swal from 'sweetalert2';
-
 import UploadModal from '@/components/personal/UploadModal';
-
 import ShareModal from '@/components/personal/ShareModal';
-
 import './personal-docs.css';
-
-
+import { hasPermission } from '@/lib/permissions-client';
 
 // --- Types ---
-
 interface Folder {
-
     id: string;
-
     nama: string;
-
 }
-
-
 
 interface PersonalDoc {
-
     id: string;
-
     judul: string;
-
     file_url: string;
-
     size: number;
-
     extension: string;
-
     uploaded_at: string;
-
     folder_id?: string | null;
-
     owner?: {
-
         nama_lengkap: string;
-
         username: string;
-
     };
-
 }
-
-
 
 export default function PersonalDocumentsPage({ user }: { user: any }) {
 
@@ -93,16 +68,14 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
     const [searchQuery, setSearchQuery] = useState('');
-
     const [moveData, setMoveData] = useState<{ doc: PersonalDoc } | null>(null);
-
     const [batchMoveOpen, setBatchMoveOpen] = useState(false);
-
     const [moveFolder, setMoveFolder] = useState<string>('__root__');
-
     const [isMoving, setIsMoving] = useState(false);
 
-
+    // Permission check
+    const isAdmin = useMemo(() => user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false, [user]);
+    const canManage = useMemo(() => hasPermission(user?.permissions || [], 'personal-documents', 'manage', isAdmin), [user, isAdmin]);
 
     const toggleSelectArr = (id: string) => {
 
@@ -725,65 +698,41 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                     </div>
 
                     <div className="pd-header-actions">
-
                         {selectedIds.length > 0 && (
-
                             <div className="pd-batch-bar">
-
                                 <button className="pd-btn pd-btn-ghost" onClick={handleBatchDownload} disabled={isDownloading === 'batch'}>
-
                                     <i className={`fa-solid ${isDownloading === 'batch' ? 'fa-spinner fa-spin' : 'fa-download'}`}></i>
-
                                     <span>Unduh ({selectedIds.length})</span>
-
                                 </button>
-
-                                {activeTab === 'mine' && (<>
-
+                                {activeTab === 'mine' && canManage && (<>
                                     <button className="pd-btn pd-btn-ghost" onClick={() => { setMoveFolder('__root__'); setBatchMoveOpen(true); }}>
-
                                         <i className="fa-solid fa-folder-open"></i>
-
                                         <span>Pindah ({selectedIds.length})</span>
-
                                     </button>
-
                                     <button className="pd-btn pd-btn-ghost" onClick={handleShareMultiple}>
-
                                         <i className="fa-solid fa-share-nodes"></i>
-
                                         <span>Bagikan</span>
-
                                     </button>
-
                                 </>)}
-
-                                <button className="pd-btn" style={{ background: 'rgba(239,68,68,.2)', color: '#fca5a5' }} onClick={handleBatchDelete}>
-
-                                    <i className="fa-solid fa-trash"></i>
-
-                                    <span>{activeTab === 'shared' ? 'Lepas' : 'Hapus'}</span>
-
-                                </button>
-
+                                {(canManage || activeTab === 'shared') && (
+                                    <button className="pd-btn" style={{ background: 'rgba(239,68,68,.2)', color: '#fca5a5' }} onClick={handleBatchDelete}>
+                                        <i className="fa-solid fa-trash"></i>
+                                        <span>{activeTab === 'shared' ? 'Lepas' : 'Hapus'}</span>
+                                    </button>
+                                )}
                             </div>
-
                         )}
-
-                        <button className="pd-btn pd-btn-ghost" onClick={handleCreateFolder}>
-
-                            <i className="fa-solid fa-folder-plus"></i> Folder Baru
-
-                        </button>
-
-                        <button className="pd-btn pd-btn-primary" onClick={() => setIsUploadOpen(true)}>
-
-                            <i className="fa-solid fa-cloud-arrow-up"></i> Unggah File
-
-                        </button>
-
+                        {canManage && (
+                            <>
+                                <button className="pd-btn pd-btn-ghost" onClick={handleCreateFolder}>
+                                    <i className="fa-solid fa-folder-plus"></i> Folder Baru
+                                </button>
+                                <button className="pd-btn pd-btn-primary" onClick={() => setIsUploadOpen(true)}>
+                                    <i className="fa-solid fa-cloud-arrow-up"></i> Unggah File
+                                </button>
+                            </>
+                        )}
                     </div>
-
                 </div>
 
                 <div className="pd-tabs">
@@ -838,41 +787,29 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                                 <i className="fa-solid fa-folder"></i>
 
                                 <span>{folder.nama}</span>
-
                                 <div className="pd-folder-actions">
-
                                     <button className="pd-folder-action-btn" title="Download ZIP" onClick={e => { e.stopPropagation(); handleDownloadFolder(folder.id, folder.nama); }} disabled={isDownloading === folder.id}>
-
                                         <i className={`fa-solid ${isDownloading === folder.id ? 'fa-spinner fa-spin' : 'fa-download'}`}></i>
-
                                     </button>
-
-                                    <button className="pd-folder-action-btn" title="Bagikan" onClick={e => { e.stopPropagation(); setShareData({ folderId: folder.id, title: folder.nama }); }}>
-
-                                        <i className="fa-solid fa-share-nodes"></i>
-
-                                    </button>
-
-                                    <button className="pd-folder-action-btn danger" title="Hapus" onClick={e => { e.stopPropagation(); handleDeleteFolder(folder.id, folder.nama); }}>
-
-                                        <i className="fa-solid fa-trash-can"></i>
-
-                                    </button>
-
+                                    {canManage && (
+                                        <>
+                                            <button className="pd-folder-action-btn" title="Bagikan" onClick={e => { e.stopPropagation(); setShareData({ folderId: folder.id, title: folder.nama }); }}>
+                                                <i className="fa-solid fa-share-nodes"></i>
+                                            </button>
+                                            <button className="pd-folder-action-btn danger" title="Hapus" onClick={e => { e.stopPropagation(); handleDeleteFolder(folder.id, folder.nama); }}>
+                                                <i className="fa-solid fa-trash-can"></i>
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
-
                             </div>
-
                         ))}
-
-                        <button className="pd-new-folder-btn" onClick={handleCreateFolder}>
-
-                            <i className="fa-solid fa-plus"></i> Folder Baru
-
-                        </button>
-
+                        {canManage && (
+                            <button className="pd-new-folder-btn" onClick={handleCreateFolder}>
+                                <i className="fa-solid fa-plus"></i> Folder Baru
+                            </button>
+                        )}
                     </aside>
-
                 )}
 
 
@@ -996,33 +933,21 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                                         <span className="pd-doc-meta">{new Date(doc.uploaded_at).toLocaleDateString('id-ID')}</span>
 
                                         <div className="pd-row-actions">
-
                                             <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="pd-action-btn" title="Buka"><i className="fa-solid fa-external-link"></i></a>
-
                                             <a href={doc.file_url} download={doc.judul} className="pd-action-btn" title="Unduh"><i className="fa-solid fa-download"></i></a>
-
-                                            {activeTab === 'mine' && (<>
-
+                                            {activeTab === 'mine' && canManage && (<>
                                                 <button className="pd-move-pill" onClick={() => { setMoveData({ doc }); setMoveFolder(doc.folder_id ?? '__root__'); }}>
-
                                                     <i className="fa-solid fa-folder-open"></i> Pindah
-
                                                 </button>
-
                                                 <button className="pd-action-btn" title="Bagikan" onClick={() => setShareData({ id: doc.id, title: doc.judul })}><i className="fa-solid fa-share-nodes"></i></button>
-
                                             </>)}
-
-                                            <button className="pd-action-btn danger" title={activeTab === 'mine' ? 'Hapus' : 'Lepas'} onClick={() => handleDeleteDoc(doc.id, doc.judul)}>
-
-                                                <i className={`fa-solid ${activeTab === 'mine' ? 'fa-trash-can' : 'fa-link-slash'}`}></i>
-
-                                            </button>
-
+                                            {(canManage || activeTab === 'shared') && (
+                                                <button className="pd-action-btn danger" title={activeTab === 'mine' ? 'Hapus' : 'Lepas'} onClick={() => handleDeleteDoc(doc.id, doc.judul)}>
+                                                    <i className={`fa-solid ${activeTab === 'mine' ? 'fa-trash-can' : 'fa-link-slash'}`}></i>
+                                                </button>
+                                            )}
                                         </div>
-
                                     </div>
-
                                 ))}
 
                             </div>
@@ -1050,23 +975,16 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                                         </div>
 
                                         <div className="pd-mobile-card-actions">
-
                                             <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="pd-action-btn"><i className="fa-solid fa-external-link"></i></a>
-
-                                            {activeTab === 'mine' && (
-
+                                            {activeTab === 'mine' && canManage && (
                                                 <button className="pd-action-btn" onClick={() => { setMoveData({ doc }); setMoveFolder(doc.folder_id ?? '__root__'); }}><i className="fa-solid fa-folder-open"></i></button>
-
                                             )}
-
-                                            <button className="pd-action-btn danger" onClick={() => handleDeleteDoc(doc.id, doc.judul)}>
-
-                                                <i className={`fa-solid ${activeTab === 'mine' ? 'fa-trash-can' : 'fa-link-slash'}`}></i>
-
-                                            </button>
-
+                                            {(canManage || activeTab === 'shared') && (
+                                                <button className="pd-action-btn danger" onClick={() => handleDeleteDoc(doc.id, doc.judul)}>
+                                                    <i className={`fa-solid ${activeTab === 'mine' ? 'fa-trash-can' : 'fa-link-slash'}`}></i>
+                                                </button>
+                                            )}
                                         </div>
-
                                     </div>
 
                                 ))}
@@ -1080,27 +998,16 @@ export default function PersonalDocumentsPage({ user }: { user: any }) {
                         <div className="pd-empty">
 
                             <div className="pd-empty-icon">
-
                                 {searchQuery ? <i className="fa-solid fa-magnifying-glass"></i> : <i className="fa-solid fa-folder-open"></i>}
-
                             </div>
-
                             <h3>{searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : 'Belum ada dokumen'}</h3>
-
                             <p>{searchQuery ? 'Coba kata kunci lain' : activeTab === 'shared' ? 'Belum ada dokumen yang dibagikan ke Anda' : 'Klik Unggah File untuk menambahkan dokumen pertama'}</p>
-
-                            {!searchQuery && activeTab === 'mine' && (
-
+                            {!searchQuery && activeTab === 'mine' && canManage && (
                                 <button className="pd-btn pd-btn-primary" onClick={() => setIsUploadOpen(true)}>
-
                                     <i className="fa-solid fa-cloud-arrow-up"></i> Unggah File Pertama
-
                                 </button>
-
                             )}
-
                         </div>
-
                     )}
 
                 </main>

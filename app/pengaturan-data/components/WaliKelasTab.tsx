@@ -6,6 +6,7 @@ import ImportModal from '@/components/ui/ImportModal'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import Pagination from '@/components/ui/Pagination'
 import { getCurrentAcademicYear } from '@/lib/date-utils'
+import { hasPermission } from '@/lib/permissions-client'
 
 interface WaliKelas {
   id?: number
@@ -17,7 +18,16 @@ interface WaliKelas {
   aktif: boolean
 }
 
-export default function WaliKelasTab() {
+export default function WaliKelasTab({ user }: { user?: any }) {
+  // Permission Check
+  const permissions = user?.permissions || []
+  const isAdmin = (user?.role === 'ADMIN') || (user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN')) || false
+  const canCreate = hasPermission(permissions, 'pengaturan_data.wali_kelas', 'create', isAdmin)
+  const canUpdate = hasPermission(permissions, 'pengaturan_data.wali_kelas', 'update', isAdmin)
+  const canDelete = hasPermission(permissions, 'pengaturan_data.wali_kelas', 'delete', isAdmin)
+  const canImport = hasPermission(permissions, 'pengaturan_data.wali_kelas', 'import', isAdmin)
+  const canExport = hasPermission(permissions, 'pengaturan_data.wali_kelas', 'export', isAdmin)
+
   // Local Filter State
   const [tahunAjaran, setTahunAjaran] = useState(getCurrentAcademicYear())
   const [semester, setSemester] = useState('Semua')
@@ -137,6 +147,7 @@ export default function WaliKelasTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (formData.id ? !canUpdate : !canCreate) return
     if (!formData.nip) {
       alert('Silahkan pilih Wali Kelas (Guru)')
       return
@@ -306,15 +317,21 @@ export default function WaliKelasTab() {
         </div>
 
         <div className="wk__actions">
-          <button className="wk__btn wk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
-            <i className="bi bi-upload" /> <span>Import</span>
-          </button>
-          <button className="wk__btn wk__btnExport" onClick={handleExport} title="Export Data">
-            <i className="bi bi-file-earmark-excel" /> <span>Export</span>
-          </button>
-          <button className="wk__btn wk__btnPrimary" onClick={openAdd}>
-            <i className="bi bi-plus-lg" /> <span>Tambah</span>
-          </button>
+          {canImport && (
+            <button className="wk__btn wk__btnImport" onClick={() => setShowImportModal(true)} title="Import Excel">
+              <i className="bi bi-upload" /> <span>Import</span>
+            </button>
+          )}
+          {canExport && (
+            <button className="wk__btn wk__btnExport" onClick={handleExport} title="Export Data">
+              <i className="bi bi-file-earmark-excel" /> <span>Export</span>
+            </button>
+          )}
+          {canCreate && (
+            <button className="wk__btn wk__btnPrimary" onClick={openAdd}>
+              <i className="bi bi-plus-lg" /> <span>Tambah</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -367,24 +384,28 @@ export default function WaliKelasTab() {
                   </td>
                   <td>
                     <div className="wk__rowActions">
-                      <button
-                        className="wk__iconBtn"
-                        onClick={() => {
-                          setFormData(item)
-                          setSelectedClass(item.nama_kelas)
-                          setShowModal(true)
-                        }}
-                        title="Edit"
-                      >
-                        <i className="bi bi-pencil" />
-                      </button>
-                      <button
-                        className="wk__iconBtn danger"
-                        onClick={() => item.id && handleDelete(item.id)}
-                        title="Hapus"
-                      >
-                        <i className="bi bi-trash" />
-                      </button>
+                      {canUpdate && (
+                        <button
+                          className="wk__iconBtn"
+                          onClick={() => {
+                            setFormData(item)
+                            setSelectedClass(item.nama_kelas)
+                            setShowModal(true)
+                          }}
+                          title="Edit"
+                        >
+                          <i className="bi bi-pencil" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          className="wk__iconBtn danger"
+                          onClick={() => item.id && handleDelete(item.id)}
+                          title="Hapus"
+                        >
+                          <i className="bi bi-trash" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -433,21 +454,25 @@ export default function WaliKelasTab() {
                   </span>
                 </div>
                 <div className="wk__actionsRight">
-                  <button
-                    className="wk__actionBtn"
-                    onClick={() => {
-                      setFormData(item)
-                      setSelectedClass(item.nama_kelas)
-                      setShowModal(true)
-                    }}
-                    title="Edit"
-                  >
-                    <i className="bi bi-pencil" />
-                  </button>
+                  {canUpdate && (
+                    <button
+                      className="wk__actionBtn"
+                      onClick={() => {
+                        setFormData(item)
+                        setSelectedClass(item.nama_kelas)
+                        setShowModal(true)
+                      }}
+                      title="Edit"
+                    >
+                      <i className="bi bi-pencil" />
+                    </button>
+                  )}
 
-                  <button className="wk__actionBtn danger" onClick={() => item.id && handleDelete(item.id)} title="Hapus">
-                    <i className="bi bi-trash" />
-                  </button>
+                  {canDelete && (
+                    <button className="wk__actionBtn danger" onClick={() => item.id && handleDelete(item.id)} title="Hapus">
+                      <i className="bi bi-trash" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -518,10 +543,11 @@ export default function WaliKelasTab() {
                       subLabel: g.nip,
                     }))}
                     onChange={(val) => {
-                      const selected = masterGuru.find((g) => g.nip === val)
+                      const v = val as string
+                      const selected = masterGuru.find((g) => g.nip === v)
                       setFormData({
                         ...formData,
-                        nip: val,
+                        nip: v,
                         nama_guru: selected ? selected.nama_lengkap : '',
                       })
                     }}

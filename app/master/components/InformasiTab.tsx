@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import { hasPermission } from '@/lib/permissions-client';
 
@@ -28,6 +28,7 @@ export default function InformasiTab({ user }: { user?: any }) {
     const [isAddingCategory, setIsAddingCategory] = useState(false);
     const [files, setFiles] = useState<File[]>([]);
     const [uploadProgress, setUploadProgress] = useState(0);
+    const [filterCat, setFilterCat] = useState('ALL');
 
     // Permissions
     const permissions = user?.permissions || [];
@@ -256,6 +257,16 @@ export default function InformasiTab({ user }: { user?: any }) {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
+    const categoriesList = Array.from(new Set(list.map(d => d.category))).sort();
+    const filteredList = filterCat === 'ALL' ? list : list.filter(d => d.category === filterCat);
+
+    const groupedDocs = filteredList.reduce((acc: any, doc: any) => {
+        if (!acc[doc.category]) acc[doc.category] = [];
+        acc[doc.category].push(doc);
+        return acc;
+    }, {});
+    const sortedGroupKeys = Object.keys(groupedDocs).sort();
+
     return (
         <div className="inf">
             <div className="inf__header">
@@ -263,11 +274,33 @@ export default function InformasiTab({ user }: { user?: any }) {
                     <h3>Manajemen Informasi Akademik</h3>
                     <p>Unggah dan kelola dokumen informasi untuk ditampilkan di landing page.</p>
                 </div>
-                {canManage && (
-                    <button className="inf__addBtn" onClick={() => setShowModal(true)}>
-                        <i className="bi bi-cloud-arrow-up"></i> Unggah Dokumen
-                    </button>
-                )}
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <div className="inf__filter">
+                        <select
+                            value={filterCat}
+                            onChange={(e) => setFilterCat(e.target.value)}
+                            style={{
+                                padding: '8px 12px',
+                                borderRadius: '10px',
+                                border: '1px solid #e2e8f0',
+                                fontSize: '0.85rem',
+                                color: '#475569',
+                                outline: 'none',
+                                background: 'white'
+                            }}
+                        >
+                            <option value="ALL">Semua Folder</option>
+                            {categoriesList.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
+                    </div>
+                    {canManage && (
+                        <button className="inf__addBtn" onClick={() => setShowModal(true)}>
+                            <i className="bi bi-cloud-arrow-up"></i> Unggah Dokumen
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="inf__tableWrap">
@@ -287,42 +320,52 @@ export default function InformasiTab({ user }: { user?: any }) {
                             <tr><td colSpan={canManage ? 6 : 4} className="inf__empty">Akses ditolak.</td></tr>
                         ) : loading ? (
                             <tr><td colSpan={canManage ? 6 : 4} className="inf__empty">Memuat...</td></tr>
-                        ) : list.length === 0 ? (
-                            <tr><td colSpan={canManage ? 6 : 4} className="inf__empty">Belum ada dokumen.</td></tr>
+                        ) : filteredList.length === 0 ? (
+                            <tr><td colSpan={canManage ? 6 : 4} className="inf__empty">Tidak ada dokumen di kategori ini.</td></tr>
                         ) : (
-                            list.map((doc) => (
-                                <tr key={doc.id}>
-                                    <td data-label="Judul Dokumen" className="inf__title">
-                                        <a href={doc.file_url} target="_blank" rel="noreferrer">
-                                            <i className="bi bi-file-earmark-pdf"></i>
-                                            {doc.title}
-                                        </a>
-                                    </td>
-                                    <td data-label="Kategori"><span className="badge-cat">{doc.category}</span></td>
-                                    <td data-label="Info File" className="inf__meta">
-                                        <div>{formatSize(doc.file_size)}</div>
-                                    </td>
-                                    <td data-label="Tgl Unggah" className="inf__date">{new Date(doc.created_at).toLocaleDateString('id-ID')}</td>
-                                    {canManage && (
-                                        <td data-label="Status Tampil">
-                                            <label className="toggle-switch">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={doc.show_on_landing}
-                                                    onChange={() => handleToggleShowOnLanding(doc)}
-                                                />
-                                                <span className="toggle-slider"></span>
-                                            </label>
+                            sortedGroupKeys.map((catKey) => (
+                                <React.Fragment key={catKey}>
+                                    <tr>
+                                        <td colSpan={canManage ? 6 : 4} style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold', color: '#1e3a8a', padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+                                            <i className="bi bi-folder-fill" style={{ marginRight: '8px', color: '#1e40af' }}></i>
+                                            {catKey}
                                         </td>
-                                    )}
-                                    {canManage && (
-                                        <td data-label="Aksi">
-                                            <button className="inf__delBtn" onClick={() => handleDelete(doc)}>
-                                                <i className="bi bi-trash"></i>
-                                            </button>
-                                        </td>
-                                    )}
-                                </tr>
+                                    </tr>
+                                    {groupedDocs[catKey].map((doc: Document) => (
+                                        <tr key={doc.id}>
+                                            <td data-label="Judul Dokumen" className="inf__title">
+                                                <a href={doc.file_url} target="_blank" rel="noreferrer">
+                                                    <i className="bi bi-file-earmark-pdf"></i>
+                                                    {doc.title}
+                                                </a>
+                                            </td>
+                                            <td data-label="Kategori"><span className="badge-cat">{doc.category}</span></td>
+                                            <td data-label="Info File" className="inf__meta">
+                                                <div>{formatSize(doc.file_size)}</div>
+                                            </td>
+                                            <td data-label="Tgl Unggah" className="inf__date">{new Date(doc.created_at).toLocaleDateString('id-ID')}</td>
+                                            {canManage && (
+                                                <td data-label="Status Tampil">
+                                                    <label className="toggle-switch">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={doc.show_on_landing}
+                                                            onChange={() => handleToggleShowOnLanding(doc)}
+                                                        />
+                                                        <span className="toggle-slider"></span>
+                                                    </label>
+                                                </td>
+                                            )}
+                                            {canManage && (
+                                                <td data-label="Aksi">
+                                                    <button className="inf__delBtn" onClick={() => handleDelete(doc)}>
+                                                        <i className="bi bi-trash"></i>
+                                                    </button>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </React.Fragment>
                             ))
                         )}
                     </tbody>
@@ -489,7 +532,7 @@ export default function InformasiTab({ user }: { user?: any }) {
                 .inf__title a:hover { color: #1e40af; }
                 .inf__title i { color: #64748b; font-size: 0.9rem; flex-shrink: 0; }
                 
-                .badge-cat { padding: 3px 8px; background: #eff6ff; color: #1e40af; border-radius: 6px; font-size: 0.68rem; font-weight: 700; }
+                .badge-cat { color: #1e40af; font-size: 0.72rem; font-weight: 700; }
                 .inf__meta { font-size: 0.75rem; color: #64748b; }
                 .inf__date { font-size: 0.78rem; color: #94a3b8; }
 

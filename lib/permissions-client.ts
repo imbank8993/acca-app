@@ -24,7 +24,18 @@ export function matchResource(required: string, possessed: string): boolean {
 export function matchAction(required: string, possessed: string): boolean {
     if (possessed === '*') return true;
     if (possessed === 'manage') return true; // manage implies all other actions (view, create, etc)
-    return possessed === required;
+    if (possessed === required) return true;
+
+    // ALIASES
+    const p = possessed.toLowerCase();
+    const r = required.toLowerCase();
+    if (p === 'view' && r === 'read') return true;
+    if (p === 'read' && r === 'view') return true;
+
+    // TAB HANDLING: if user has 'view' or '*', they can access any tab action
+    if ((p === 'view' || p === 'manage') && r.startsWith('tab:')) return true;
+
+    return false;
 }
 
 /**
@@ -33,7 +44,6 @@ export function matchAction(required: string, possessed: string): boolean {
  */
 export function hasPermission(userPermissions: any[], resource: string, action: string, isAdmin: boolean = false): boolean {
     if (isAdmin) return true;
-    if (action === 'view') return true; // VISIBILITY BY DEFAULT: Allow everyone to view
     if (!userPermissions) return false;
 
     return userPermissions.some(p => {

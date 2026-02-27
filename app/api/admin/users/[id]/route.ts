@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { buildUserObject } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { checkPermission } from '@/lib/permissions';
 
 // GET /api/admin/users/[id] - Get single user
 export async function GET(
@@ -28,9 +29,7 @@ export async function GET(
                                 cookieStore.set(name, value, options)
                             )
                         } catch {
-                            // The `setAll` method was called from a Server Component.
-                            // This can be ignored if you have middleware refreshing
-                            // user sessions.
+                            // Ignored
                         }
                     },
                 },
@@ -43,15 +42,20 @@ export async function GET(
             return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Get user from DB to check role
+        // Get user roles from DB
         const { data: dbUser } = await supabaseAdmin
             .from('users')
             .select('role')
             .eq('auth_id', authUser.id)
             .single();
 
-        if (!dbUser || !dbUser.role?.toLowerCase().includes('admin')) {
-            return NextResponse.json({ ok: false, error: 'Admin access required' }, { status: 403 });
+        const roles = (dbUser?.role || '').split(/[,|]/).map((r: string) => r.trim().toUpperCase());
+
+        // RBAC CHECK
+        const hasAccess = await checkPermission(roles, 'pengaturan_users.user_data', 'view');
+
+        if (!hasAccess) {
+            return NextResponse.json({ ok: false, error: 'Access denied (RBAC)' }, { status: 403 });
         }
 
         const { data, error } = await supabaseAdmin
@@ -115,15 +119,20 @@ export async function PUT(
             return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Get user from DB to check role
-        const { data: dbUser } = await supabaseAdmin
+        // Get user roles from DB
+        const { data: dbUserUpdate } = await supabaseAdmin
             .from('users')
             .select('role')
             .eq('auth_id', authUser.id)
             .single();
 
-        if (!dbUser || !dbUser.role?.toLowerCase().includes('admin')) {
-            return NextResponse.json({ ok: false, error: 'Admin access required' }, { status: 403 });
+        const rolesUpdate = (dbUserUpdate?.role || '').split(/[,|]/).map((r: string) => r.trim().toUpperCase());
+
+        // RBAC CHECK
+        const hasAccessUpdate = await checkPermission(rolesUpdate, 'pengaturan_users.user_data', 'update');
+
+        if (!hasAccessUpdate) {
+            return NextResponse.json({ ok: false, error: 'Access denied (RBAC)' }, { status: 403 });
         }
 
         const body = await request.json();

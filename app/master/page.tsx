@@ -32,9 +32,12 @@ export default function MasterDataPage({ user }: { user?: any }) {
   const permissions = user?.permissions || []
   const isAdmin = user?.role === 'ADMIN' || user?.roles?.some((r: string) => r.toUpperCase() === 'ADMIN') || false
 
-  const allowedTabs = tabs.filter(tab =>
-    hasPermission(permissions, 'master', `tab:${tab.key}`, isAdmin)
-  )
+  const allowedTabs = tabs.filter(tab => {
+    // Check for master:tab:key OR master.key:view OR master:* (as fallback)
+    return hasPermission(permissions, 'master', `tab:${tab.key}`, isAdmin) ||
+      hasPermission(permissions, `master.${tab.key}`, 'view', isAdmin) ||
+      hasPermission(permissions, `master.${tab.key}`, '*', isAdmin);
+  })
 
   const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]?.key as TabType || 'tahun_ajaran')
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { checkPermission } from '@/lib/permissions';
 
 export async function POST(request: NextRequest) {
     try {
@@ -24,9 +25,20 @@ export async function POST(request: NextRequest) {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (!authUser) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
 
-        const { data: dbUser } = await supabaseAdmin.from('users').select('role').eq('auth_id', authUser.id).single();
-        if (!dbUser || !dbUser.role?.toLowerCase().includes('admin')) {
-            return NextResponse.json({ ok: false, error: 'Admin access required' }, { status: 403 });
+        // Get user roles from DB
+        const { data: dbUser } = await supabaseAdmin
+            .from('users')
+            .select('role')
+            .eq('auth_id', authUser.id)
+            .single();
+
+        const roles = (dbUser?.role || '').split(/[,|]/).map((r: string) => r.trim().toUpperCase());
+
+        // RBAC CHECK
+        const hasAccess = await checkPermission(roles, 'pengaturan_users.user_data', 'update');
+
+        if (!hasAccess) {
+            return NextResponse.json({ ok: false, error: 'Access denied (RBAC)' }, { status: 403 });
         }
 
         const body = await request.json();

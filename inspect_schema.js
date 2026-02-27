@@ -28,7 +28,7 @@ async function inspectTable(tableName) {
 
 async function listTables() {
     // This might not work if rpc is not set up, but let's try just standard tables
-    const tables = ['siswa', 'dokumen_siswa', 'kelas', 'rombel', 'master_kelas', 'data_siswa'];
+    const tables = ['siswa', 'dokumen_siswa', 'uploaded_documents', 'kelas', 'rombel', 'master_kelas', 'data_siswa'];
     for (const t of tables) {
         await inspectTable(t);
     }
