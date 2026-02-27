@@ -9,8 +9,7 @@ import Swal from 'sweetalert2'
 import BulkDocsUploadModal from '@/components/ui/BulkDocsUploadModal'
 
 export default function ArsipSiswaTab({ user }: { user?: any }) {
-    const [activeTab, setActiveTab] = useState('official') // 'official' | 'student'
-    const [studentDocs, setStudentDocs] = useState<any[]>([])
+    const [activeMainTab, setActiveMainTab] = useState<'all' | 'siswa' | 'guru'>('all')
 
     const [categories, setCategories] = useState<any[]>([])
     const [documents, setDocuments] = useState<any[]>([])
@@ -28,28 +27,23 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
     const [students, setStudents] = useState<any[]>([])
     const [filteredStudents, setFilteredStudents] = useState<any[]>([]) // Displayed students based on class filter
     const [showUploadModal, setShowUploadModal] = useState(false)
+    const [teachers, setTeachers] = useState<any[]>([])
 
 
 
     useEffect(() => {
         fetchClasses()
-        if (activeTab === 'official') {
-            fetchStudents()
-        }
+        fetchStudents()
+        fetchTeachers()
     }, [])
 
     useEffect(() => {
         fetchCategories()
-    }, [activeTab]) // Re-fetch categories when tab changes
+    }, [activeMainTab])
 
-    // Auto-fetch when filters or tab change
     useEffect(() => {
-        if (activeTab === 'official') {
-            fetchDocuments()
-        } else {
-            fetchStudentDocs()
-        }
-    }, [filterCategory, activeTab, filterUploader, selectedClass]) // Added selectedClass dependency
+        fetchDocuments()
+    }, [filterCategory, activeMainTab, filterUploader, selectedClass])
 
     useEffect(() => {
         if (selectedClass && students.length > 0) {
@@ -78,6 +72,16 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
         }
     }
 
+    const fetchTeachers = async () => {
+        const { data } = await supabase
+            .from('master_guru')
+            .select('nip, nama_lengkap')
+            .eq('aktif', true)
+            .order('nama_lengkap')
+
+        if (data) setTeachers(data)
+    }
+
     const filterStudentsByClass = async () => {
         if (!selectedClass) {
             setFilteredStudents(students)
@@ -101,126 +105,118 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
     }
 
     const fetchCategories = async () => {
-        // Fetch categories based on active role/tab context
-        // 'official' tab sees 'official' categories
-        // 'student' tab sees 'student' categories
-        const type = activeTab === 'official' ? 'official' : 'student';
+        try {
+            let query = supabase.from('upload_categories').select('*')
 
-        const { data } = await supabase
-            .from('upload_categories')
-            .select('*')
-            .eq('jenis', type) // Filter by jenis
-            .order('name')
-        if (data) setCategories(data)
+            // If tab is 'siswa', show target_role = 'siswa' OR target_role is NULL (legacy)
+            if (activeMainTab === 'siswa') {
+                query = query.or('target_role.eq.siswa,target_role.is.null')
+            } else if (activeMainTab === 'guru') {
+                query = query.eq('target_role', 'guru')
+            }
+            // For 'all', we don't filter, so it shows everything.
+
+            const { data, error } = await query.order('target_role', { ascending: false, nullsFirst: false }).order('name')
+
+            if (error) {
+                console.error('Error fetching categories detail:', {
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint,
+                    code: error.code
+                })
+                return
+            }
+
+            if (data) setCategories(data)
+        } catch (err) {
+            console.error('Unexpected error in fetchCategories:', err)
+        }
     }
 
 
 
-    // Fetch Admin Uploads (Official)
+    // Unified Fetch for All Documents
     const fetchDocuments = async () => {
         setLoading(true)
-        // Refactored to Client-Side Join to avoid Foreign Key issues
-        let query = supabase
-            .from('dokumen_siswa')
-            .select('*')
-            .order('created_at', { ascending: false })
 
-        // No server-side join yet, so we get all docs then filter client-side
+        const [resmiRes, kirimanRes] = await Promise.all([
+            supabase.from('dokumen_siswa').select('*').order('created_at', { ascending: false }),
+            supabase.from('uploaded_documents').select('*').order('created_at', { ascending: false })
+        ])
 
-        // If filterUploader is set, search by student name or NISN is complex without join.
-        // We handle this client-side below for now as per previous pattern.
-
-        const { data, error } = await query
-
-        if (error) {
-            console.error('Error fetching admin docs:', error)
+        if (resmiRes.error || kirimanRes.error) {
+            console.error('Error fetching docs:', resmiRes.error || kirimanRes.error)
             setDocuments([])
-        } else if (data) {
-            // Map to the format component expects
-            const mapped = data.map((item: any) => ({
-                id: item.id,
-                created_at: item.created_at,
-                nisn: item.nisn,
-                uploader_name: item.nisn, // Will be replaced by name lookup
-                uploader_role: item.uploaded_by || 'Admin',
-                category_name: item.kategori,
-                file_name: item.judul,
-                file_url: item.file_url,
-                category_id: item.kategori
-            }))
+            setLoading(false)
+            return
+        }
 
-            let filteredDocs = mapped;
+        // Map Resmi
+        const mappedResmi = (resmiRes.data || []).map((item: any) => ({
+            id: item.id,
+            created_at: item.created_at,
+            nisn: item.nisn,
+            nip: item.nip,
+            uploader_name: item.nisn || item.nip,
+            uploader_role: 'Admin',
+            category_name: item.kategori,
+            file_name: item.judul,
+            file_url: item.file_url,
+            target_role: item.target_role
+        }))
 
-            // 1. Filter by Category
-            if (filterCategory) {
-                const selectedCat = categories.find(c => c.id === filterCategory)
-                if (selectedCat) {
-                    filteredDocs = filteredDocs.filter((d: any) =>
-                        d.category_name?.trim().toLowerCase() === selectedCat.name?.trim().toLowerCase()
-                    )
-                }
-            }
+        // Map Kiriman
+        const mappedKiriman = (kirimanRes.data || []).map((item: any) => ({
+            id: item.id,
+            created_at: item.created_at,
+            nisn: '',
+            nip: '',
+            uploader_name: item.uploader_name,
+            uploader_role: item.uploader_role, // 'siswa' or 'guru'
+            category_name: item.category_name,
+            file_name: item.file_name,
+            file_url: item.file_url,
+            target_role: item.uploader_role
+        }))
 
-            // 2. Filter by Search (Uploader/File)
-            if (filterUploader) {
-                const lowerQ = filterUploader.toLowerCase()
-                filteredDocs = filteredDocs.filter((d: any) =>
-                    d.file_name?.toLowerCase().includes(lowerQ) ||
-                    d.nisn?.includes(lowerQ)
-                    // Note: Name lookup happens in render, so filtering by name here is tricky without pre-joining. 
-                    // Better to rely on NISN/File name or do a lookup map.
+        let combined = [...mappedResmi, ...mappedKiriman]
+
+        // 1. Filter by Main Tab (Role)
+        if (activeMainTab !== 'all') {
+            combined = combined.filter(d => d.target_role === activeMainTab)
+        }
+
+        // 2. Filter by Category
+        if (filterCategory) {
+            const selectedCat = categories.find(c => c.id === filterCategory)
+            if (selectedCat) {
+                combined = combined.filter((d: any) =>
+                    d.category_name?.trim().toLowerCase() === selectedCat.name?.trim().toLowerCase()
                 )
             }
-
-            // 3. Filter by Class (New)
-            if (selectedClass && filteredStudents.length > 0) {
-                const allowedNisns = new Set(filteredStudents.map(s => s.nisn))
-                filteredDocs = filteredDocs.filter((d: any) => allowedNisns.has(d.nisn))
-            } else if (selectedClass && filteredStudents.length === 0) {
-                filteredDocs = []
-            }
-
-            setDocuments(filteredDocs)
         }
-        setLoading(false)
-    }
 
-
-    // Fetch Student Uploads (Old Flow)
-    const fetchStudentDocs = async () => {
-        setLoading(true)
-        let query = supabase
-            .from('uploaded_documents')
-            .select('*')
-            .order('created_at', { ascending: false })
-
-        if (filterCategory) query = query.eq('category_id', filterCategory)
-
+        // 3. Filter by Search
         if (filterUploader) {
-            query = query.or(`uploader_name.ilike.%${filterUploader}%,file_name.ilike.%${filterUploader}%`)
+            const lowerQ = filterUploader.toLowerCase()
+            combined = combined.filter((d: any) =>
+                d.file_name?.toLowerCase().includes(lowerQ) ||
+                d.uploader_name?.toLowerCase().includes(lowerQ)
+            )
         }
 
-        const { data, error } = await query
-
-        if (error) {
-            console.error('Error fetching student docs:', error)
-            setStudentDocs([])
-        } else if (data) {
-            const mapped = data.map((item: any) => ({
-                id: item.id,
-                created_at: item.created_at,
-                nisn: '', // uploaded_documents doesn't have NISN column directly usually
-                uploader_name: item.uploader_name,
-                uploader_role: item.uploader_role,
-                category_name: item.category_name,
-                file_name: item.file_name,
-                file_url: item.file_url,
-                category_id: item.category_id
-            }))
-            setStudentDocs(mapped)
+        // 4. Filter by Class
+        if (activeMainTab === 'siswa' && selectedClass && filteredStudents.length > 0) {
+            const allowedNisns = new Set(filteredStudents.map(s => s.nisn))
+            combined = combined.filter((d: any) => !d.nisn || allowedNisns.has(d.nisn))
         }
+
+        setDocuments(combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
         setLoading(false)
     }
+
+
 
 
 
@@ -228,11 +224,10 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
         e.preventDefault()
         if (!newCategory) return
 
-        const type = activeTab === 'official' ? 'official' : 'student';
-
         const { error } = await supabase.from('upload_categories').insert([{
             name: newCategory,
-            jenis: type
+            jenis: activeMainTab === 'all' ? 'official' : 'student',
+            target_role: activeMainTab === 'all' ? 'siswa' : activeMainTab
         }])
 
         if (!error) {
@@ -420,7 +415,7 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
     }
 
     // Stats Calculation
-    const totalDocs = activeTab === 'official' ? documents.length : studentDocs.length
+    const totalDocs = documents.length
     const totalFolders = categories.length
 
     return (
@@ -428,8 +423,8 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
             {/* Header Section with Glassmorphism */}
             <div className="ds-header">
                 <div>
-                    <h2 className="header-title">Konfigurasi Dokumen Akademik</h2>
-                    <p className="header-subtitle">Kelola semua dokumen akademik guru dan siswa dalam satu tempat yang aman dan terintegrasi.</p>
+                    <h2 className="header-title">Dokumen Digital {activeMainTab === 'all' ? '' : (activeMainTab === 'siswa' ? 'Siswa' : 'Guru')}</h2>
+                    <p className="header-subtitle">Kelola semua dokumen resmi dan kiriman {activeMainTab === 'all' ? 'akademik' : (activeMainTab === 'siswa' ? 'siswa' : 'guru')} dalam satu tempat.</p>
                 </div>
                 <div className="header-stats">
                     <div className="stat-item">
@@ -443,20 +438,26 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                 </div>
             </div>
 
-            {/* Tab Navigation (Pill Style) */}
+            {/* Main Tabs (Semua, Siswa, Guru) */}
             <div className="ds-tabs-wrapper">
                 <div className="ds-tabs">
                     <button
-                        className={`tab-btn ${activeTab === 'official' ? 'active' : ''}`}
-                        onClick={() => { setActiveTab('official'); fetchDocuments(); }}
+                        className={`tab-btn ${activeMainTab === 'all' ? 'active' : ''}`}
+                        onClick={() => { setActiveMainTab('all'); setFilterCategory(''); setSelectedClass(''); }}
                     >
-                        <i className="bi bi-shield-check"></i> Dokumen Resmi
+                        <i className="bi bi-grid-fill"></i> Semua Dokumen
                     </button>
                     <button
-                        className={`tab-btn ${activeTab === 'student' ? 'active' : ''}`}
-                        onClick={() => { setActiveTab('student'); fetchStudentDocs(); }}
+                        className={`tab-btn ${activeMainTab === 'siswa' ? 'active' : ''}`}
+                        onClick={() => { setActiveMainTab('siswa'); setFilterCategory(''); setSelectedClass(''); }}
                     >
-                        <i className="bi bi-person-badge"></i> Kiriman Siswa
+                        <i className="bi bi-people-fill"></i> Dokumen Siswa
+                    </button>
+                    <button
+                        className={`tab-btn ${activeMainTab === 'guru' ? 'active' : ''}`}
+                        onClick={() => { setActiveMainTab('guru'); setFilterCategory(''); setSelectedClass(''); }}
+                    >
+                        <i className="bi bi-person-workspace"></i> Dokumen Guru
                     </button>
                 </div>
             </div>
@@ -494,19 +495,41 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                 <i className="bi bi-grid-fill"></i>
                                 <span>Semua Dokumen</span>
                             </div>
-                            {categories.map(cat => (
-                                <div key={cat.id} className={`folder-item ${filterCategory === cat.id ? 'active' : ''}`}>
-                                    <div className="folder-click" onClick={() => setFilterCategory(cat.id)}>
-                                        <i className="bi bi-folder-fill"></i>
-                                        <span>{cat.name}</span>
+                            {categories.map((cat, index) => {
+                                const currentRole = cat.target_role || 'siswa'; // treat null as siswa
+                                const prevRole = index > 0 ? (categories[index - 1].target_role || 'siswa') : null;
+
+                                // In 'all' tab, show a separator when role changes
+                                const showSeparator = activeMainTab === 'all' &&
+                                    index > 0 &&
+                                    prevRole !== currentRole;
+
+                                return (
+                                    <div key={cat.id}>
+                                        {showSeparator && <div className="folder-separator">Dokumen {currentRole === 'siswa' ? 'Siswa' : 'Guru'}</div>}
+                                        {index === 0 && activeMainTab === 'all' && <div className="folder-separator">Dokumen {currentRole === 'siswa' ? 'Siswa' : 'Guru'}</div>}
+
+                                        <div className={`folder-item ${filterCategory === cat.id ? 'active' : ''}`}>
+                                            <div className="folder-click" onClick={() => setFilterCategory(cat.id)}>
+                                                <i className={`bi bi-folder-fill ${currentRole === 'guru' ? 'text-primary' : ''}`}></i>
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <span style={{ fontSize: '0.85rem' }}>{cat.name}</span>
+                                                    {activeMainTab === 'all' && (
+                                                        <span style={{ fontSize: '0.65rem', opacity: 0.7, textTransform: 'uppercase' }}>
+                                                            {currentRole}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="folder-actions">
+                                                <button onClick={() => handleEditCategory(cat)}><i className="bi bi-pencil"></i></button>
+                                                <button onClick={() => handleDeleteCategory(cat.id)} className="del"><i className="bi bi-x"></i></button>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="folder-actions">
-                                        <button onClick={() => handleEditCategory(cat)}><i className="bi bi-pencil"></i></button>
-                                        <button onClick={() => handleDeleteCategory(cat.id)} className="del"><i className="bi bi-x"></i></button>
-                                    </div>
-                                </div>
-                            ))}
-                            {categories.length === 0 && <p className="empty-msg">Belum ada folder.</p>}
+                                );
+                            })}
+                            {categories.length === 0 && <p className="empty-msg">Belum ada folder untuk {activeMainTab === 'all' ? 'kategori ini' : activeMainTab}.</p>}
                         </div>
                     </div>
                 </div>
@@ -518,29 +541,31 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                         <div className="ds-toolbar">
                             <div className="toolbar-left" style={{ display: 'flex', gap: '12px', flex: 1 }}>
                                 {/* Class Filter */}
-                                <div className="class-filter" style={{ minWidth: '150px' }}>
-                                    <div className="select-wrapper">
-                                        <select
-                                            value={selectedClass}
-                                            onChange={(e) => setSelectedClass(e.target.value)}
-                                            style={{
-                                                width: '100%',
-                                                padding: '12px 14px',
-                                                borderRadius: '12px',
-                                                border: '1px solid #e2e8f0',
-                                                fontSize: '0.9rem',
-                                                outline: 'none',
-                                                background: '#f8fafc',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            <option value="">Semua Kelas</option>
-                                            {classes.map(cls => (
-                                                <option key={cls.id} value={cls.nama}>{cls.nama}</option>
-                                            ))}
-                                        </select>
+                                {activeMainTab === 'siswa' && (
+                                    <div className="class-filter" style={{ minWidth: '150px' }}>
+                                        <div className="select-wrapper">
+                                            <select
+                                                value={selectedClass}
+                                                onChange={(e) => setSelectedClass(e.target.value)}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '12px 14px',
+                                                    borderRadius: '12px',
+                                                    border: '1px solid #e2e8f0',
+                                                    fontSize: '0.9rem',
+                                                    outline: 'none',
+                                                    background: '#f8fafc',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                <option value="">Semua Kelas</option>
+                                                {classes.map(cls => (
+                                                    <option key={cls.id} value={cls.nama}>{cls.nama}</option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
                                 <div className="search-bar" style={{ flex: 1 }}>
                                     <i className="bi bi-search"></i>
@@ -568,7 +593,7 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                 >
                                     {isDownloading ? <span className="spinner"></span> : <i className="bi bi-file-earmark-zip-fill"></i>}
                                 </button>
-                                <button onClick={activeTab === 'official' ? fetchDocuments : fetchStudentDocs} className="btn-refresh" title="Refresh Data">
+                                <button onClick={fetchDocuments} className="btn-refresh" title="Refresh Data">
                                     <i className="bi bi-arrow-clockwise"></i>
                                 </button>
                             </div>
@@ -578,7 +603,8 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                             <table className="ds-table">
                                 <thead>
                                     <tr>
-                                        <th>Dokumen Siswa</th>
+                                        <th>Dokumen {activeMainTab === 'all' ? '' : (activeMainTab === 'siswa' ? 'Siswa' : 'Guru')}</th>
+                                        <th>Kategori</th>
                                         <th>Tanggal</th>
                                         <th className="text-center">Aksi</th>
                                     </tr>
@@ -592,13 +618,13 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                             </div>
                                         </td></tr>
                                     ) : totalDocs === 0 ? (
-                                        <tr><td colSpan={3} className="state-cell">
+                                        <tr><td colSpan={4} className="state-cell">
                                             <div className="empty-state">
                                                 <i className="bi bi-folder2-open"></i>
                                                 <p>Belum ada dokumen di tab ini.</p>
                                             </div>
                                         </td></tr>
-                                    ) : (activeTab === 'official' ? documents : studentDocs).map(doc => (
+                                    ) : documents.map(doc => (
                                         <tr key={doc.id}>
                                             <td className="col-file">
                                                 <div className="file-wrap">
@@ -607,11 +633,17 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                                     </div>
                                                     <div className="file-meta">
                                                         <span className="file-name" title={doc.uploader_name}>
-                                                            {students.find(s => s.nisn === doc.nisn)?.nama_lengkap || doc.uploader_name || '?'}
+                                                            {doc.target_role === 'siswa'
+                                                                ? (students.find(s => s.nisn === doc.nisn)?.nama_lengkap || doc.uploader_name || '?')
+                                                                : (teachers.find((g: any) => g.nip === doc.nip)?.nama_lengkap || doc.uploader_name || '?')
+                                                            }
                                                         </span>
-                                                        <span className="file-folder"><i className="bi bi-folder"></i> {doc.category_name}</span>
+                                                        <span className="file-folder hidden-md"><i className="bi bi-folder"></i> {doc.category_name}</span>
                                                     </div>
                                                 </div>
+                                            </td>
+                                            <td className="col-category">
+                                                <span className="badge-category">{doc.category_name}</span>
                                             </td>
                                             <td className="col-date">
                                                 {new Date(doc.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -643,7 +675,8 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
             <BulkDocsUploadModal
                 isOpen={showUploadModal}
                 onClose={() => setShowUploadModal(false)}
-                students={selectedClass ? filteredStudents : students}
+                targetRole={activeMainTab === 'all' ? 'siswa' : activeMainTab}
+                data={activeMainTab === 'guru' ? teachers : (selectedClass ? filteredStudents : students)}
                 onUploadSuccess={() => {
                     fetchDocuments()
                     setShowUploadModal(false)
@@ -720,6 +753,14 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                 }
                 .folder-item:hover { background: #f1f5f9; color: var(--text-main); }
                 .folder-item.active { background: var(--primary-light); color: var(--primary); font-weight: 700; }
+                .folder-separator {
+                    padding: 12px 14px 4px 14px;
+                    font-size: 0.65rem;
+                    font-weight: 800;
+                    color: #94a3b8;
+                    text-transform: uppercase;
+                    letter-spacing: 0.1em;
+                }
                 .folder-click { display: flex; align-items: center; gap: 12px; flex: 1; }
                 .folder-click i { font-size: 1.1rem; opacity: 0.8; }
                 .folder-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
@@ -778,9 +819,10 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                 }
                 
                 /* Define Column Widths explicitly */
-                .ds-table th:nth-child(1) { width: 60%; } /* Dokumen Siswa */
-                .ds-table th:nth-child(2) { width: 20%; } /* Tanggal */
-                .ds-table th:nth-child(3) { width: 20%; text-align: center; } /* Aksi */
+                .ds-table th:nth-child(1) { width: 45%; } /* Dokumen */
+                .ds-table th:nth-child(2) { width: 20%; } /* Kategori */
+                .ds-table th:nth-child(3) { width: 15%; } /* Tanggal */
+                .ds-table th:nth-child(4) { width: 20%; text-align: center; } /* Aksi */
 
                 .ds-table td { 
                     padding: 16px 20px; 
@@ -811,6 +853,12 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                 }
                 .file-folder { font-size: 0.75rem; color: var(--text-sub); display: flex; align-items: center; gap: 4px; }
                 
+                /* Cell: Category */
+                .col-category { font-size: 0.85rem; font-weight: 500; color: var(--text-main); }
+                .badge-category {
+                    background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 6px;
+                    font-size: 0.75rem; font-weight: 600; text-transform: capitalize;
+                }
 
                 /* Cell: Date */
                 .col-date { color: var(--text-sub); font-size: 0.85rem; font-weight: 500; }
@@ -841,7 +889,8 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                     .header-stats { width: 100%; justify-content: space-around; }
                     .ds-content-grid { display: flex; flex-direction: column; }
                     .ds-table-container { overflow-x: auto; }
-                    .ds-table { min-width: 700px; } /* Only scroll on mobile if needed */
+                    .ds-table { min-width: 850px; } /* Only scroll on mobile if needed */
+                    .hidden-md { display: none; }
                 }
             `}</style>
         </div>

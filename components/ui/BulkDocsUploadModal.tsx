@@ -5,8 +5,9 @@ import { useState, useRef, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import Swal from 'sweetalert2'
 
-interface Student {
-    nisn: string;
+interface Person {
+    nisn?: string;
+    nip?: string;
     nama_lengkap: string;
     [key: string]: any;
 }
@@ -14,18 +15,19 @@ interface Student {
 interface BulkDocsUploadModalProps {
     isOpen: boolean;
     onClose: () => void;
-    students: Student[];
+    targetRole?: 'siswa' | 'guru';
+    data: Person[]; // Renamed from students
     onUploadSuccess: () => void;
     initialMode?: 'bulk' | 'single';
-    preSelectedStudent?: Student | null;
+    preSelectedPerson?: Person | null;
 }
 
 interface FileItem {
     file: File;
     status: 'PENDING' | 'MATCHED' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
-    matchedNisn?: string;
+    matchedId?: string; // NISN or NIP
     matchedName?: string;
-    manualNisn?: string;
+    manualId?: string;
     errorMessage?: string;
     progress: number;
 }
@@ -33,13 +35,14 @@ interface FileItem {
 export default function BulkDocsUploadModal({
     isOpen,
     onClose,
-    students,
+    targetRole = 'siswa',
+    data,
     onUploadSuccess,
     initialMode = 'bulk',
-    preSelectedStudent = null
+    preSelectedPerson = null
 }: BulkDocsUploadModalProps) {
     const [mode, setMode] = useState<'bulk' | 'single'>(initialMode);
-    const [selectedStudent, setSelectedStudent] = useState<Student | null>(preSelectedStudent);
+    const [selectedPerson, setSelectedPerson] = useState<Person | null>(preSelectedPerson);
     const [category, setCategory] = useState('');
     const [categories, setCategories] = useState<any[]>([]);
 
@@ -51,16 +54,20 @@ export default function BulkDocsUploadModal({
     useEffect(() => {
         if (isOpen) {
             setMode(initialMode);
-            setSelectedStudent(preSelectedStudent);
+            setSelectedPerson(preSelectedPerson);
             setFileItems([]);
             setCategory('');
             fetchCategories();
         }
-    }, [isOpen, initialMode, preSelectedStudent]);
+    }, [isOpen, initialMode, preSelectedPerson]);
 
     const fetchCategories = async () => {
-        const { data } = await supabase.from('upload_categories').select('*').order('name');
-        if (data) setCategories(data);
+        const { data: cats } = await supabase
+            .from('upload_categories')
+            .select('*')
+            .eq('target_role', targetRole)
+            .order('name');
+        if (cats) setCategories(cats);
     };
 
     if (!isOpen) return null;
@@ -68,22 +75,23 @@ export default function BulkDocsUploadModal({
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const newFiles = Array.from(e.target.files).map(file => {
-                let matchedNisn: string | undefined = undefined;
+                let matchedId: string | undefined = undefined;
                 let matchedName: string | undefined = undefined;
                 let status: FileItem['status'] = 'PENDING';
 
-                if (mode === 'single' && selectedStudent) {
-                    matchedNisn = selectedStudent.nisn;
-                    matchedName = selectedStudent.nama_lengkap;
+                if (mode === 'single' && selectedPerson) {
+                    matchedId = targetRole === 'siswa' ? selectedPerson.nisn : selectedPerson.nip;
+                    matchedName = selectedPerson.nama_lengkap;
                     status = 'MATCHED';
                 } else {
-                    const match = file.name.match(/(\d{10})/);
+                    const idPattern = targetRole === 'siswa' ? /(\d{10})/ : /(\d{18})/; // NISN 10 digits, NIP usually 18
+                    const match = file.name.match(idPattern);
                     if (match) {
-                        const nisn = match[1];
-                        const student = students.find(s => s.nisn === nisn);
-                        if (student) {
-                            matchedNisn = student.nisn;
-                            matchedName = student.nama_lengkap;
+                        const id = match[1];
+                        const person = data.find(p => (targetRole === 'siswa' ? p.nisn : p.nip) === id);
+                        if (person) {
+                            matchedId = id;
+                            matchedName = person.nama_lengkap;
                             status = 'MATCHED';
                         }
                     }
@@ -92,7 +100,7 @@ export default function BulkDocsUploadModal({
                 return {
                     file,
                     status,
-                    matchedNisn,
+                    matchedId,
                     matchedName,
                     progress: 0
                 };
@@ -107,15 +115,15 @@ export default function BulkDocsUploadModal({
         setFileItems(prev => prev.filter((_, i) => i !== index));
     };
 
-    const handleManualSelect = (index: number, nisn: string) => {
-        const student = students.find(s => s.nisn === nisn);
+    const handleManualSelect = (index: number, id: string) => {
+        const person = data.find(p => (targetRole === 'siswa' ? p.nisn : p.nip) === id);
         setFileItems(prev => {
             const next = [...prev];
             next[index] = {
                 ...next[index],
-                manualNisn: nisn,
-                matchedName: student ? student.nama_lengkap : undefined,
-                status: nisn ? 'MATCHED' : 'PENDING'
+                manualId: id,
+                matchedName: person ? person.nama_lengkap : undefined,
+                status: id ? 'MATCHED' : 'PENDING'
             };
             return next;
         });
@@ -127,14 +135,13 @@ export default function BulkDocsUploadModal({
             return;
         }
 
-        if (mode === 'single' && !selectedStudent) {
-            Swal.fire('Error', 'Pilih siswa terlebih dahulu!', 'error');
+        if (mode === 'single' && !selectedPerson) {
+            Swal.fire('Error', `Pilih ${targetRole === 'siswa' ? 'siswa' : 'guru'} terlebih dahulu!`, 'error');
             return;
         }
 
         const itemsToUpload = fileItems.filter(item =>
-            (item.status === 'MATCHED' || (item.status === 'PENDING' && item.manualNisn)) &&
-            item.status !== 'SUCCESS'
+            (item.status === 'MATCHED' || (item.status === 'PENDING' && item.manualId))
         );
 
         if (itemsToUpload.length === 0) {
@@ -145,11 +152,11 @@ export default function BulkDocsUploadModal({
         setIsUploading(true);
 
         const promises = fileItems.map(async (item, index) => {
-            const targetNisn = mode === 'single' && selectedStudent
-                ? selectedStudent.nisn
-                : (item.matchedNisn || item.manualNisn);
+            const targetId = mode === 'single' && selectedPerson
+                ? (targetRole === 'siswa' ? selectedPerson.nisn : selectedPerson.nip)
+                : (item.matchedId || item.manualId);
 
-            if (!targetNisn || item.status === 'SUCCESS' || item.status === 'UPLOADING') return;
+            if (!targetId || item.status === 'SUCCESS' || item.status === 'UPLOADING') return;
 
             setFileItems(prev => {
                 const next = [...prev];
@@ -176,7 +183,9 @@ export default function BulkDocsUploadModal({
                 const { error: dbError } = await supabase
                     .from('dokumen_siswa')
                     .insert({
-                        nisn: targetNisn,
+                        nisn: targetRole === 'siswa' ? targetId : null,
+                        nip: targetRole === 'guru' ? targetId : null,
+                        target_role: targetRole,
                         judul: item.file.name,
                         kategori: category,
                         file_url: uploadResult.file_url,
@@ -228,7 +237,7 @@ export default function BulkDocsUploadModal({
                             Upload Center
                         </h2>
                         <p className="text-[var(--n-muted)] text-[10px] mt-0.5">
-                            Kelola dokumen siswa dengan mudah dan cepat.
+                            Kelola dokumen {targetRole === 'siswa' ? 'siswa' : 'guru'} dengan mudah dan cepat.
                         </p>
                     </div>
                     <button className="jm__close" onClick={onClose} aria-label="Tutup">
@@ -253,7 +262,7 @@ export default function BulkDocsUploadModal({
                                 ? 'bg-blue-600 text-white shadow-md'
                                 : 'bg-transparent text-[var(--n-muted)] hover:bg-[var(--n-soft)]'}`}
                         >
-                            <i className="bi bi-person-video2 mr-2"></i> Per Siswa
+                            <i className="bi bi-person-video2 mr-2"></i> Per {targetRole === 'siswa' ? 'Siswa' : 'Guru'}
                         </button>
                     </div>
 
@@ -277,18 +286,21 @@ export default function BulkDocsUploadModal({
 
                             {mode === 'single' && (
                                 <div className="jm__field fade-in">
-                                    <label>Target Siswa <span className="text-red-500">*</span></label>
+                                    <label>Target {targetRole === 'siswa' ? 'Siswa' : 'Guru'} <span className="text-red-500">*</span></label>
                                     <select
-                                        value={selectedStudent?.nisn || ''}
+                                        value={targetRole === 'siswa' ? (selectedPerson?.nisn || '') : (selectedPerson?.nip || '')}
                                         onChange={(e) => {
-                                            const s = students.find(st => st.nisn === e.target.value);
-                                            setSelectedStudent(s || null);
+                                            const s = data.find(st => (targetRole === 'siswa' ? st.nisn : st.nip) === e.target.value);
+                                            setSelectedPerson(s || null);
                                         }}
                                     >
-                                        <option value="">-- Pilih Siswa --</option>
-                                        {students.map(s => (
-                                            <option key={s.nisn} value={s.nisn}>{s.nama_lengkap} ({s.nisn})</option>
-                                        ))}
+                                        <option value="">-- Pilih {targetRole === 'siswa' ? 'Siswa' : 'Guru'} --</option>
+                                        {data.map(s => {
+                                            const id = targetRole === 'siswa' ? s.nisn : s.nip;
+                                            return (
+                                                <option key={id} value={id}>{s.nama_lengkap} ({id})</option>
+                                            );
+                                        })}
                                     </select>
                                 </div>
                             )}
@@ -297,7 +309,7 @@ export default function BulkDocsUploadModal({
                                 <div className="jm__subSection flex items-start gap-2">
                                     <i className="bi bi-info-circle-fill text-blue-500 text-xs mt-0.5"></i>
                                     <div className="text-[10px] text-blue-800/80 leading-relaxed">
-                                        Format nama file otomatis: <strong className="text-blue-700">[NISN]_[Nama].pdf</strong>
+                                        Format nama file otomatis: <strong className="text-blue-700">[{targetRole === 'siswa' ? 'NISN' : 'NIP'}]_[Nama].pdf</strong>
                                     </div>
                                 </div>
                             )}
@@ -362,9 +374,9 @@ export default function BulkDocsUploadModal({
                                             <div className="flex items-center justify-between mt-0.5">
                                                 <span className="text-[9px] text-[var(--n-muted)]">{(item.file.size / 1024).toFixed(0)} KB</span>
 
-                                                {(item.matchedNisn || (mode === 'single' && selectedStudent) || item.manualNisn) ? (
+                                                {(item.matchedId || (mode === 'single' && selectedPerson) || item.manualId) ? (
                                                     <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded truncate max-w-[120px]">
-                                                        {mode === 'single' && selectedStudent ? selectedStudent.nama_lengkap : item.matchedName || 'Manual Match'}
+                                                        {mode === 'single' && selectedPerson ? selectedPerson.nama_lengkap : item.matchedName || 'Manual Match'}
                                                     </span>
                                                 ) : (
                                                     <div className="flex items-center gap-1">
@@ -372,13 +384,16 @@ export default function BulkDocsUploadModal({
                                                         {!isUploading && mode === 'bulk' && (
                                                             <select
                                                                 className="text-[9px] border border-slate-200 rounded px-1 py-0.5 w-[100px]"
-                                                                value={item.manualNisn || ''}
+                                                                value={item.manualId || ''}
                                                                 onChange={(e) => handleManualSelect(idx, e.target.value)}
                                                             >
-                                                                <option value="">Pilih Siswa...</option>
-                                                                {students.map(s => (
-                                                                    <option key={s.nisn} value={s.nisn}>{s.nama_lengkap}</option>
-                                                                ))}
+                                                                <option value="">Pilih {targetRole === 'siswa' ? 'Siswa' : 'Guru'}...</option>
+                                                                {data.map(s => {
+                                                                    const id = targetRole === 'siswa' ? s.nisn : s.nip;
+                                                                    return (
+                                                                        <option key={id} value={id}>{s.nama_lengkap}</option>
+                                                                    );
+                                                                })}
                                                             </select>
                                                         )}
                                                     </div>
