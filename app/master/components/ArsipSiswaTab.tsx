@@ -290,7 +290,7 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
         }
     }
 
-    const handleDeleteDocument = async (id: string, fileName: string, fileUrl: string) => {
+    const handleDeleteDocument = async (docId: string, fileName: string, fileUrl: string, nisn?: string, nip?: string) => {
         const result = await Swal.fire({
             title: 'Hapus Dokumen?',
             text: `Anda akan menghapus "${fileName}". File di server juga akan dihapus permanen. Lanjutkan?`,
@@ -305,10 +305,6 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
         if (result.isConfirmed) {
             try {
                 // 1. Delete from Remote Server (PHP)
-                // Extract relative path from URL if needed, or use a stored file_path if valid
-                // URL format: https://icgowa.sch.id/akademik.icgowa.sch.id/uploads/Basic/0085437937_SITI.pdf
-                // We need: uploads/Basic/0085437937_SITI.pdf
-
                 let filePathToSend = '';
                 if (fileUrl.includes('/uploads/')) {
                     filePathToSend = 'uploads/' + fileUrl.split('/uploads/')[1];
@@ -326,18 +322,36 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                     }
                 }
 
-                // 2. Delete from DB 'dokumen_siswa'
-                const { error } = await supabase.from('dokumen_siswa').delete().eq('id', id)
-                if (error) throw error
+                // 2. Delete from DB (Try both tables based on source context)
+                // Official docs have NISN or NIP filled in the mapped data, or we can check source if available.
+                // In fetchDocuments, we mapping: 
+                // mappedResmi (Official) has nisn/nip
+                // mappedKiriman (Uploaded) has empty nisn/nip strings
 
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Terhapus',
-                    text: 'Dokumen berhasil dihapus dari server dan database.',
-                    timer: 1500,
-                    showConfirmButton: false
-                })
-                fetchDocuments()
+                let deleteSuccess = false;
+
+                if (nisn || nip) {
+                    // It's likely an official document
+                    const { error } = await supabase.from('dokumen_siswa').delete().eq('id', docId)
+                    if (!error) deleteSuccess = true;
+                    else throw error;
+                } else {
+                    // It's likely a user-uploaded document
+                    const { error } = await supabase.from('uploaded_documents').delete().eq('id', docId)
+                    if (!error) deleteSuccess = true;
+                    else throw error;
+                }
+
+                if (deleteSuccess) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Terhapus',
+                        text: 'Dokumen berhasil dihapus.',
+                        timer: 1500,
+                        showConfirmButton: false
+                    })
+                    fetchDocuments()
+                }
             } catch (err: any) {
                 Swal.fire('Gagal', err.message || 'Gagal menghapus dokumen', 'error')
             }
@@ -656,7 +670,7 @@ export default function ArsipSiswaTab({ user }: { user?: any }) {
                                                     <a href={doc.file_url} download={doc.file_name} className="btn-act dl" title="Download">
                                                         <i className="bi bi-download"></i>
                                                     </a>
-                                                    <button onClick={() => handleDeleteDocument(doc.id, doc.file_name, doc.file_url)} className="btn-act del" title="Hapus">
+                                                    <button onClick={() => handleDeleteDocument(doc.id, doc.file_name, doc.file_url, doc.nisn, doc.nip)} className="btn-act del" title="Hapus">
                                                         <i className="bi bi-trash-fill"></i>
                                                     </button>
                                                 </div>
