@@ -31,6 +31,7 @@ import UserHeartbeat from '@/components/UserHeartbeat' // Import Heartbeat
 import CampionePage from '@/app/campione/page' // Import Campione Page
 import AgendaAkademikPage from '../agenda-akademik/page'
 import PersonalDocumentsPage from '../(dashboard)/personal-documents/page'
+import AnalisisBebanKerjaPage from '../analisis-beban-kerja/page'
 
 export default function DashboardPage() {
   return (
@@ -421,6 +422,7 @@ const PAGE_COMPONENTS: Record<string, (user: User, onRefreshUser: () => Promise<
   'agenda-akademik': () => <AgendaAkademikPage />,
   'arsip-siswa': (user) => <DokumenSiswaPage user={user} />,
   'personal-documents': (user) => <PersonalDocumentsPage user={user} />,
+  'analisis-beban-kerja': (user) => <AnalisisBebanKerjaPage />,
 };
 
 function renderPageContent(page: string, user: User) {
@@ -551,7 +553,7 @@ function DashboardContent({ user }: { user: User }) {
         /* HERO CARD */
         .db__hero {
           position: relative;
-          background: var(--n-primary);
+          background: linear-gradient(135deg, var(--n-primary) 0%, #c2185b 100%);
           color: white;
           padding: 3rem 3.5rem;
           border-radius: 28px;

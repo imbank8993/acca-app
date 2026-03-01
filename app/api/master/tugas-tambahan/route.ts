@@ -27,7 +27,40 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { nama_tugas, tahun_ajaran, semester, aktif } = body;
+        if (Array.isArray(body)) {
+            // Bulk insert handling
+            const validItems = body.filter(item => item.nama_tugas && item.tahun_ajaran && item.semester);
+
+            if (validItems.length === 0) {
+                return NextResponse.json({ ok: false, error: 'Tidak ada data valid untuk diimport (kolom wajib kosong)' }, { status: 400 });
+            }
+
+            const payload = validItems.map(item => {
+                const mapped: any = {
+                    nama_tugas: item.nama_tugas,
+                    tahun_ajaran: item.tahun_ajaran,
+                    semester: item.semester,
+                    jumlah_jp: parseInt(item.jumlah_jp) || 0,
+                    aktif: item.aktif ?? true,
+                    updated_at: new Date().toISOString()
+                };
+                if (item.id) {
+                    mapped.id = item.id;
+                }
+                return mapped;
+            });
+
+            const { data, error } = await supabaseAdmin
+                .from('master_tugas_tambahan')
+                .upsert(payload, { onConflict: 'id' })
+                .select();
+
+            if (error) throw error;
+            return NextResponse.json({ ok: true, count: data?.length || payload.length });
+        }
+
+        // Single insert
+        const { nama_tugas, tahun_ajaran, semester, jumlah_jp, aktif } = body;
 
         if (!nama_tugas || !tahun_ajaran || !semester) {
             return NextResponse.json({ ok: false, error: 'Nama Tugas, Tahun Ajaran, dan Semester wajib diisi' }, { status: 400 });
@@ -48,16 +81,22 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        const payloadToUpsert: any = {
+            nama_tugas,
+            tahun_ajaran,
+            semester,
+            jumlah_jp: parseInt(jumlah_jp) || 0,
+            aktif: aktif ?? true, // Default to true
+            updated_at: new Date().toISOString()
+        };
+
+        if (body.id) {
+            payloadToUpsert.id = body.id;
+        }
+
         const { data, error } = await supabaseAdmin
             .from('master_tugas_tambahan')
-            .upsert({
-                id: body.id, // If provided, it updates
-                nama_tugas,
-                tahun_ajaran,
-                semester,
-                aktif: aktif ?? true, // Default to true
-                updated_at: new Date().toISOString()
-            })
+            .upsert(payloadToUpsert)
             .select()
             .single();
 
